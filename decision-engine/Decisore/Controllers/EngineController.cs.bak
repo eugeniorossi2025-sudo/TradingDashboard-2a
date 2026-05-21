@@ -1,0 +1,548 @@
+using System.Data;
+using Microsoft.AspNetCore.Mvc;
+using Decisore.Models;
+using Decisore.Services;
+using Decisore.Repository;
+using System.Globalization;
+using System.Text.Json;
+using Decisore.ProactiveEngine_220;
+
+public enum Azione
+{
+    Nulla = 0,
+    StopPc = 1,
+    AzzeraMartingala = 2,
+    StartPc = 3
+}
+
+
+namespace Decisore.Controllers
+{
+    [ApiController]
+    [Route("api/proactive")]
+    public class ProactiveController : ControllerBase
+    {
+        //private readonly DeckStateService _deckService;
+        private readonly ProactiveEngineService _engineService;
+        private readonly DatabaseRepository _db;
+        private readonly LoggingService _loggingService;
+
+        public ProactiveController(
+            //DeckStateService deckService,
+            ProactiveEngineService engineService,
+            DatabaseRepository db,
+            LoggingService loggingService)
+        {
+            //_deckService = deckService;
+            _engineService = engineService;
+            _db = db;
+            _loggingService = loggingService;
+        }
+        
+        [HttpGet("reset")]
+        public int Reset()
+        {
+            _db.ClearPcStatus();
+            //_deckService.reset();
+            _engineService.reset();
+            return 1;
+        }
+        
+        [HttpGet("emergency-stop")]
+        public int Stop()
+        {
+            int totalTables = 0;
+            var allPCStatus = _db.GetAllPcStatus().Rows;
+
+            try
+            {
+                DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+
+                int count = allPCStatus
+                    .Cast<DataRow>()
+                    .Where(r => r["LAST_UPDATE"] != DBNull.Value)
+                    .Count(r =>
+                    {
+                        DateTime lastUpdate = DateTime.SpecifyKind(
+                            (DateTime)r["LAST_UPDATE"],
+                            DateTimeKind.Utc);
+
+                        return (nowUtc - lastUpdate).TotalSeconds <= 300;
+                    });
+
+                totalTables = count;
+            }
+            catch
+            {
+                    
+            }
+            
+            if (totalTables > 0) _engineService.emergencyStop();
+            return 1;
+        }
+        
+        [HttpPost("update-deck")]
+        [Consumes("application/x-www-form-urlencoded")]
+        public IActionResult UpdateDeck([FromForm] RequestParams p)
+        {
+            try
+            {
+                // 1️⃣ Validazione utente (come fai in Decide)
+                int userId = _db.ValidateUser(p.USERNAME, p.PASSWORD);
+                if (userId == -1)
+                {
+                    return Ok(0); // utente non valido
+                }
+
+                // 2️⃣ Genero KEY come nell’altra API
+                long KEY = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmssfff"));
+                
+                // 4️⃣ Aggiorno direttamente la tabella (senza engine)
+                _db.UpdatePcStatusDeck(
+                    key: KEY,
+                    computer: p.COMPUTER,
+                    account: p.USERNAME,
+                    tavolo: p.TAVOLO,
+                    mazzo: p.MAZZO,
+                    mazzoCalcolato: p.MAZZO
+                );
+
+                return Ok(1); // aggiornato correttamente
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return Ok(9); // errore
+            }
+        }
+        
+        [HttpPost("update-params")]
+        [Consumes("application/x-www-form-urlencoded")]
+        public IActionResult UpdateParams([FromForm] RequestParams p)
+        {
+            try
+            {
+                // 1️⃣ Validazione utente (come fai in Decide)
+                int userId = _db.ValidateUser(p.USERNAME, p.PASSWORD);
+                if (userId == -1)
+                {
+                    return Ok(0); // utente non valido
+                }
+
+                // 2️⃣ Genero KEY come nell’altra API
+                long KEY = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmssfff"));
+                
+                Double balanceDivider = 1.0;
+                Boolean hotzone = true;
+                Boolean signalW10 = true;
+                int mission_Target = 1500;
+                int mission_Time = 540;
+                int target_Tables = 10;
+                        
+                try
+                {
+                    Dictionary<String, String> configurations = _db.GetConfigurations();
+                    balanceDivider = Double.Parse(configurations["BALANCE_DIVIDER"], CultureInfo.InvariantCulture);
+                    hotzone = int.Parse(configurations["HOT_ZONE"]) == 1;
+                    signalW10 = int.Parse(configurations["SIGNALW10"]) == 1;
+                    mission_Target = int.Parse(configurations["MISSION_TARGET"], CultureInfo.InvariantCulture);
+                    mission_Time = int.Parse(configurations["MISSION_TIME"], CultureInfo.InvariantCulture);
+                    target_Tables = int.Parse(configurations["TARGET_TABLES"], CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex)
+                {
+                            
+                }
+
+                if (balanceDivider <= 0)
+                {
+                    balanceDivider = 1.0;
+                }
+
+                if (mission_Target <= 0)
+                {
+                    mission_Target = 1500;
+                }
+
+                if (mission_Time <= 0)
+                {
+                    mission_Time = 540;
+                }
+
+                if (target_Tables <= 0)
+                {
+                    target_Tables = 10;
+                }
+
+                // 3️⃣ Parsing valori numerici MINIMI per aggiornare la tabella
+                double saldoIniziale = 0;
+                double saldoIstantaneo = 0;
+                double margine = 0;
+                double valoreGiocato = 0;
+                decimal ore = 0;
+
+                if (!string.IsNullOrEmpty(p.SALDO_INIZIALE))
+                    saldoIniziale = (double)decimal.Parse(p.SALDO_INIZIALE.Replace(",", "."), CultureInfo.InvariantCulture);
+
+                if (!string.IsNullOrEmpty(p.SALDO_ISTANTANEO))
+                    saldoIstantaneo = (double)decimal.Parse(p.SALDO_ISTANTANEO.Replace(",", "."), CultureInfo.InvariantCulture);
+                else
+                    saldoIstantaneo = saldoIniziale; // fallback
+
+                if (!string.IsNullOrEmpty(p.MARGINE))
+                {
+                    margine = (double)decimal.Parse(p.MARGINE.Replace(",", "."), CultureInfo.InvariantCulture); 
+                    saldoIstantaneo = saldoIniziale + margine;
+                }
+
+                if (!string.IsNullOrEmpty(p.VALORE_GIOCATO))
+                    valoreGiocato = (double)decimal.Parse(p.VALORE_GIOCATO, CultureInfo.InvariantCulture) * balanceDivider;
+
+                if (!string.IsNullOrEmpty(p.TEMPO))
+                {
+                    var parts = p.TEMPO.Split(':');
+                    if (parts.Length >= 2 &&
+                        int.TryParse(parts[0], out int h) &&
+                        int.TryParse(parts[1], out int m))
+                    {
+                        ore = Convert.ToDecimal((h * 60 + m) / 60.0);
+                    }
+                }
+                
+                Console.WriteLine($"Chiamata {p.COMPUTER} {p.VALORE_GIOCATO} {p.MAZZO} ");
+
+                _db.UpdatePcStatusSimple(
+                    key: KEY,
+                    computer: p.COMPUTER,
+                    account: p.USERNAME,
+                    tavolo: p.TAVOLO,
+                    saldoIniziale: saldoIniziale,
+                    saldoIstantaneo: saldoIstantaneo,
+                    margine: margine,
+                    valoreGiocato: valoreGiocato,
+                    colpoMartingala: string.IsNullOrEmpty(p.COLPO_MARTINGALA) ? 0 : int.Parse(p.COLPO_MARTINGALA),
+                    stato: p.STATO,
+                    mazzo: p.MAZZO,
+                    mazzoCalcolato: p.MAZZO,
+                    ore: ore,
+                    chosenColor: p.CHOSEN_COLOR
+                );
+
+                return Ok(1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return Ok(9); // errore
+            }
+        }
+
+        
+        [HttpPost("bot-app-config")]
+        public IActionResult LoadBotAppConfig([FromBody] BotAppConfigDTO body)
+        {
+            try
+            {
+                if (body == null || string.IsNullOrEmpty(body.content))
+                {
+                    return BadRequest("Contenuto file mancante");
+                }
+
+                _db.SaveConfigurationFile(body.pc, body.content);
+
+                return Ok(1);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Errore POST: " + ex.Message);
+                return StatusCode(500, "Errore server");
+            }
+        }
+
+        [HttpGet("decide")]
+        public IActionResult Decide([FromQuery] RequestParams p)
+        {
+            try
+            {
+                long KEY = long.Parse(DateTime.Now.ToString("yyyyMMddHHmmssfff"));
+
+                string chosenColor = p.CHOSEN_COLOR;
+                
+                // 1️⃣ Validazione utente tramite DB
+                int userId = _db.ValidateUser(p.USERNAME, p.PASSWORD);
+                if (userId == -1) {
+                    return Ok(0);
+                }
+                
+                Double balanceDivider = 1.0;
+                Boolean hotzone = true;
+                Boolean signalW10 = true;
+                int mission_Target = 1500;
+                int mission_Time = 540;
+                int target_Tables = 10;
+                
+                try
+                {
+                    Dictionary<String, String> configurations = _db.GetConfigurations();
+                    balanceDivider = Double.Parse(configurations["BALANCE_DIVIDER"], CultureInfo.InvariantCulture);
+                    hotzone = int.Parse(configurations["HOT_ZONE"]) == 1;
+                    signalW10 = int.Parse(configurations["SIGNALW10"]) == 1;
+                    mission_Target = int.Parse(configurations["MISSION_TARGET"], CultureInfo.InvariantCulture);
+                    mission_Time = int.Parse(configurations["MISSION_TIME"], CultureInfo.InvariantCulture);
+                    target_Tables = int.Parse(configurations["TARGET_TABLES"], CultureInfo.InvariantCulture);
+                }
+                catch (Exception ex)
+                {
+                    
+                }
+
+                if (balanceDivider <= 0)
+                {
+                    balanceDivider = 1.0;
+                }
+
+                if (mission_Target <= 0)
+                {
+                    mission_Target = 1500;
+                }
+
+                if (mission_Time <= 0)
+                {
+                    mission_Time = 540;
+                }
+
+                if (target_Tables <= 0)
+                {
+                    target_Tables = 10;
+                }
+                
+                double valoreGiocatoValue =
+                    (double)decimal.Parse(p.VALORE_GIOCATO.Replace(",", "."), CultureInfo.InvariantCulture) * balanceDivider;
+                string valoreGiocatoFormatted = valoreGiocatoValue.ToString("C", new CultureInfo("it-IT"));
+
+                _loggingService.Log(
+                    $"Ricevuta chiamata [PBT = {p.PBT}, COLORE GIOCATO = {p.CHOSEN_COLOR}, VALORE GIOCATO = {valoreGiocatoFormatted}, MAZZO = {p.MAZZO}, STATO = {p.STATO}]");
+                
+                bool hasCompleteData =
+                    !string.IsNullOrEmpty(p.COMPUTER) &&
+                    !string.IsNullOrEmpty(p.TAVOLO) &&
+                    !string.IsNullOrEmpty(p.MARGINE) &&
+                    !string.IsNullOrEmpty(p.COLPO_MARTINGALA) &&
+                    !string.IsNullOrEmpty(p.MAZZO) &&
+                    !string.IsNullOrEmpty(p.PBT);
+
+                // 2️⃣ SALVATAGGIO PARAMETRI "UPI_VALUES" COME NELLA VECCHIA APP
+                foreach (var q in HttpContext.Request.Query)
+                {
+                    string key = q.Key;
+                    string val = q.Value;
+
+                    if (key.Equals("username", StringComparison.OrdinalIgnoreCase) ||
+                        key.Equals("password", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    bool skipSave = HttpContext.Request.Query.Count == 3;
+                    
+                    //_db.SaveRequestValue(KEY, key, val, userId, skipSave);
+                }
+
+                if (!hasCompleteData)
+                {
+                    Console.WriteLine($"--- INIZIO {p.COMPUTER} ---");
+                    Console.WriteLine(string.Join("\n", _loggingService._logs));
+                    Console.WriteLine($"--- FINE {p.COMPUTER} ---");
+                    return Ok(0);
+                }
+                
+                // 3️⃣ RESTO DELLA LOGICA (identica a prima)
+                int tableId = int.Parse(p.TAVOLO);
+                double margineValue = (double)decimal.Parse(p.MARGINE.Replace(",", "."), CultureInfo.InvariantCulture);
+                int martingalaLevel = int.Parse(p.COLPO_MARTINGALA) + 1;
+                int handIndex = int.Parse(p.MAZZO);
+                char esito = p.PBT.ToUpper()[0];
+                
+                string deckKey = $"{p.COMPUTER}_{p.TAVOLO}";
+                //int computedHandIndex = _deckService.ComputeHandIndex(deckKey, handIndex);
+                
+                double elapsed = 0;
+                double elapsedMax = 0;
+
+                if (!string.IsNullOrEmpty(p.TEMPO))
+                {
+                    var parts = p.TEMPO.Split(':');
+                    if (parts.Length >= 2 &&
+                        int.TryParse(parts[0], out int h) &&
+                        int.TryParse(parts[1], out int m))
+                    {
+                        elapsed = h * 60 + m;
+                    }
+                }
+
+                int totalTables = 0;
+                var allPCStatus = _db.GetAllPcStatus().Rows;
+
+                try
+                {
+                    DateTimeOffset nowUtc = DateTimeOffset.UtcNow;
+
+                    int count = allPCStatus
+                        .Cast<DataRow>()
+                        .Where(r => r["LAST_UPDATE"] != DBNull.Value)
+                        .Count(r =>
+                        {
+                            DateTime lastUpdate = DateTime.SpecifyKind(
+                                (DateTime)r["LAST_UPDATE"],
+                                DateTimeKind.Utc);
+
+                            return (nowUtc - lastUpdate).TotalSeconds <= 300;
+                        });
+
+                    totalTables = count;
+                    
+                    elapsedMax = allPCStatus
+                        .Cast<DataRow>()
+                        .Where(r => r["ORE"] != DBNull.Value)
+                        .Select(r => (double)r["ORE"])
+                        .DefaultIfEmpty(0)
+                        .Max();
+                }
+                catch
+                {
+                    
+                }
+                
+                elapsedMax = Math.Max(elapsedMax * 60, elapsed);
+
+                if (totalTables < 1)
+                {
+                    totalTables = 1;
+                }
+                
+                margineValue *= balanceDivider;
+
+                _engineService.startOrUpdateMission(mission_Target, mission_Time, target_Tables, balanceDivider);
+                
+                string margineFormatted = margineValue.ToString("C", new CultureInfo("it-IT"));
+
+                _loggingService.Category = p.COMPUTER;
+                _loggingService.Log($"Avvio feedAndDevice(tavolo: {tableId}, mazzo: {handIndex}, margine: {margineFormatted}, martingala: {martingalaLevel}, tavoli attivi: {totalTables})");
+                
+                (var advice, var infoString, var missionSnapshot, var valutazioneRisultato) = _engineService.Process(
+                    p.COMPUTER,
+                    tableId,
+                    handIndex,
+                    margineValue,
+                    martingalaLevel,
+                    hotzone,
+                    signalW10,
+                    esito,
+                    elapsedMax,
+                    totalTables,
+                    _loggingService);
+                
+                int action = 0;
+
+                if (advice.Duplicated)
+                {
+                    action = (int)Azione.Nulla;
+                    _loggingService.Log($"Azione 0 (Nulla)");
+                } else if (advice.StopMission)
+                { 
+                    action = (int)Azione.StopPc;
+                    _loggingService.Log($"Azione 1 (StopPC) => target raggiunto/ tempo scaduto");
+                } else if (advice.StopAtL5)
+                {
+                    action = (int)Azione.AzzeraMartingala;
+                    _loggingService.Log($"Azione 2 (AzzeraMartingala) => StopAtL5: true");
+                }
+                else
+                {
+                    action = (int)Azione.Nulla;
+                    _loggingService.Log($"Azione 0 (Nulla)");
+                }
+                
+                _loggingService.Action = action;
+
+                try
+                {
+                    p.SALDO_INIZIALE = p.SALDO_INIZIALE ?? "1000";
+                    p.VALORE_GIOCATO = p.VALORE_GIOCATO ?? "0";
+                    double saldoInizialeValue =
+                        (double)decimal.Parse(p.SALDO_INIZIALE.Replace(",", "."), CultureInfo.InvariantCulture);
+                    double saldoIstantaneoValue = 0;
+                    saldoIstantaneoValue = saldoInizialeValue + margineValue;
+                    /*
+                    if (!String.IsNullOrEmpty(p.SALDO_ISTANTANEO))
+                    {
+                        saldoIstantaneoValue = decimal.Parse(p.SALDO_ISTANTANEO.Replace(",", "."),
+                            CultureInfo.InvariantCulture);
+                    }
+                    else
+                    {
+                        saldoIstantaneoValue = saldoInizialeValue + margineValue;
+                    }
+                    */
+                    
+                    _db.UpdatePcStatus(
+                        key: KEY,
+                        computer: p.COMPUTER,
+                        account: p.USERNAME,
+                        tavolo: p.TAVOLO,
+                        saldoIniziale: saldoInizialeValue,
+                        saldoIstantaneo: saldoIstantaneoValue,
+                        margine: margineValue,
+                        valoreGiocato: valoreGiocatoValue,
+                        colpoMartingala: int.Parse(p.COLPO_MARTINGALA),
+                        stato: p.STATO,
+                        mazzo: p.MAZZO,
+                        mazzoCalcolato: handIndex,
+                        pbt: p.PBT,
+                        ore: Convert.ToDecimal(elapsed / 60),
+                        lastAdvice: JsonSerializer.Serialize(advice),
+                        lastInfo: infoString,
+                        missionSnapshot: missionSnapshot,
+                        valutazioneRisultato: valutazioneRisultato,
+                        lastAction: action,
+                        chosenColor: chosenColor
+                    );
+                    
+                    _db.UpdateMargin();
+                }
+                catch
+                {
+                    
+                }
+                
+                /*
+                if (reason.Contains("stop", StringComparison.OrdinalIgnoreCase) ||
+                    status.Contains("Disabled") ||
+                    advice.Prediction == "Disabled" ||
+                    advice.StopAtL5 ||
+                    status.Contains("🔴"))
+                    action = 1;
+                else if (reason.Contains("azzera", StringComparison.OrdinalIgnoreCase) ||
+                         reason.Contains("reset", StringComparison.OrdinalIgnoreCase) ||
+                         reason.Contains("martingala", StringComparison.OrdinalIgnoreCase))
+                    action = 2;
+                else if (reason.Contains("start", StringComparison.OrdinalIgnoreCase))
+                    action = 3;
+                */
+                
+                
+                
+                //action = advice.ActionCode >= 0 ? advice.ActionCode : 0;
+                
+                Console.WriteLine($"--- INIZIO {p.COMPUTER} ---");
+                Console.WriteLine(string.Join("\n", _loggingService._logs));
+                Console.WriteLine($"--- FINE {p.COMPUTER} ---");
+                
+                return Ok(action);
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                return Ok(9);
+            }
+        }
+    }
+}

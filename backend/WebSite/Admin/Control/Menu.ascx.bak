@@ -1,0 +1,71 @@
+﻿<%@ Control Language="VB" AutoEventWireup="false" CodeFile="Menu.ascx.vb" Inherits="Control_Menu" %>
+<div id="sidebar-menu" class="main_menu_side hidden-print main_menu">
+    <div class="menu_section">
+       
+        <ul class="nav side-menu"> 
+            <li onclick="location.href='/Admin/Default.aspx'">
+                <a id="A2" runat="server"><span class="ico-no-fill material-symbols-outlined">dashBoard</span> <span>DashBoard</span></a>
+            </li>
+             <!-- <li><a id="A3" runat="server"><i class="fa  fa-check-circle"></i>Data<span class="fa fa-chevron-down">
+            </span></a>
+                <ul class="nav child_menu" style="display: none"> -->
+                    <asp:Repeater ID="Rp_A3" runat="server">
+                        <HeaderTemplate>
+                        </HeaderTemplate>
+                        <ItemTemplate>
+                            <li> 
+                                <a href="<%# DataBinder.Eval(Container.DataItem, "folder")%>/<%# DataBinder.Eval(Container.DataItem, "page_name")%>">
+                                    <span class="ico-no-fill material-symbols-outlined"><%# DataBinder.Eval(Container.DataItem, "css") %></span>
+                                    <span><%# DataBinder.Eval(Container.DataItem, "page_title") %></span>
+                                    <span class="ico-no-fill material-symbols-outlined chevron">chevron_right</span>
+                                </a> 
+                            </li>
+                        </ItemTemplate>
+                        <FooterTemplate>
+                        </FooterTemplate>
+                    </asp:Repeater>
+                <!-- </ul> -->
+            <!-- </li> -->
+            <li><a id="A1" runat="server"><span class="ico-no-fill material-symbols-outlined">shield_person</span>
+            <span>Admin</span> <span class="ico-no-fill material-symbols-outlined chevron visible">keyboard_arrow_down</span></a>
+                <ul class="nav child_menu" style="display: none">
+                    <asp:Repeater ID="Rp_A1" runat="server">
+                        <HeaderTemplate>
+                        </HeaderTemplate>
+                        <ItemTemplate>
+                            <li><a href="<%# DataBinder.Eval(Container.DataItem, "folder")%>/<%# DataBinder.Eval(Container.DataItem, "page_name")%>">
+                                <span class="ico-no-fill material-symbols-outlined"><%# DataBinder.Eval(Container.DataItem, "css") %></span>
+                                <span><%# DataBinder.Eval(Container.DataItem, "page_title")%></span>
+                                <span class="ico-no-fill material-symbols-outlined chevron">chevron_right</span>
+                                </a></li>
+                        </ItemTemplate>
+                        <FooterTemplate>
+                        </FooterTemplate>
+                    </asp:Repeater>
+                </ul>
+            </li>
+            
+           
+          
+            <li><a id="A6" runat="server"><i class="fa fa-bar-chart-o"></i>Other Data <span
+                class="fa fa-chevron-down"></span></a>
+                <ul class="nav child_menu" style="display: none">
+                    <asp:Repeater ID="Rp_A6" runat="server">
+                        <HeaderTemplate>
+                        </HeaderTemplate>
+                        <ItemTemplate>
+                            <li><a href="<%# DataBinder.Eval(Container.DataItem, "folder")%>/<%# DataBinder.Eval(Container.DataItem, "page_name")%>">
+                                <span class="ico-no-fill material-symbols-outlined"><%# DataBinder.Eval(Container.DataItem, "css") %></span>
+                                <span><%# DataBinder.Eval(Container.DataItem, "page_title")%></span>
+                                <span class="ico-no-fill material-symbols-outlined chevron">chevron_right</span>
+                                </a></li>
+                        </ItemTemplate>
+                        <FooterTemplate>
+                        </FooterTemplate>
+                    </asp:Repeater>
+                </ul>
+            </li>
+        </ul>
+    </div>
+    
+</div>

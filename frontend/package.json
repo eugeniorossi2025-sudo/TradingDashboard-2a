@@ -1,0 +1,46 @@
+{
+    "name": "bot-dashboard-bacarra",
+    "version": "4.3.0",
+    "scripts": {
+        "dev": "vite",
+        "build": "vite build",
+        "preview": "vite preview",
+        "lint": "eslint --fix . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+        "download-swagger": "curl -k http://localhost:5299/swagger/v1/swagger.json -o src/api/swagger.json",
+        "generate-api": "openapi-generator-cli generate -i src/api/swagger.json -g typescript-axios -o src/api/client --additional-properties=supportsES6=true,withSeparateModelsAndApi=true,apiPackage=api,modelPackage=models",
+        "update-api": "npm run download-swagger && npm run generate-api"
+    },
+    "dependencies": {
+        "@microsoft/signalr": "^10.0.0",
+        "@primeuix/themes": "^1.0.0",
+        "ace-builds": "^1.43.5",
+        "chart.js": "3.3.2",
+        "json-editor-vue": "^0.18.1",
+        "luxon": "^3.7.2",
+        "primeicons": "^7.0.0",
+        "primevue": "^4.3.1",
+        "tailwindcss-primeui": "^0.5.0",
+        "vue": "^3.4.34",
+        "vue-router": "^4.4.0"
+    },
+    "devDependencies": {
+        "@openapitools/openapi-generator-cli": "^2.25.2",
+        "@primevue/auto-import-resolver": "^4.3.1",
+        "@rushstack/eslint-patch": "^1.8.0",
+        "@tailwindcss/vite": "^4.1.17",
+        "@typescript-eslint/eslint-plugin": "^8.48.1",
+        "@typescript-eslint/parser": "^8.48.1",
+        "@vitejs/plugin-vue": "^5.0.5",
+        "@vue/eslint-config-prettier": "^9.0.0",
+        "@vue/eslint-config-typescript": "^14.6.0",
+        "eslint": "^9.39.1",
+        "eslint-import-resolver-typescript": "^4.4.4",
+        "eslint-plugin-vue": "^9.23.0",
+        "prettier": "^3.2.5",
+        "sass": "^1.55.0",
+        "tailwindcss": "^4.1.17",
+        "typescript": "^5.9.3",
+        "unplugin-vue-components": "^0.27.3",
+        "vite": "^5.3.1"
+    }
+}

@@ -1,0 +1,746 @@
+﻿<%@ Page Title="" Language="VB" MasterPageFile="~/Admin/MasterFirst.master" AutoEventWireup="false"
+    CodeFile="~/Admin/Default.aspx.vb" Inherits="Edit_Default" %>
+
+<asp:Content ID="Content1" ContentPlaceHolderID="PageContent" runat="Server">
+    <style>
+        .radgrid-wrapper {
+            min-height: 950px; /* Imposta un'altezza minima leggermente superiore all'altezza della griglia (550px) */
+            /*   overflow: hidden;Importante per contenere eventuali float e definire il confine */
+        }
+
+        .width_50 {
+    width: 75px !important;
+    min-width: 75px !important;
+    max-width: 75px !important;
+}
+        .width_low {
+            width: 75px !important;
+            min-width: 75px !important;
+            max-width: 75px !important;
+        }
+
+        .width_150{
+            width: 150px !important;
+min-width: 150px !important;
+max-width: 150px !important;
+        }
+
+        .RadGrid th.ORE {
+            width: 10px !important;
+            min-width: 10px !important;
+        }
+
+        /* Celle Dati (Item/AlternatingItem) */
+        .RadGrid td.ORE {
+            width: 10px !important;
+            width: 10px !important;
+            min-width: 10px !important;
+        }
+
+        /* Nasconde la casella di spunta nativa (importante!) */
+        .toggle-button input[type="checkbox"] {
+            display: none;
+        }
+
+        /* Stile di base per il "pulsante" (l'etichetta) */
+        .toggle-button label {
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            color: #7a8288;
+            transition: all 0.2s ease;
+            font-weight: normal;
+        }
+
+        /* Stile per lo stato 'Checked' */
+        .toggle-button input[type="checkbox"]:checked + label {
+            background-color: #7a8288; /* Colore di evidenziazione */
+            color: white !important;
+            font-weight: normal;
+        }
+
+        /* Stile al passaggio del mouse (opzionale) */
+        .toggle-button label:hover {
+            background-color: #e9e9e9;
+            font-weight: normal;
+        }
+
+        .RadWindow {
+            overflow: none;
+        }
+
+        div[id^="alert"][id$="_content"] .rwDialogText {
+            overflow-y: auto !important;
+            max-height: 400px;
+            scroll-behavior: smooth;
+            padding: 8px 10px;
+        }
+    </style>
+    <div class="row ">
+        <div class="col-md-6">
+            <div class="tool-top-container">
+                <asp:Label ID="LblInfo" runat="server" class="title-cat"></asp:Label>
+            </div>
+        </div>
+    </div>
+    <div class="row">
+
+        <div class="col-lg-3">
+            <div class="clearfix">
+                <div class="btn-group pull-left">
+                    <asp:CheckBox ID="chkToggle" runat="server" Text="Mobile Version" AutoPostBack="true" CssClass="btn toggle-button" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-2">
+            <div class="clearfix">
+                <div class="btn-group pull-left">
+                    <asp:Button ID="BtnStart" runat="server" Text="Start Timer" CssClass="btn btn-primary" OnClientClick="enableTimer();" />
+                </div>
+                <div class="btn-group pull-right">
+                    <asp:Button ID="BtnStop" runat="server" Text="Stop Timer" CssClass="btn btn-danger" OnClientClick="disableTimer();" />
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-1">&nbsp;</div>
+        <div class="col-lg-1 legenda VERDE" style="display: none"><b>CORRECT</b></div>
+        <div class="col-lg-1 legenda ROSSO" style="display: none"><b>NEGATIVE BALANCE</b></div>
+        <div class="col-lg-1 legenda GIALLO" style="display: none"><b>RECOVERY</b></div>
+        <div class="col-lg-1 legenda NERO" style="display: none"><b>OUT OF AVERAGE</b></div>
+
+
+
+        <div class="col-lg-2">
+            <div class="clearfix">
+                <div class="btn-group pull-right">
+                    <asp:Button ID="BtnSaveConfiguration" runat="server" Text="Save Configuration" CssClass="btn btn-default" />
+                </div>
+            </div>
+        </div>
+
+
+        <div class="col-lg-4">
+            <div class="clearfix">
+                <div class="btn-group pull-right">
+                    <asp:Button ID="BtnResetDashboard" runat="server" Text="Reset Dashboard" CssClass="btn btn-primary" OnClientClick="javascript:return confirm('Reset all the dashboard?')" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <br />
+    <div class="row">
+        <div class="col-lg-12  radgrid-wrapper">
+            <telerik:RadAjaxLoadingPanel ID="RadAjaxLoadingPanel" runat="server" MinDisplayTime="200">
+            </telerik:RadAjaxLoadingPanel>
+            <telerik:RadAjaxManager ID="RadAjaxManager1" runat="server" DefaultLoadingPanelID="RadAjaxLoadingPanel">
+                <AjaxSettings>
+                    <telerik:AjaxSetting AjaxControlID="RadGrid1">
+                        <UpdatedControls>
+                            <telerik:AjaxUpdatedControl ControlID="RadGrid1" LoadingPanelID="RadAjaxLoadingPanel" />
+                        </UpdatedControls>
+                    </telerik:AjaxSetting>
+                </AjaxSettings>
+            </telerik:RadAjaxManager>
+            <telerik:RadWindowManager ID="RadWindowManager1" runat="server" EnableShadow="true">
+                <Windows>
+                    <telerik:RadWindow ID="RadWindow1" runat="server" ShowContentDuringLoad="false" Width="400px"
+                        Height="400px" Behaviors="Close">
+                    </telerik:RadWindow>
+                </Windows>
+            </telerik:RadWindowManager>
+
+            <asp:UpdatePanel ID="UpdatePanelGrid" runat="server" UpdateMode="Conditional">
+                <ContentTemplate>
+
+
+                    <asp:Timer ID="GridTimer" runat="server" Interval="1500" OnTick="GridTimer_Tick" />
+
+
+                    <div class="row">
+                        <telerik:RadGrid Font-Size="12PX" ID="RadGrid1" AllowPaging="True" runat="server" OnNeedDataSource="RadGrid1_NeedDataSource"
+                            AllowFilteringByColumn="False" EnableHeaderContextMenu="true" AllowSorting="False"
+                            PageSize="20" ShowFooter="True" AutoGenerateColumns="false" ShowStatusBar="true">
+                            <ClientSettings>
+                                <Scrolling
+                                    ScrollHeight="550px" />
+                            </ClientSettings>
+                            <MasterTableView Font-Size="14">
+                                <Columns>
+                                    <telerik:GridBoundColumn DataField="MINUTI_PASSATI" UniqueName="MINUTI_PASSATI" HeaderText="MIN INATTIVO">
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="ACCOUNT" UniqueName="ACCOUNT" HeaderText="ACCOUNT">
+                                        <HeaderStyle CssClass="width_50" />
+                                    </telerik:GridBoundColumn>
+
+                                    <telerik:GridTemplateColumn HeaderText="INFO" UniqueName="INFO">
+                                        <ItemTemplate>
+                                            <asp:LinkButton ID="lnkInfo" runat="server" Text="&#8505;" CssClass="infoIcon"
+                                                CommandName="ShowTooltip" CommandArgument='<%# Eval("ACCOUNT") %>'
+                                                ToolTip="Mostra dettagli"></asp:LinkButton>
+                                        </ItemTemplate>
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" HorizontalAlign="Center" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridTemplateColumn>
+
+                                    <telerik:GridBoundColumn DataField="TAVOLO" UniqueName="TAVOLO" HeaderText="TAVOLO" ItemStyle-HorizontalAlign="Center"
+                                        HeaderStyle-HorizontalAlign="Center"
+                                        FooterStyle-HorizontalAlign="Center">
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="MAZZO" UniqueName="MAZZO" HeaderText="MAZZO">
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridNumericColumn Aggregate="Sum" FooterStyle-Font-Bold="true"
+                                        DataFormatString="{0:N2}"
+                                        FooterAggregateFormatString="{0:N2}"
+                                        FooterStyle-ForeColor="Black" DataField="MARGINE" UniqueName="MARGINE" HeaderText="MARGINE"
+                                        ItemStyle-HorizontalAlign="Right"
+                                        HeaderStyle-HorizontalAlign="Right"
+                                        FooterStyle-HorizontalAlign="Right">
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridNumericColumn>
+
+                                    <telerik:GridNumericColumn Aggregate="Sum" FooterStyle-Font-Bold="true"
+                                        DataFormatString="{0:N2}"
+                                        FooterAggregateFormatString="{0:N2}"
+                                        FooterStyle-ForeColor="Black" DataField="MEDIA_ORA" UniqueName="MEDIA_ORA" HeaderText="MEDIA_ORA"
+                                        ItemStyle-HorizontalAlign="Right"
+                                        HeaderStyle-HorizontalAlign="Right"
+                                        FooterStyle-HorizontalAlign="Right">
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridNumericColumn>
+
+                                    <telerik:GridBoundColumn DataField="VALORE_GIOCATO" UniqueName="VALORE_GIOCATO" HeaderText="PUNTATA">
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridBoundColumn>
+
+                                    <telerik:GridBoundColumn DataField="STATO" UniqueName="STATO" HeaderText="STATO">
+                                    </telerik:GridBoundColumn>
+
+                                    <telerik:GridBoundColumn DataField="COLORE" UniqueName="COLORE" HeaderText="COLORE">
+                                        <HeaderStyle CssClass="width_50" />
+                                        <ItemStyle CssClass="width_50" />
+                                        <FooterStyle CssClass="width_50" />
+                                    </telerik:GridBoundColumn>
+
+                                    <%--   <telerik:GridBoundColumn DataField="PBT" UniqueName="PBT" HeaderText="PBT">
+                                    <HeaderStyle CssClass="width_low" />
+                                    <ItemStyle CssClass="width_low" />
+                                    <FooterStyle CssClass="width_low" />
+                                </telerik:GridBoundColumn>--%>
+
+                                    <telerik:GridTemplateColumn HeaderText="MARTINGALA" UniqueName="MARTINGALA">
+                                        <ItemTemplate>
+
+                                            <button id="btnStart" style='<%# IIF(IsAdmin , "" , "display:none;") %>' type="button" class="start martingala-btn" data-pc='<%# Eval("ACCOUNT") %>'>START</button>
+                                            <asp:Literal ID="litStatoIcona" runat="server" />
+                                            <button id="btnStop" style='<%# IIF(IsAdmin , "" , "display:none;") %>' type="button" class="stop martingala-btn" data-pc='<%# Eval("ACCOUNT") %>'>STOP</button>
+                                            <button id="btnAzzera" style='<%# IIF(IsAdmin , "" , "display:none;") %>' type="button" class="azzera martingala-btn" data-pc='<%# Eval("ACCOUNT") %>'>SAFE</button>
+
+                                            <asp:Label ID="LabelValore" runat="server"
+                                                Text='<%# Eval("COLPO_MARTINGALA") %>'
+                                                Style="margin-left: 10px; font-weight: bold" />
+
+
+                                        </ItemTemplate>
+                                    </telerik:GridTemplateColumn>
+
+                                    <telerik:GridBoundColumn  DataField="VALUTAZIONE" UniqueName="VALUTAZIONE" HeaderText="ASSESMENT">                                        
+                                    </telerik:GridBoundColumn>
+
+                                    <telerik:GridBoundColumn DataField="REASON" UniqueName="REASON" HeaderText="REASON">
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="PREDICTION" UniqueName="PREDICTION" HeaderText="PREDICTION">
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="FUTUREL5PRED" UniqueName="FUTUREL5PRED" HeaderText="FUTUREL5PRED">
+
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="STOPATL5" UniqueName="STOPATL5" HeaderText="STOPATL5">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="AUTHORIZERHEAVY" UniqueName="AUTHORIZERHEAVY" HeaderText="AUTH-HEAVY">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridTemplateColumn HeaderText="SIGNALW10">
+                                        <ItemTemplate>
+                                            <asp:Literal ID="litNote" runat="server"></asp:Literal><br />
+                                            <asp:Literal ID="litW10" runat="server"></asp:Literal>
+
+                                        </ItemTemplate>
+                                    </telerik:GridTemplateColumn>
+                                    <telerik:GridBoundColumn DataField="TABLESCORE" UniqueName="TABLESCORE" HeaderText="TABLESCORE">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="LEVELINDEX" UniqueName="LEVELINDEX" HeaderText="LEVELINDEX">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="STAKEUNIT" UniqueName="STAKEUNIT" HeaderText="STAKEUNIT">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="JSON" HeaderText="JSON" UniqueName="JSON" Visible="false" />
+                                    <telerik:GridBoundColumn DataField="HOTZONE" UniqueName="HOTZONE" HeaderText="HOTZONE">
+                                        <%-- <HeaderStyle CssClass="width_low" />
+                                    <ItemStyle CssClass="width_low" />
+                                    <FooterStyle CssClass="width_low" />--%>
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="VMLOCAL20" UniqueName="VMLOCAL20" HeaderText="VMLOCAL20">
+                                    </telerik:GridBoundColumn>
+
+
+                                    <%--<telerik:GridNumericColumn Aggregate="Sum" FooterStyle-Font-Bold="true"
+                                DataFormatString="{0:N2}"
+                                FooterAggregateFormatString="{0:N2}"
+                                FooterStyle-ForeColor="Black" DataField="ORE" UniqueName="ORE" HeaderText="ORE"
+                                ItemStyle-HorizontalAlign="Center"
+                                HeaderStyle-HorizontalAlign="Center"
+                                FooterStyle-HorizontalAlign="Center">
+                                <HeaderStyle CssClass="width_low" />
+                                <ItemStyle CssClass="width_low" />
+                                <FooterStyle CssClass="width_low" />
+                            </telerik:GridNumericColumn>--%>
+                                    <telerik:GridNumericColumn Aggregate="Sum" FooterStyle-Font-Bold="true"
+                                        DataFormatString="{0:N2}"
+                                        FooterAggregateFormatString="{0:N2}"
+                                        FooterStyle-ForeColor="Black" DataField="SALDO_INIZIALE" UniqueName="SALDO_INIZIALE" HeaderText="SALDO INIZ."
+                                        ItemStyle-HorizontalAlign="Right"
+                                        HeaderStyle-HorizontalAlign="Right"
+                                        FooterStyle-HorizontalAlign="Right">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridNumericColumn>
+                                    <telerik:GridNumericColumn Aggregate="Sum" FooterStyle-Font-Bold="true"
+                                        DataFormatString="{0:N2}"
+                                        FooterAggregateFormatString="{0:N2}"
+                                        FooterStyle-ForeColor="Black" DataField="SALDO_ISTANTANEO" UniqueName="SALDO_ISTANTANEO" HeaderText="SALDO ISTANT."
+                                        ItemStyle-HorizontalAlign="Right"
+                                        HeaderStyle-HorizontalAlign="Right"
+                                        FooterStyle-HorizontalAlign="Right">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridNumericColumn>
+
+                                    <telerik:GridBoundColumn DataField="NOTE" UniqueName="NOTE" HeaderText="NOTE" Visible="false">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+                                    <telerik:GridBoundColumn DataField="ORE" UniqueName="ORE" HeaderText="ORE" ItemStyle-HorizontalAlign="Center"
+                                        HeaderStyle-HorizontalAlign="Center"
+                                        FooterStyle-HorizontalAlign="Center">
+                                        <HeaderStyle CssClass="width_low" />
+                                        <ItemStyle CssClass="width_low" />
+                                        <FooterStyle CssClass="width_low" />
+                                    </telerik:GridBoundColumn>
+
+                                </Columns>
+                            </MasterTableView>
+                            <GroupingSettings CaseSensitive="false" />
+                            <ClientSettings>
+                                <Scrolling AllowScroll="true" />
+                                <Selecting AllowRowSelect="false"></Selecting>
+                            </ClientSettings>
+                            <PagerStyle Mode="NextPrevAndNumeric"></PagerStyle>
+                            <FilterMenu EnableTheming="True">
+                                <CollapseAnimation Duration="200" Type="OutQuint" />
+                            </FilterMenu>
+                        </telerik:RadGrid>
+                    </div>
+
+
+                    <div class="row">
+
+                        <div class="col-md-12">
+                            <div>
+                                <hr />
+                            </div>                            
+                            <div class="headerToggle">
+                                NOTE                           
+                            </div>
+                            <div class="pad20">
+                                <asp:Label runat="server" ID="LblNote"></asp:Label>
+                            </div>
+
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </asp:UpdatePanel>
+
+        </div>
+    </div>
+
+
+
+
+    <div class="row mt-5">
+        <div class="col-lg-12">
+            <asp:UpdatePanel ID="UpdatePanelChart" runat="server" UpdateMode="Conditional">
+                <ContentTemplate>
+                    <div class="headerToggle">CHART</div>
+                    <div class="pad20">
+                        <div class="row text-center">
+                            <div class="col-md-12">
+                                <h1 class="green fw-bold mb-0">
+                                    <asp:Label runat="server" ID="LblMissionCompleted" Visible="false" CssClass="danger">Mission completed, target achieved!</asp:Label>
+                                </h1>
+                            </div>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Time Elapsed</h4>
+                                        <h3 class="fw-bold mb-0">
+                                            <asp:Label ID="lblTempoTrascorso" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Minimum Margin</h4>
+                                        <h3 class="text-danger fw-bold mb-0">
+                                            <asp:Label ID="lblMargineMin" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Maximum Margin</h4>
+                                        <h3 class="text-primary fw-bold mb-0">
+                                            <asp:Label ID="lblMargineMax" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Current Margin</h4>
+                                        <h3 class="text-success fw-bold mb-0">
+                                            <asp:Label ID="lblMargineAttuale" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row text-center">
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Target</h4>
+                                        <h3 class="fw-bold mb-0">
+                                            <asp:Label ID="LblTarget" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Mission Time</h4>
+                                        <h3 class="fw-bold mb-0">
+                                            <asp:Label ID="LblMissionTime" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">Speed</h4>
+                                        <h3 class="fw-bold mb-0">
+                                            <asp:Label ID="LblSpeed" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3 mb-2">
+                                <div class="card shadow-sm border-0 bg-light">
+                                    <div class="card-body py-2">
+                                        <h4 class="text-secondary mb-1">% Achievement</h4>
+                                        <h3 class="fw-bold mb-0">
+                                            <asp:Label ID="LblAchievement" runat="server" Text="0"></asp:Label>
+                                        </h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <telerik:RadHtmlChart ID="RadHtmlChart1" runat="server" Width="100%">
+                                <PlotArea>
+                                    <Series>
+                                        <telerik:LineSeries Name="Margine"
+                                            DataFieldY="MARGINE"
+                                            MissingValues="Interpolate">
+                                            <LabelsAppearance Visible="false"></LabelsAppearance>
+                                        </telerik:LineSeries>
+                                    </Series>
+                                    <XAxis DataLabelsField="DATETIME"
+                                        BaseUnit="Minutes"
+                                        LabelsAppearance-DataFormatString="{0:HH:mm}">
+                                        <LabelsAppearance DataFormatString="{0:HH:mm}" Step="5" RotationAngle="45" Position="Start" />
+                                        <TitleAppearance Text="Hours" />
+                                    </XAxis>
+                                    <YAxis>
+                                        <TitleAppearance Text="Margin" />
+                                    </YAxis>
+                                </PlotArea>
+                                <ChartTitle Text=""></ChartTitle>
+                                <Legend>
+                                    <Appearance Position="Top" />
+                                </Legend>
+                            </telerik:RadHtmlChart>
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </asp:UpdatePanel>
+
+        </div>
+    </div>
+
+    <style>
+        .box {
+            /*border: 1.5px solid #828282;*/
+
+            border-width: 2px; /* Scegli uno spessore per il bordo */
+            border-style: solid;
+            border-color: white;
+            padding: 10px;
+            text-align: center;
+            color: #333;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            border-radius: 7px;
+            margin-bottom: 5px;
+            width: 24%;
+            background-color: #828282;
+        }
+
+        .VERDE {
+            background-color: #99ff99 !important;
+            color: #333;
+        }
+        /* CORRETTO */
+        .ROSSO {
+            background-color: #ff6666 !important;
+            color: #333;
+        }
+        /* SALDO NEGATIVO */
+        .GIALLO {
+            background-color: #ffff66 !important;
+            color: #000;
+        }
+        /* RECUPERO */
+        .NERO {
+            background-color: #333 !important;
+            color: #FFF;
+        }
+
+        .martingala-btn {
+            color: #000;
+            border-width: 0px; /* Scegli uno spessore per il bordo */
+            border-style: solid;
+            border-color: black;
+            padding: 2px;
+            min-width: 55px;
+            width: 55px;
+            margin-bottom: 4px;
+        }
+        /* FUORI MEDIA */
+
+        .infoIcon {
+            font-size: 18px;
+            color: #0078d7;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+            .infoIcon:hover {
+                color: #005999;
+            }
+    </style>
+    <script>
+
+
+
+        function disableTimer() {
+            var timer = $find("<%= GridTimer.ClientID %>");
+            if (timer) timer.set_enabled(false);
+        }
+
+        function enableTimer() {
+            var timer = $find("<%= GridTimer.ClientID %>");
+            if (timer) timer.set_enabled(true);
+        }
+
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('copyCell')) {
+                var fullText = e.target.getAttribute('data-fulltext');
+                navigator.clipboard.writeText(fullText).then(function () {
+                    // opzionale: notifica
+                    alert('Testo copiato negli appunti!');
+                });
+            }
+        });
+
+
+
+        $(document).ready(function () {
+            // Al click sull'header
+            $("#headerToggle").click(function () {
+                // Usa slideToggle() per aprire e chiudere il contenuto con animazione
+                $("#contentToggle").slideToggle("slow");
+
+                // Opzionale: puoi cambiare il testo o un'icona nell'header
+            });
+        });
+
+
+        $(document).ready(function () {
+
+
+
+            $(document).on("click", ".start", function (e) {
+
+                // 🚨 SOLUZIONE AL REFRESH: Impedisce la sottomissione del form 🚨
+                // L'errore è qui: e.preventDefault() non sempre basta su un <button> senza type="button"
+                e.preventDefault();
+                e.stopPropagation(); // Aggiungiamo anche lo stop della propagazione per sicurezza 
+                // 1. Legge l'ID dall'attributo data-pc
+                // Ho sostituito "data-id" con "data-pc" per allinearmi al tuo var PC
+                var PC = $(this).data("pc");
+
+
+                if (confirm("Sei sicuro di voler avviare il " + PC + "?")) {
+
+                    // 2. Chiamata AJAX
+                    $.ajax({
+                        type: "POST",
+                        // Assicurati che il percorso sia corretto: "~/Edit/Dashboard.aspx"
+                        url: "Default.aspx/StartPC",
+                        data: JSON.stringify({ 'PC': PC }), // Il nome del parametro deve coincidere con il Metodo Web
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                        success: function (response) {
+                            var risultato = response.d;
+                            if (risultato === "OK") {
+                                //alert("Il " + PC + " sta venendo interrotto!"); 
+                            } else {
+                                alert("Errore : " + risultato);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("Errore AJAX:", status, error);
+                            alert("Si è verificato un errore durante la richiesta.");
+                        }
+                    });
+                }
+            });
+
+            $(document).on("click", ".stop", function (e) {
+
+                // 🚨 SOLUZIONE AL REFRESH: Impedisce la sottomissione del form 🚨
+                // L'errore è qui: e.preventDefault() non sempre basta su un <button> senza type="button"
+                e.preventDefault();
+                e.stopPropagation(); // Aggiungiamo anche lo stop della propagazione per sicurezza 
+                // 1. Legge l'ID dall'attributo data-pc
+                // Ho sostituito "data-id" con "data-pc" per allinearmi al tuo var PC
+                var PC = $(this).data("pc");
+
+
+                if (confirm("Sei sicuro di voler stoppare il " + PC + "?")) {
+
+                    // 2. Chiamata AJAX
+                    $.ajax({
+                        type: "POST",
+                        // Assicurati che il percorso sia corretto: "~/Edit/Dashboard.aspx"
+                        url: "Default.aspx/StopPC",
+                        data: JSON.stringify({ 'PC': PC }), // Il nome del parametro deve coincidere con il Metodo Web
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                        success: function (response) {
+                            var risultato = response.d;
+                            if (risultato === "OK") {
+                                //alert("Il " + PC + " sta venendo interrotto!"); 
+                            } else {
+                                alert("Errore : " + risultato);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("Errore AJAX:", status, error);
+                            alert("Si è verificato un errore durante la richiesta.");
+                        }
+                    });
+                }
+            });
+
+            $(document).on("click", ".azzera", function (e) {
+
+                // 🚨 SOLUZIONE AL REFRESH: Impedisce la sottomissione del form 🚨
+                // L'errore è qui: e.preventDefault() non sempre basta su un <button> senza type="button"
+                e.preventDefault();
+                e.stopPropagation(); // Aggiungiamo anche lo stop della propagazione per sicurezza 
+                // 1. Legge l'ID dall'attributo data-pc
+                // Ho sostituito "data-id" con "data-pc" per allinearmi al tuo var PC
+                var PC = $(this).data("pc");
+
+
+                if (confirm("Sei sicuro di mandare in safe win il " + PC + "?")) {
+
+                    // 2. Chiamata AJAX
+                    $.ajax({
+                        type: "POST",
+                        // Assicurati che il percorso sia corretto: "~/Edit/Dashboard.aspx"
+                        url: "Default.aspx/AzzeraMartingala",
+                        data: JSON.stringify({ 'PC': PC }), // Il nome del parametro deve coincidere con il Metodo Web
+                        contentType: "application/json; charset=utf-8",
+                        dataType: "json",
+                        success: function (response) {
+                            var risultato = response.d;
+                            if (risultato === "OK") {
+                                //alert("Il " + PC + " sta venendo interrotto!"); 
+                            } else {
+                                alert("Errore : " + risultato);
+                            }
+                        },
+                        error: function (xhr, status, error) {
+                            console.error("Errore AJAX:", status, error);
+                            alert("Si è verificato un errore durante la richiesta.");
+                        }
+                    });
+                }
+            });
+
+
+        });
+    </script>
+</asp:Content>

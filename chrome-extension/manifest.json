@@ -1,0 +1,124 @@
+{
+    "manifest_version": 3,
+    "name": "Eugenio - Casino Full Page",
+    "version": "1.0.0",
+    "permissions": ["storage", "webNavigation", "scripting"],
+    "host_permissions": ["<all_urls>"],
+    "action": {
+        "default_title": "Eugenio - Casino Full Page",
+        "default_popup": "popup.html"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["common/full-screen-blocker.js"],
+            "run_at": "document_start",
+            "world": "MAIN"
+        },
+        {
+            "matches": ["<all_urls>"],
+            "allFrames": true,
+            "js": ["common/hide-scrollbars.js"],
+            "run_at": "document_start"
+        },
+        {
+            "matches": ["*://*.starcasino.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.betflag.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.netbet.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.gioconlineitalia.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.marathonbet.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://resources.marathonbet.it/*"],
+            "all_frames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.admiralbet.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.pragmaticplaylive.net/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.netwin.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.starvegas.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.totosi.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://resources.totosi.it/*"],
+            "all_frames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.evo-games.com/*"],
+            "all_frames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://resources.snai.it/*"],
+            "all_frames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        },
+        {
+            "matches": ["*://*.eplay24.it/*"],
+            "allFrames": true,
+            "js": ["content.js"],
+            "run_at": "document_idle"
+        }
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": ["common/site-engine.js", "sites-config/*.config.js"],
+            "matches": ["<all_urls>"]
+        }
+    ]
+}

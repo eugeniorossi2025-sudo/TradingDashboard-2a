@@ -1,0 +1,1178 @@
+:root{
+    --grey-200: #E8EBEC;
+    --grey-100:#F2F4F5;
+    --grey-50: #FAFAFA;
+
+    --blue-700: #276777;
+
+    --cyan-500: #4295B5;
+
+    --black: #000000;
+}
+
+.btn{
+    font-size: 16px !important;
+    font-weight: 700 !important;
+}
+.btn.active, .btn.submit:active {
+    -webkit-box-shadow: none !important;
+    box-shadow: none !important;
+    background-color: #fff !important;
+    border-color: inherit !important;
+}
+.material-symbols-outlined {
+  font-variation-settings:
+  'FILL' 1,
+  'wght' 400,
+  'GRAD' 0,
+  'opsz' 24;
+    font-size:24px;
+}
+
+.material-symbols-outlined.ico-no-fill {
+    font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+      font-size:24px;
+  
+}
+.material-symbols-outlined.chevron {
+    font-variation-settings:
+    'FILL' 0,
+    'wght' 400,
+    'GRAD' 0,
+    'opsz' 24;
+      font-size:20px;    
+}
+
+
+
+.table-grid {
+    height:100%;
+}
+.rgDataDiv{
+         height: auto !important ;
+}
+.table-grid,
+.table-grid table.rgMasterTable{
+    border: none !important;
+} 
+
+.table-grid table.rgMasterTable {
+    border-collapse:separate;
+    border-spacing:0 8px;   
+}
+.table-grid table.rgMasterTable thead th:first-child,
+.table-grid table.rgMasterTable thead td:first-child,
+.table-grid table.rgMasterTable tbody th:first-child,
+.table-grid table.rgMasterTable tbody td:first-child{
+    border-top-left-radius: 4px;
+    border-bottom-left-radius: 4px;
+}
+.table-grid table.rgMasterTable thead th:last-child,
+.table-grid table.rgMasterTable thead td:last-child,
+.table-grid table.rgMasterTable tbody th:last-child,
+.table-grid table.rgMasterTable tbody td:last-child{
+    border-top-right-radius: 4px;
+    border-bottom-right-radius: 4px;
+}
+
+.table-grid table.rgMasterTable thead tr th, 
+.table-grid table.rgMasterTable tbody tr td{
+    border: none !important;
+    color: var(--black);  
+    padding-left: 8px;
+    padding-right: 8px;
+}
+
+.table-grid table.rgMasterTable thead th.rgHeader{
+    background-color: var(--grey-200);
+    font-size: 12px;
+    font-weight: 700;
+    height: 40px;
+} 
+
+.table-grid table.rgMasterTable tbody tr td{
+    background-color: var(--grey-50);
+    font-size: 14px;
+    white-space: nowrap;
+    max-width: 320px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+}
+
+.table-grid tbody tr:hover td{
+    background-color: var(--grey-100) !important;
+}
+
+.table-grid.RadGrid_Bootstrap tbody .rgSorted {
+    background-color: var(--grey-50);
+}
+
+.table-grid table.rgMasterTable thead th.rgSorted button{
+    max-height: 21px;
+    margin-top:-8px;
+}
+
+.table-grid table.rgMasterTable a .btn-ico{
+    color: var(--blue-700);
+}
+
+.table-grid table.rgMasterTable a:hover .btn-ico{
+    color: var(--cyan-500);
+}
+
+.table-grid table.rgMasterTable tfoot .rgPagerCell{
+    border: 0;
+    background-color: transparent;
+}
+
+.table-grid .NextPrevAndNumeric {
+    margin-top: 40px;
+    display:flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.table-grid .NextPrevAndNumeric > div{
+    float:none !important;
+    color: #000 !important;   
+    font-size: 16px;
+    
+}
+.rgInfoPart strong{
+    font-weight: 700;
+}
+.rgInfoPart ~ strong{
+    text-transform: uppercase;
+}
+
+.table-grid .NextPrevAndNumeric button{
+    padding:0;
+    border:0 !important;
+    min-width: 28px;
+}
+
+.table-grid .NextPrevAndNumeric button:hover {
+    background-color: transparent !important;
+}
+
+.table-grid .rgNumPart a{
+    border:0 !important;
+    font-weight: 700;
+    color: var(--blue-700) !important;
+    text-decoration: underline !important;
+}
+.table-grid .rgNumPart a:hover {
+    background-color: transparent !important;
+}
+
+.table-grid a.rgCurrentPage {
+    background: transparent !important;
+    font-weight: 700;
+    text-decoration: none !important;
+    color: var(--black) !important;
+}
+
+.table-grid .RadComboBox_Bootstrap .rcbReadOnly{
+    border:0 !important;
+}
+
+.table-grid.RadGrid .rgPagerCell .rgIcon:before {
+    font-size:20px;
+    color: var(--blue-700);
+}
+
+.table-grid .rgPagerCell .RadComboBox_Bootstrap .rcbReadOnly{
+    color: var(--blue-700) !important; 
+    cursor: pointer !important;
+    font-weight: 700 !important;
+}
+.table-grid .rgPagerCell .rgAdvPart .RadComboBox_Bootstrap .rcbReadOnly input{
+    cursor: pointer !important;
+}
+
+.table-grid .rgPagerCell .RadComboBox_Bootstrap .rcbReadOnly.rcbExpanded, 
+.table-grid .rgPagerCell .RadComboBox_Bootstrap .rcbReadOnly.rcbFocused {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+
+
+.table-grid .RadAutoCompleteBox .p-icon, 
+.table-grid .RadCloudUpload .p-icon, 
+.table-grid .RadComboBox .p-icon, 
+.table-grid .RadComboBoxDropDown .p-icon, 
+.table-grid .RadDropDownList .p-icon, 
+.table-grid .RadPanelBar .rpExpandHandle .p-icon, 
+.table-grid .RadScheduler .p-icon, 
+.table-grid .RadRotator .p-icon, 
+.table-grid .RadSpreadsheet .p-icon{
+    color: var(--blue-700) !important;
+}
+
+.table-grid .rgPagerCell .RadComboBox_Bootstrap .rcbHovered{
+    background: transparent !important;
+}
+
+.table-grid button:hover .rgIcon::before,
+.table-grid.RadGrid .rgPagerCell a:hover:not(.rgCurrentPage), 
+.table-grid .rgPagerCell .rgAdvPart .RadComboBox_Bootstrap .rcbReadOnly:hover input,
+.table-grid .rgPagerCell .rgAdvPart .RadComboBox_Bootstrap .rcbReadOnly:hover .p-icon{
+    color: var(--cyan-500) !important;
+} 
+
+.table-grid .rgPagerCell div[id*="PageSizeComboBox"]{
+    max-width: 3.6em;
+}
+.table-grid .rgPagerCell div[id*="PageSizeComboBox"] > span {
+    padding-left:8px;
+}
+.table-grid .rgPagerCell div[id*="PageSizeComboBox"]  span {
+    cursor: pointer;
+}
+
+.bgAlert td {
+    background-color:#FFF1F1 !important;
+}
+
+.tool-top-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+.tool-top-link {
+    display: flex;
+    gap: 16px;
+    justify-content: flex-end;
+    align-items: center;
+
+}
+.tool-top-container .btn {
+    font-size: 16px;
+    font-weight: 700;
+}
+.title-cat {
+    font-size: 28px;
+    color: #193B48;
+    font-weight: 700;
+}
+
+
+.bar {
+    background: #FDF8C4;
+}
+.outer_range  {
+    border-radius: 4px;
+    background-color: #DEE8EE;
+    max-height: 22px;
+    max-width: 60px;
+}
+.outer_range span {
+    font-size:12px;
+    font-weight: 700;
+    width: auto;
+    text-align: left;
+
+    line-height: 22px;
+    display: inline-block;
+    color:#000;
+    
+}
+.freeze {
+    background:#ffd700!important;
+    }
+
+.admin-login{    
+    margin: 0 auto;
+    width: 300px;
+    margin-top: 10vh;
+    height: calc(90vh - 163px);
+    min-height: 600px;
+}
+
+.admin-login input[type="text"],
+.admin-login input[type="password"]{
+    border: 0;
+    background: #E8EEF2;
+    border-radius: 4px;
+}
+.admin-login .title-login{
+    margin: 80px 0 24px;
+    color: #193B48;
+    font-size: 16px;
+}
+.footer-login{
+    position: fixed;
+    bottom: 0;
+    padding: 20px;
+    background-color: #fff;
+    left: 0;
+    width: 100%;
+    text-align:center;
+}
+.footer-login .copyright {
+    display: block;
+    max-width: 1000px;
+    font-size: 14px;
+    color:#6D6D6D;
+    line-height:24px;
+    margin:  0 auto;
+}
+
+body .footer-login ul {
+    padding:0;
+    list-style: none;
+    margin: 0;
+    margin-top: 16px;
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+
+}
+body .footer-login ul li a{
+    color: #276777 !important;
+    font-size: 16px;
+    font-weight: 700;
+    text-decoration: underline;
+}
+body .footer-login ul li a:hover {
+    text-decoration: none !important;
+}
+.ui-widget, 
+.ui-widget input, 
+.ui-widget select, 
+.ui-widget textarea, 
+.ui-widget button {
+    font-family: inherit !important;
+}
+.ui-widget.ui-widget-content {
+    border: 0 !important;
+    padding: 0 !important;
+}
+
+.ui-widget-header {
+    border: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+}
+.ui-tabs .ui-tabs-nav .ui-tabs-anchor {
+    color: #fff !important;
+}
+.ui-tab {
+    background: #276777 !important;
+    border: 1px solid transparent !important;
+}
+
+.ui-state-active {
+    background: #2E9BAC !important;
+    color: #ffffff;
+}
+
+.ui-tabs-nav {
+    border-bottom: 1px solid #E8EBEC !important;
+}
+
+.ui-tabs .ui-tabs-nav li {
+    margin: 0 24px 0 0 !important; 
+}
+
+.ui-tabs .ui-tabs-nav .ui-tabs-anchor {
+    font-size: 16px !important;
+    font-weight: 700 !important;
+    padding: 6px 12px !important;
+    text-transform: none !important;
+}
+.ui-tabs .ui-tabs-panel {
+    padding: 0 !important;
+
+}
+.disabled-li{
+    background-color: #E8EBEC !important;
+
+}
+
+.sticky-container {
+    background-color: #fff;
+    position: sticky ;
+    top: 53px;
+    z-index:1;
+    padding: 8px;
+}
+
+.count-tabs {
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    padding: 2px 4px !important;
+    line-height: 12px !important;
+    border: 1px solid #fff;
+    border-radius: 4px !important;
+    text-align: center;
+    display: inline-block;
+    margin-left: 4px;
+}
+.disabled-li .count-tabs {
+    border: 1px solid #BAC2C6;
+
+}
+.title-tab {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 16px;
+    /* margin: 24px 0 16px; */
+    padding: 24px 0 16px;
+}
+
+.title-tab span{
+    color: #193B48;
+}
+.title-tab .title-text {
+    font-weight: 700;
+    font-size: 20px;
+}
+.tabs-utility{
+    float: right;
+    color: #276777 !important;
+    font-size: 16px;
+    font-weight: 700;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+    margin-top: 8px;
+}
+.tabs-utility:hover {
+    text-decoration: none;
+    color: #2E9BAC !important;
+}
+.control-label {
+    font-size: 12px;
+    color: #4A4E4F;
+    font-weight: 400 !important;
+    padding-bottom: 4px;  
+}
+
+body .ui-tabs .ui-tabs-nav .disabled-li .ui-tabs-anchor {
+    color: #BAC2C6 !important;  
+}
+.form-group {
+    margin-bottom: 8px;
+}
+
+.form-control,
+.chosen-single{
+    border: 0 !important;
+    background-color: #E8EEF2 !important;
+    border-radius: 4px;
+    color: #000 !important;
+    font-size: 14px !important;
+    box-shadow: none !important;
+}
+.chosen-container-single .chosen-single div b {
+    background-position: 0 7px !important;
+}
+.form-step2-container{
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 16px;
+    width: fit-content;
+    background-color: #D8F2F5;
+    padding: 24px;
+    border-radius: 8px;
+}
+.st2-vat-num .form-control {
+    max-width: 260px;
+    background-color: #fff !important;
+    border-radius: 8px;
+}
+.form-step2-container > span{
+    font-size: 16px;
+    color: #000000;
+}
+.step2-Message{
+    background-color: #FF72721F;
+    padding: 24px;
+    border-radius: 8px;
+    max-width: 800px;
+    margin-top: 32px;
+}
+
+.title-big-import {
+    font-weight: 700;
+    font-size: 20px;
+
+}
+.step2-Message h5{
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 0;
+    margin-bottom:16px;
+}
+
+.step2-Message span {
+    font-size:14px;
+    color: #000;
+}
+
+.step2-Message h5 .title{
+    color: #FF7272;
+    font-weight: 700;
+    font-size: 18px;
+
+}
+.step2-Message h5 span {
+    font-size:14px;
+    color: #FF7272;
+}
+.step2-Message h5 span.btnbtn-ico {
+    font-sie:20px;
+
+}
+.form-action{
+    margin-top: 24px;
+}
+.chosen-single {
+
+}
+
+.no-form-fields .chosen-disabled {
+    opacity: 1 !important;
+    cursor: default;
+    background-color: #fff !important;
+}
+
+.no-form-fields .title-text .chosen-single{
+    font-size: 17px !important;
+    border: 0 !important;
+    background-color: #FFF !important;
+    border-radius: 0;
+    color: #193B48 !important;
+    box-shadow: none !important;
+    padding-left: 0 !important;
+}
+
+.no-form-fields .title-text .chosen-single > div {
+    display: none !important;
+}
+
+.no-form-fields .control-label {
+    font-size: 14px;
+    color: #000;
+    font-weight: 700 !important;
+    padding-bottom: 4px;  
+}
+
+.no-form-fields .form-group {
+    max-width: 1200px;
+}
+
+.no-form-fields input.form-control,
+.no-form-fields .chosen-single {
+    font-size: 16px !important;
+    border: 0 !important;
+    background-color: #FFF !important;
+    border-radius: 0;
+    color: #000 !important;
+    box-shadow: none !important;
+    padding-left: 0 !important;
+}
+
+.no-form-fields .chosen-single > div {
+    display: none !important;
+}
+
+.no-form-fields .outer_range {
+    background-color: #F2F4F5 !important;
+    min-width: 200px !important;
+    margin-top: 6px;
+}
+.no-form-fields .outer_range span span {
+    padding: 0 8px;
+    font-size: 16px !important;
+    line-height: 19px !important;
+    font-weight: 400 !important;
+}
+
+.no-form-fields .days-bordered {
+    border: 1px solid #000 !important;
+    border-radius: 4px !important;
+    padding: 4px 8px !important;
+    text-align: center !important;
+    max-width: 50px !important;
+    margin-top: 6px;
+
+}
+.no-form-fields .days-bordered input{
+    font-size: 12px !important;
+    font-weight: 700 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    text-align: center !important;
+    max-width: 100% !important;
+    max-height: 12px;
+}
+
+.table-grid.no-background table.rgMasterTable thead th.rgHeader {
+    background-color: transparent;
+    font-size: 14px;
+    font-weight: 700;
+    height: 40px;
+}
+.table-grid.no-background table.rgMasterTable tbody tr {
+max-height: 30px !important;
+height: 30px !important;
+}
+.table-grid.no-background table.rgMasterTable tbody tr td {
+    background-color: transparent !important;
+    font-size: 16px;
+    white-space: nowrap;
+    max-width: 140px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important; 
+    max-height: 30px !important;
+    height: 30px !important;    
+}
+
+.table-grid.no-background table.rgMasterTable .rgSelectedRow td{ 
+    background-color: #E8EBEC !important;
+}
+
+
+.table-grid.no-background table.rgMasterTable a .btn-ico{
+    margin-top: 4px;
+}
+.no-background.RadGrid_Bootstrap .rgHeader, 
+.no-background.RadGrid_Bootstrap .rgHeader a{
+    color: #000 !important;
+}
+
+.last-update .control-label-top{
+    font-size: 14px;
+    font-weight: 700;
+    color:#000;
+    margin-left: 10px;
+    letter-spacing: 1px;
+}
+.SGN:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #fff;
+    padding: 4px 8px;
+    background-color: #26CA8D;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.CLS:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #fff;
+    padding: 4px 8px;
+    background-color: #DFC5A8;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.ABT:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #fff;
+    padding: 4px 8px;
+    background-color: #FF7272;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.RIP:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #fff;
+    padding: 4px 8px;
+    background-color: #000;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.WIP:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #000;
+    padding: 4px 8px;
+    background-color: #B6E6EB;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.HLD:not(.bar) {
+    font-weight: 900;
+    display: block;
+    font-size: 12px;
+    color: #000;
+    padding: 4px 8px;
+    background-color: #F7CB15;
+    max-width: 44px;
+    max-height: 24px;
+    border-radius: 4px;    
+    line-height: 18px;
+    letter-spacing: 2px;
+}
+.last-update .control-label{
+    font-weight: 400;
+    color:#000;
+}
+
+.no-background.RadGrid_Bootstrap .rgAltRow {
+    background-color: transparent !important;
+}
+.bg-box{
+    background-color:#F5F8FA;
+    padding: 16px;
+    margin-right: 16px;  
+    border-radius: 8px;  
+    padding-top: 0;
+}
+
+.bg-box .x_content{
+    float: none !important;
+}
+.bg-box .RadGrid_Bootstrap{
+    background: transparent !important;
+}
+.max-width-internal{
+    max-width: 1200px !important;
+}
+
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr .STEP{
+    background-color: #D0FBE5 !important;
+}
+
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr.editable .STEP{
+    background-color: #D6DADC !important;
+}
+
+.command-class a[id$="EditButton"],
+.command-class a[id$="UpdateButton"],
+.command-class a[id$="CancelButton"]{
+    visibility: hidden !important;
+    width:0 !important;
+    display: block !important;
+    
+}
+.command-class{
+    position: relative;
+    width: 62px;
+    height: 40px;
+    overflow: hidden !important;
+    line-height:0;
+}
+
+.command-class a[id$="EditButton"]:after,
+.command-class a[id$="UpdateButton"]:after,
+.command-class a[id$="CancelButton"]:after
+{
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    
+    font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    font-size: 24px;
+    color: var(--blue-700);
+    display: block;
+    width:24px !important;
+    position: absolute;
+    top: 4px;
+    left: 4px;
+}
+.command-class a[id$="EditButton"]:hover:after,
+.command-class a[id$="UpdateButton"]:hover:after,
+.command-class a[id$="CancelButton"]:hover:after
+{
+    color: var(--cyan-500);
+
+}
+
+.command-class a[id$="EditButton"]:after{
+    content: 'edit';
+    visibility: visible !important;
+}
+
+.command-class a[id$="UpdateButton"]:after{
+    content: 'save';
+    visibility: visible !important;
+}
+
+.command-class a[id$="CancelButton"]:after{
+    content: 'close';
+    visibility: visible !important;
+    left: 32px;
+}
+
+.steps-list td.STEP input[type="text"]  {
+    background-color: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 4px 0px !important;
+    pointer-events: none;
+}
+
+.steps-list td.STEP input[type="checkbox"]{
+    pointer-events: none;
+}
+
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr.rgEditRow,
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr.rgEditRow .STEP{
+    background-color: transparent !important;
+}
+
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr.rgEditRow  .STEP input{
+    background-color: #E8EEF2 !important;
+}
+
+.steps-list .rgRow:not(.editable) td.command-class:not(.STEP) a,
+.steps-list .rgAltRow:not(.editable)  td.command-class:not(.STEP) a{
+    display: none !important;
+}
+.steps-list .rgRow td:not(.STEP),
+.steps-list .rgAltRow td:not(.STEP),
+.steps-list .rgRow td:not(.STEP) input[type="text"],
+.steps-list .rgAltRow td:not(.STEP) input[type="text"],
+.steps-list .rgRow td:not(.STEP) input[type="checkbox"],
+.steps-list .rgAltRow td:not(.STEP) input[type="checkbox"]{
+    opacity: 0.3;
+    pointer-events: none !important;
+}
+.steps-list .rgRow.editable td.command-class,
+.steps-list .rgAltRow.editable td.command-class{
+    opacity:1;
+    pointer-events: auto !important;
+}
+.steps-list .rgEditRow input[type="text"], 
+.steps-list .rgEditRow.editable input[type="text"]{
+    background-color: #E8EEF2 !important;
+    max-width: 117px;
+    max-height: 32px;
+    height: 32px;
+    pointer-events: auto !important;
+}
+
+.steps-list .rgEditRow input[type="checkbox"]{
+    pointer-events: auto !important;
+}
+
+.table-grid.no-background.steps-list table.rgMasterTable tbody tr.rgEditRow .command-class:not(.STEP) a:last-child {
+   display: none !important;
+}
+
+.steps-list tr td > span {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+}
+.steps-list tr td > span:after {
+content: "NA";
+font-size: 14px;
+font-weight: normal;
+}
+
+
+.steps-list input[type="checkbox"]
+ {
+    /* Add if not using autoprefixer */
+    -webkit-appearance: none;
+    /* Remove most all native input styles */
+    appearance: none;
+    /* For iOS < 15 */
+    background-color: var(--form-background);
+    /* Not removed via appearance */
+    margin: 0;
+  
+    font: inherit;
+    color: #000;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #000;
+    border-radius: 2px;
+    transform: translateY(-0.075em);
+  
+    display: grid;
+    place-content: center;
+  }
+  
+  .steps-list input[type="checkbox"]::before {
+    content: "";
+    width: 0.65em;
+    height: 0.65em;
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+    transform: scale(0);
+    transform-origin: bottom left;
+    transition: 120ms transform ease-in-out;
+    box-shadow: inset 1em 1em var(--form-control-color);
+    /* Windows High Contrast Mode */
+    background-color: #000;
+  }
+  
+  .steps-list input[type="checkbox"]:checked::before {
+    transform: scale(1);
+  }
+
+  
+  .steps-list.table-grid.no-background table.rgMasterTable .rgSelectedRow td{
+    background-color: transparent !important;
+}
+
+  input[type="checkbox"]:focus {
+    outline: 0;
+    outline-offset: none;
+  }
+  .steps-list tbody tr:first-child td.STEP:first-child > a{
+    display: none !important;   
+  }
+  .steps-list tr td.STEP:nth-last-child(2){
+    position: relative;
+  }
+
+  .steps-list tr td.STEP:nth-last-child(2)::after {
+    content: "check_circle";
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    
+    font-size: 24px;
+    color: #0BBE82;
+    display: block;
+    width:24px !important;
+    position: absolute;
+    top: 4px;
+    right: 20px;
+}
+
+.steps-list tr.editable td.STEP:nth-last-child(2)::after {
+   
+    color: #000;
+}
+
+.form-control.error {
+    /*border: 1px solid #FF7272 !important;*/
+    /*color: #FF7272 !important; */
+}
+
+
+.table-grid.no-header-command .rgCommandCell {
+    display: none;
+    
+}
+.table-grid.no-header-command {
+    margin-top: -40px;
+    margin-bottom: 20px;
+}
+.RadGrid div.rgHeaderWrapper{
+    background-color: transparent !important;
+    border: 0 !important;
+}
+
+.refresh-data-cnt{
+    display: flex;
+    margin-top: -30px;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 16px;
+}
+.refresh-data-cnt a {
+    margin-top: 0;
+}
+
+.refresh-data-cnt span.label-date {
+    font-size: 16px;
+    color: #193B48;
+    font-weight: 700;
+}
+
+.btn-primary.outline.submit:disabled{
+    color: #BAC2C6 !important;
+    border-color: #BAC2C6 !important;
+}
+.cursor-normal input, 
+.cursor-normal select, 
+.cursor-normal .chosen-single
+ {
+    cursor: default !important;
+    pointer-events: none !important;
+}
+.datepicker .today.day {
+    background-color: #ccc;
+    color: #276777;
+}
+.datepicker .day.active {
+    background: #0BBE82 !important;
+    color: #fff !important;
+}
+
+.steps-list td {
+    position: relative;
+}
+
+
+.calendar-ico {
+    display: block;
+
+    position: absolute;
+    top: 4px;
+    left: 96px;
+    color: #276777;
+}
+.STEP .calendar-ico {
+    display: none;
+}
+
+.steps-list .rgEditRow .calendar-ico{
+    display: block;
+}
+
+.prospect-success    {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #D0FBE5;
+    padding: 100px;
+    text-align: center;
+    padding-top: 30vh;
+    z-index: 999;
+    font-size: 28px;
+    font-weight: 700;
+    color: #193B48;
+    opacity: 0.95;
+}
+.cont-top-success {
+    display:flex;
+    align-items: center;
+    justify-content: center;
+    gap:10px;
+}
+.cont-top-success span.btn-ico {
+    font-size: 32px;
+}
+
+.upload-file input {
+    margin-top: 8px;
+}
+.alert{
+    z-index: 99;
+    position: fixed;
+    bottom: -120px;
+    left: 80px;
+    opacity:0;
+    animation-name: alert;
+    animation-duration: 6s;
+    visibility: hidden;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.disabled-li {
+    color: gray;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+.import-form input[type="file"]{
+color: black;
+}
+@keyframes alert {
+    0%   {visibility: visible; bottom: 0; opacity:0}
+    10%  {visibility: visible;bottom: 60px; opacity:1}
+    90%  {visibility: visible;bottom: 60px; opacity:1}
+    100% {visibility: visible;bottom: -120px; opacity:0}
+  }
+
+  .alert span{
+    display: block;
+    line-height: 20px;
+  }
+
+  .mt-1 {
+    margin-top: 12px;
+  }
+  .mt-2 {
+    margin-top: 18px;
+  }
+  .mt-3 {
+    margin-top: 24px;
+  }
+  .mt-4 {
+    margin-top: 36px;
+  }
+
+
+
+  @media (max-width: 991px) {
+    body.nav-md .container.body .top_nav {
+        width: 100vw;
+        margin: 0;
+    }
+
+    .tool-top-container {
+        margin-top: 60px;
+        flex-wrap: wrap;
+    }
+
+    .refresh-data-cnt {
+        display: block;
+        margin-top: 16px;;
+    }
+    .ui-tabs .ui-tabs-panel{
+        margin-top: 60px;
+    }
+
+    .form-step2-container {
+        flex-wrap: wrap;
+    }
+    .steps-list table {
+        min-width: 560px;        
+    }
+}

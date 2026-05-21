@@ -1,0 +1,94 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+__MACOSX/
+.idea/
+.vscode/
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Secrets / local config
+.env
+.env.*
+!.env.example
+*.secret
+*.secrets
+*secret*
+*credential*
+*password*
+*.token
+.token
+token
+tokens.json
+credentials.json
+appsettings.Production.json
+appsettings.Development.json
+
+# Build outputs
+bin/
+obj/
+Debug/
+Release/
+x64/
+x86/
+publish/
+dist/
+build/
+out/
+
+# Binary/runtime artifacts
+*.dll
+*.exe
+*.pdb
+*.so
+*.dylib
+*.zip
+*.7z
+*.rar
+*.tar
+*.gz
+
+# Node / frontend
+node_modules/
+.npm/
+.pnpm-store/
+.yarn/
+coverage/
+.next/
+.nuxt/
+.vite/
+
+# Runtime caches and logs
+cache/
+.cache/
+*.cache
+*.tmp
+*.temp
+*.log
+logs/
+
+# Databases / local state
+*.db
+*.sqlite
+*.sqlite3
+*.mdf
+*.ldf
+App_Data/
+appData/
+telegramSession/
+
+# OCR / heavy runtime assets
+*.bmp
+runtime/
+captures/
+screenshots/runtime/
+
+# Python/tooling caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+

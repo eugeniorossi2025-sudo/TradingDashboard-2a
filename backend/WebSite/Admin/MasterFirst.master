@@ -1,0 +1,621 @@
+﻿<%@ Master Language="VB" CodeFile="MasterFirst.master.vb" Inherits="MasterFirst" %>
+
+<%@ Register Src="~/Admin/Control/Menu.ascx" TagPrefix="MM" TagName="Menu" %>
+<!DOCTYPE html>
+<html lang="en">
+<head runat="server">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <!-- Meta, title, CSS, favicons, etc. -->
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Administrative Panel</title>
+    <!-- Bootstrap core CSS -->
+    <link href="/Admin/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/Admin/fonts/css/font-awesome.min.css" rel="stylesheet">
+    <link href="/Admin/css/animate.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/Admin/css/chosen/chosen.css">   
+    <link href="/Admin/css/datepicker/datepicker.css" rel="stylesheet" type="text/css" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+
+    <!-- Googe material icons -->
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link href="https://fonts.googleapis.com/css2?family=Lato:ital,wght@0,100;0,300;0,400;0,700;0,900;1,100;1,300;1,400;1,700;1,900&display=swap" rel="stylesheet">
+    
+    <!-- Custom styling plus plugins -->
+    <link href="/Admin/css/custom.css" rel="stylesheet">
+    <link href="/Admin/css/custom_2024.css" rel="stylesheet">
+
+    <link rel="stylesheet" type="text/css" href="/Admin/css/maps/jquery-jvectormap-2.0.3.css" />
+    <link href="/Admin/css/icheck/flat/green.css" rel="stylesheet" />
+    <link href="/Admin/css/floatexamples.css" rel="stylesheet" type="text/css" />
+    <script src="/Admin/js/jquery.min.js"></script>
+    <script src="/Admin/js/nprogress.js"></script>
+    
+     <script src="https://code.jquery.com/ui/1.13.1/jquery-ui.js"></script>
+     <link rel="stylesheet" href="//code.jquery.com/ui/1.13.1/themes/base/jquery-ui.css">
+    <link href="/Admin/css/select/bootstrap-combobox.css" rel="stylesheet">
+    <!--[if lt IE 9]>
+        <script src="../assets/js/ie8-responsive-file-warning.js"></script>
+        <![endif]-->
+    <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+    <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/html5shiv/3.7.2/html5shiv.min.js"></script>
+          <script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+   
+</head>
+<body class="nav-md">
+    <form id="Form1" runat="server">
+        <asp:ScriptManager runat="server" ID="ScriptManager" EnableScriptGlobalization="True">
+        </asp:ScriptManager>
+        <telerik:RadAjaxManagerProxy ID="RadAjaxManagerProxy1" runat="server">
+        </telerik:RadAjaxManagerProxy>
+        <telerik:RadWindowManager ID="RadWindowManager1" runat="server" EnableShadow="true">
+            <Windows>
+                <telerik:RadWindow ID="RadWindow1" runat="server" ShowContentDuringLoad="false" Width="400px"
+                    Height="400px" Title="Telerik RadWindow" Behaviors="Close">
+                </telerik:RadWindow>
+            </Windows>
+        </telerik:RadWindowManager>
+    <div class="container body">
+        <div class="main_container">
+            <div class="col-md-3 left_col">
+                <div class="left_col scroll-view">
+                    <div class="navbar nav_title" style="border: 0;text-align: center;
+   height: 115px;">
+                        <a href="/Admin/Default.aspx" class="site_title" style=""><i class="fa fa-paw" style="display: none">
+                        </i> <img src="/Admin/images/logo.png"  alt="image" ></a>
+                    </div>
+                    <div class="clearfix">
+                    </div>
+                    <!-- /menu prile quick info -->
+                    <br />
+                    <!-- sidebar menu -->
+                    <MM:Menu ID="Menu1" runat="server" />
+                    <!-- /sidebar menu -->
+                    <!-- /menu footer buttons -->
+                    <div class="sidebar-footer hidden-small"  style="visibility:hidden">
+                        <a data-toggle="tooltip" data-placement="top" title="Settings"><span class="glyphicon glyphicon-cog"
+                            aria-hidden="true"></span></a><a data-toggle="tooltip" data-placement="top" title="FullScreen">
+                                <span class="glyphicon glyphicon-fullscreen" aria-hidden="true"></span></a>
+                        <a data-toggle="tooltip" data-placement="top" title="Lock"><span class="glyphicon glyphicon-eye-close"
+                            aria-hidden="true"></span></a>
+                        <asp:LinkButton ID="Lnk_SignOut2" runat="server" data-toggle="tooltip" data-placement="top"
+                            title="Logout">
+                                <span class="glyphicon glyphicon-off" aria-hidden="true"></span></asp:LinkButton>
+                    </div>
+                    <!-- /menu footer buttons -->
+                </div>
+            </div>
+            <!-- top navigation -->
+            <div class="top_nav">
+                <div class="nav_menu"> 
+                    <nav class="" role="navigation">
+            <div class="nav toggle">
+              <a id="menu_toggle"><i class="fa fa-bars"></i></a>
+            </div> 
+            <ul class="nav navbar-nav navbar-right" >
+              <li class="">
+                <a href="javascript:;" class="user-profile dropdown-toggle" data-toggle="dropdown" aria-expanded="false">
+                  <%--<img src="/Admin/Repository/users/<%=Utility.VerString(RetUserInfo("Filename"))  %>" alt="">--%>
+                 <%=Utility.VerString(HttpContext.Current.User.Identity.Name)  %>
+                  <!--  <span class=" fa fa-angle-down"></span> -->
+                </a>
+                <ul class="dropdown-menu dropdown-usermenu animated   pull-right"> 
+                  <li><asp:LinkButton ID="Lnk_SignOut" runat="server" data-toggle="tooltip" data-placement="top"
+                            title="Logout"><i class="fa fa-sign-out pull-right"></i> Log Out</asp:LinkButton>
+                  </li>
+                </ul>
+              </li>
+
+              <li role="presentation" class="dropdown" style="display:none">
+                <a href="javascript:;" class="dropdown-toggle info-number" data-toggle="dropdown" aria-expanded="false">
+                  <span class="ico-no-fill material-symbols-outlined">notifications</span>
+                  <span class="badge bg-green"><asp:Label ID="LblCount" runat="server"></asp:Label></span>
+                </a>
+                <ul id="menu1" class="dropdown-menu list-unstyled msg_list animated  " role="menu">
+                
+                  <li>
+
+                    <asp:Repeater ID="Rp_Messages" runat="server">
+                        <HeaderTemplate>
+                                           
+                        </HeaderTemplate>
+                        <ItemTemplate>
+            
+                                <a href="<%# DataBinder.Eval(Container, "DataItem.link") %>">
+                                  <span class="image">
+                                        <img src="/Admin/images/bookmark.png" alt="Profile Image" />
+                                    </span>
+                                  <span>
+                                        <span><%# DataBinder.Eval(Container, "DataItem.CompanyName") %></span> 
+                                  </span>
+                                  <span class="message">
+                                    <%# DataBinder.Eval(Container, "DataItem.Note") %><br />
+                                    <%# DataBinder.Eval(Container, "DataItem.Message") %><br />
+                                </span>
+                                </a>
+                                
+                    </ItemTemplate>
+                    </asp:Repeater>
+                  </li>
+                  <li>
+                    <div class="text-center">
+                      <a href="/Admin/Edit/inbox.aspx">
+                        <strong>Vedi tutti i messaggi</strong>
+                        <i class="fa fa-angle-right"></i>
+                      </a>
+                    </div>
+                  </li> 
+                </ul>
+              </li>
+
+            </ul>
+          </nav>
+                </div>
+            </div>
+            <!-- /top navigation -->
+            <!-- page content -->
+            <div class="right_col" role="main">
+                <div class="">
+                <telerik:RadAjaxManagerProxy ID="RadAjaxManager1" runat="server">
+                </telerik:RadAjaxManagerProxy>
+                <asp:ContentPlaceHolder runat="server" ID="PageContent">
+                </asp:ContentPlaceHolder>
+                </div>
+            </div>
+            <!-- /page content -->
+        </div>
+    </div>
+    </form>
+    <div id="custom_notifications" class="custom-notifications dsp_none">
+        <ul class="list-unstyled notifications clearfix" data-tabbed_notifications="notif-group">
+        </ul>
+        <div class="clearfix">
+        </div>
+        <div id="notif-group" class="tabbed_notifications">
+        </div>
+    </div>
+    <script src="/Admin/js/bootstrap.min.js"></script>
+    <!-- bootstrap progress js -->
+    <script src="/Admin/js/progressbar/bootstrap-progressbar.min.js"></script>
+    <script src="/Admin/js/nicescroll/jquery.nicescroll.min.js"></script>
+    <!-- icheck -->
+    <script src="/Admin/js/icheck/icheck.min.js"></script>
+    <!-- daterangepicker -->
+    <script type="text/javascript" src="/Admin/js/moment/moment.min.js"></script>
+    <script type="text/javascript" src="/Admin/js/datepicker/daterangepicker.js"></script> 
+    <script type="text/javascript" src="/Admin/js/datepicker/bootstrap-datepicker.js"></script>
+
+    <!-- chart js -->
+    <script src="/Admin/js/chartjs/chart.min.js"></script>
+    <script src="/Admin/js/custom.js"></script>
+    <!-- flot js -->
+    <!--[if lte IE 8]><script type="text/javascript" src="/Admin/js/excanvas.min.js"></script><![endif]-->
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.pie.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.orderBars.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.time.min.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/date.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.spline.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.stack.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/curvedLines.js"></script>
+    <script type="text/javascript" src="/Admin/js/flot/jquery.flot.resize.js"></script>
+    <script type="text/javascript" src="/Admin/js/select/bootstrap-combobox.js"></script> 
+    <script src="/Admin/js/chosen/chosen.jquery.js" type="text/javascript"></script>
+    <!-- worldmap -->
+    <script type="text/javascript" src="/Admin/js/maps/jquery-jvectormap-2.0.3.min.js"></script>
+    <script type="text/javascript" src="/Admin/js/datepicker/bootstrap-datepicker.js"></script>
+    <script type="text/javascript" src="/Admin/js/maps/gdp-data.js"></script>
+    <script type="text/javascript" src="/Admin/js/maps/jquery-jvectormap-world-mill-en.js"></script>
+    <script type="text/javascript" src="/Admin/js/maps/jquery-jvectormap-us-aea-en.js"></script>
+    <!-- pace -->
+    <script src="/Admin/js/pace/pace.min.js"></script>
+    <!-- datepicker -->
+    <script>
+        function pageLoad() 
+        {
+            jQuery(".chosen-select").chosen()
+           
+            jQuery("#tabs").tabs();
+            var d = new Date();
+            var formatToady = d.getDate()  + "/" + (d.getMonth()+1) + "/" + d.getFullYear()
+
+            $(".date-picker").attr("autocomplete", "off");
+            $( '<div class="btn-ico material-symbols-outlined calendar-ico" title="calendar">calendar_month</div>' ).insertAfter( ".steps-list .date-picker" );
+            $('.date-picker').datepicker({
+               
+                format: 'dd/mm/yyyy',
+                todayHighlight : true,
+                //todayBtn: true,
+                //clearBtn: true,
+                //startDate: formatToady,
+                 setDate: new Date(), 
+                autoclose: true,
+            }).on('changeDate', function(ev){                 
+                $('.date-picker').datepicker('hide');
+            });
+            $('.calendar-ico').on("click", function(){
+                $(this).closest("input.date-picker").trigger("click");
+            })
+
+
+            //TAB KEEP SELECTION ON POSTBACK
+            $('a[data-toggle="tab"]').on('show.bs.tab', function (e) {
+                localStorage.setItem(location.pathname + '_activeTab', $(e.target).attr('href'));
+            });
+            var activeTab = localStorage.getItem(location.pathname + '_activeTab');
+           
+           
+            if (activeTab) {
+                $('#myTab a[href="' + activeTab + '"]').tab('show');
+            }
+
+
+            function validateVatNumber (val) {
+                   
+                var vatRegex = /^[0-9]{11}$/;
+                val.target.value = val.target.value.replace(/[^0-9]/g, '');
+                val.target.value = val.target.value.slice(0, 11);
+                if (vatRegex.test(val.target.value)) {
+                    $(val.target).removeClass("error");
+                        $("input[id$='Btn_GetData']").prop('disabled', false);
+                } else {
+                    $("input[id$='Btn_GetData']").prop('disabled', true);
+                    $(val.target).addClass("error");
+                }
+            }
+            
+            function validateSelection (val) {
+                
+                
+
+                if (val.target.value > 0 || val.target.value.length > 0) {
+                        $(val.target).removeClass("error");
+                        if($("select[id*='Drp_ContactType_Step1']").val() > 0 && $("select[id*='Drp_User_Step1']").val() > 0) {
+                            if($("select[id*='Drp_Signalers_Step1']").length > 0 && $("select[id*='Drp_Signalers_Step1']").val() == 0) {      
+                                                         
+                                $("input[id$='BtnStep2']").prop('disabled', true);
+                            }else if (($("select[id*='Drp_Signalers_Step1']").length > 0 && $("select[id*='Drp_Signalers_Step1']").val() == 9999 && $("input[id*='Txt_NewReferrer']").length == 0) || ($("input[id*='Txt_NewReferrer']").length > 0 && $("input[id*='Txt_NewReferrer']").val().length == 0) ){
+                                $("input[id$='BtnStep2']").prop('disabled', true);
+                                
+                            }else{
+                                
+                                $("input[id$='BtnStep2']").prop('disabled', false);
+                            }
+                        }
+                } else {                 
+                    
+                    if($("select[id*='Drp_ContactType_Step1']").val() == 0 || $("select[id*='Drp_User_Step1']").val() == 0 ||
+                    (($("select[id*='Drp_Signalers_Step1']").length > 0 && $("select[id*='Drp_Signalers_Step1']").val() == 0) || ($("input[id*='Txt_NewReferrer']").length > 0 && $("input[id*='Txt_NewReferrer']").val().length == 0 ))
+                    ) {
+
+                        $("input[id$='BtnStep2']").prop('disabled', true);
+                    }
+                    $(val.target).addClass("error");
+                }
+            }
+
+             function validateSelectionProspectStep1 (val) {
+                
+                if($("select[id*='Drp_Company_Step1']").val() == 0 || $("select[id*='Drp_tipologia_Step1']").val() == 0 ||
+                ($("input[id*='Note_Step1']").length > 0 && $("input[id*='Note_Step1']").val().length == 0 )
+                ) {
+
+                    $("input[id$='BtnStep2']").prop('disabled', true);
+                }else{
+                                
+                    $("input[id$='BtnStep2']").prop('disabled', false);
+                }
+        
+            }
+
+            $(document).ready(function() {
+                
+                
+                /* NEW PRSPECT STEP 1 */
+                
+                 if($(".prospect-step input[id*='BtnStep2']") && 
+                    (($(".prospect-step select[id*='Drp_Company_Step1']").length > 0 && $("select[id*='Drp_Company_Step1']").val() == 0) || 
+                    ($(".prospect-step select[id*='Drp_tipologia_Step1']").length > 0 && $("select[id*='Drp_tipologia_Step1']").val() == 0) || 
+                    ($(".prospect-step input[id*='Note_Step1']").length > 0 && $("input[id*='Note_Step1']").val().length == 0 ))
+
+                ){
+                    $(".prospect-step input[id*='BtnStep2']").prop('disabled', true);
+                }
+
+                if($(".prospect-step select[id*='Drp_Company_Step1']"))
+                    $(".prospect-step select[id*='Drp_Company_Step1']").on("change", validateSelectionProspectStep1);  
+                if($(".prospect-step select[id*='Drp_tipologia_Step1']"))
+                    $(".prospect-step select[id*='Drp_tipologia_Step1']").on("change", validateSelectionProspectStep1); 
+                if($("input[id*='Note_Step1']")){                    
+                    $("input[id*='Note_Step1']").on("input", validateSelectionProspectStep1);    
+                }
+                /*  END NEW PRSPECT STEP 1 */
+                
+                /* NEW COMPANY STEP 1 */
+                if($("input[id*='BtnStep2']") && 
+                    ($("select[id*='Drp_ContactType_Step1']").val() == 0 || $("select[id*='Drp_User_Step1']").val() == 0 || 
+                    ($("select[id*='Drp_Signalers_Step1']").length > 0 && $("select[id*='Drp_Signalers_Step1']").val() == 0) || ($("input[id*='Txt_NewReferrer']").length > 0 && $("input[id*='Txt_NewReferrer']").val().length == 0 ))
+
+                ){
+                    $("input[id*='BtnStep2']").prop('disabled', true);
+                }
+
+                if($("select[id*='Drp_User_Step1']"))
+                    $("select[id*='Drp_User_Step1']").on("change", validateSelection);    
+                
+                if($("select[id*='Drp_ContactType_Step1']"))
+                    $("select[id*='Drp_ContactType_Step1']").on("change", validateSelection);    
+
+                if($("select[id*='Drp_Signalers_Step1']")){
+                    $("select[id*='Drp_Signalers_Step1']").on("change", validateSelection);    
+                }
+
+                if($("input[id*='Txt_NewReferrer']")){                    
+                    $("input[id*='Txt_NewReferrer']").on("input", validateSelection);    
+                }
+                /* END NEW COMPANY STEP 1 */
+                
+                /* COMPANIES VAT NUMBER CHECK*/
+                if($("input[id$='Btn_GetData']"))
+                    $("input[id$='Btn_GetData']").prop('disabled', true);
+
+                if($(".vat-number"))
+                    $(".vat-number").on("input", validateVatNumber);
+                
+                /* END COMPANIES VAT NUMBER CHECK*/
+
+
+
+                //table last STEP edit
+                 $(".steps-list tbody tr td").each(
+                        function (){
+                            if ($(this).hasClass('Row_HLD') || $(this).hasClass('Row_ABT') || $(this).hasClass('Row_RIP')){
+                                $(this).closest('tr').addClass('editable');
+                            }
+                        }
+
+                 );
+
+
+            });
+
+
+
+
+        } 
+
+
+      
+    </script>
+    <script type="text/javascript">
+        $(document).ready(function () {
+
+          
+
+            var cb = function (start, end, label) {
+                console.log(start.toISOString(), end.toISOString(), label);
+                $('#reportrange span').html(start.format('MMMM D, YYYY') + ' - ' + end.format('MMMM D, YYYY'));
+                //alert("Callback has fired: [" + start.format('MMMM D, YYYY') + " to " + end.format('MMMM D, YYYY') + ", label = " + label + "]");
+            }
+
+            var optionSet1 = {
+                startDate: moment().subtract(29, 'days'),
+                endDate: moment(),
+                minDate: '01/01/2012',
+                maxDate: '12/31/2015',
+                dateLimit: {
+                    days: 60
+                },
+                showDropdowns: true,
+                showWeekNumbers: true,
+                timePicker: false,
+                timePickerIncrement: 1,
+                timePicker12Hour: true,
+                ranges: {
+                    'Today': [moment(), moment()],
+                    'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                    'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                    'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                    'This Month': [moment().startOf('month'), moment().endOf('month')],
+                    'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                },
+                opens: 'left',
+                buttonClasses: ['btn btn-default'],
+                applyClass: 'btn-small btn-primary',
+                cancelClass: 'btn-small',
+                format: 'MM/DD/YYYY',
+                separator: ' to ',
+                locale: {
+                    applyLabel: 'Submit',
+                    cancelLabel: 'Clear',
+                    fromLabel: 'From',
+                    toLabel: 'To',
+                    customRangeLabel: 'Custom',
+                    daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+                    monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+                    firstDay: 1
+                }
+            };
+            $('#reportrange span').html(moment().subtract(29, 'days').format('MMMM D, YYYY') + ' - ' + moment().format('MMMM D, YYYY'));
+            $('#reportrange').daterangepicker(optionSet1, cb);
+            $('#reportrange').on('show.daterangepicker', function () {
+                console.log("show event fired");
+            });
+            $('#reportrange').on('hide.daterangepicker', function () {
+                console.log("hide event fired");
+            });
+            $('#reportrange').on('apply.daterangepicker', function (ev, picker) {
+                console.log("apply event fired, start/end dates are " + picker.startDate.format('MMMM D, YYYY') + " to " + picker.endDate.format('MMMM D, YYYY'));
+            });
+            $('#reportrange').on('cancel.daterangepicker', function (ev, picker) {
+                console.log("cancel event fired");
+            });
+            $('#options1').click(function () {
+                $('#reportrange').data('daterangepicker').setOptions(optionSet1, cb);
+            });
+            $('#options2').click(function () {
+                $('#reportrange').data('daterangepicker').setOptions(optionSet2, cb);
+            });
+            $('#destroy').click(function () {
+                $('#reportrange').data('daterangepicker').remove();
+            });
+        });
+    </script>
+
+    <script>
+        //<![CDATA[
+        function openRadWin(Page, Title, Width, Height, Close) {
+            var width = Width;
+            var height = Height;
+            var left = 0;
+            var top = 0;
+            var oWnd = radopen(Page, "RadWindow1", width, height, left, top);
+            //oWnd.Center();
+            oWnd.set_title(Title);
+            oWnd.set_status = " ";
+            oWnd.set_modal(1);
+            if (Close == 0) {
+                oWnd.set_behaviors(Telerik.Web.UI.WindowBehaviors.Move);
+            }
+            else {
+                oWnd.set_behaviors(Telerik.Web.UI.WindowBehaviors.Move + Telerik.Web.UI.WindowBehaviors.Close);
+            } 
+        }
+    </script>
+    <script>
+        NProgress.done();
+
+
+        function maxWindow() {
+            window.moveTo(0, 0);
+
+
+            if (document.all) {
+                top.window.resizeTo(screen.availWidth, screen.availHeight);
+            }
+
+            else if (document.layers || document.getElementById) {
+                if (top.window.outerHeight < screen.availHeight || top.window.outerWidth < screen.availWidth) {
+                    top.window.outerHeight = screen.availHeight;
+                    top.window.outerWidth = screen.availWidth;
+                }
+            }
+        }
+    </script>
+
+    <script>
+        // 1. Variabili Globali e Setup
+        var selettori = "p, h1, h2, h3, h4, h5, h6, li, span, a, td ,th";
+        var passo = 1;
+        var dimensioniOriginali = new Map(); // Mappa per conservare le dimensioni base
+        var chiaveStorage = 'dimensioneDeltaFont'; // Chiave per sessionStorage (memorizza la differenza in px)
+
+
+        // Funzione per ottenere la dimensione attuale in PX
+        function getAttualeDimensionePx(element) {
+            var size = window.getComputedStyle(element).fontSize;
+            return parseFloat(size);
+        }
+
+        // Funzione che ottiene il delta (la differenza in px) salvato nella sessione
+        function getDeltaFont() {
+            return parseFloat(sessionStorage.getItem(chiaveStorage)) || 0;
+        }
+
+        // 2. Funzione di Inizializzazione (Eseguita al caricamento e dopo ogni UpdatePanel)
+        function inizializzaGestoreFont() {
+            var affectedElements = document.querySelectorAll(selettori);
+            var delta = getDeltaFont();
+
+            affectedElements.forEach(function (element) {
+                // Se l'elemento non è MAI stato visto, ne salviamo la dimensione originale.
+                if (!dimensioniOriginali.has(element)) {
+                    dimensioniOriginali.set(element, getAttualeDimensionePx(element));
+                }
+
+                // Applica immediatamente il delta attuale a TUTTI gli elementi (nuovi e vecchi)
+                var originale = dimensioniOriginali.get(element);
+                if (originale !== undefined) {
+                    element.style.fontSize = (originale + delta) + 'px';
+                }
+            });
+
+            // Collega gli handler dei pulsanti SOLO se non sono già stati collegati.
+            // Se i pulsanti sono fuori dall'UpdatePanel, questo è sufficiente.
+            var btnAumenta = document.getElementById('btn-aumenta-tutto');
+            var btnDiminuisci = document.getElementById('btn-diminuisci-tutto');
+            var btnReset = document.getElementById('btn-reset-tutto');
+
+            if (btnAumenta && !btnAumenta.onclick) btnAumenta.onclick = function () { modificaFont('aumenta'); };
+            if (btnDiminuisci && !btnDiminuisci.onclick) btnDiminuisci.onclick = function () { modificaFont('diminuisci'); };
+            if (btnReset && !btnReset.onclick) btnReset.onclick = function () { resetFont(); };
+        }
+
+        // 3. Funzioni di Modifica e Reset (Ora lavorano solo sul delta)
+        function modificaFont(direzione) {
+            var delta = getDeltaFont();
+            var nuovoDelta = delta;
+
+            // Calcola il nuovo delta (con limiti)
+            if (direzione === 'aumenta' && delta < 10) { // Limite Max differenza (+10px)
+                nuovoDelta += passo;
+            } else if (direzione === 'diminuisci' && delta > -5) { // Limite Min differenza (-5px)
+                nuovoDelta -= passo;
+            }
+
+            if (nuovoDelta !== delta) {
+                // Salva il nuovo delta solo se è cambiato
+                sessionStorage.setItem(chiaveStorage, nuovoDelta);
+                // Applica la modifica a tutti gli elementi
+                applicaModificaGlobale(nuovoDelta);
+            }
+        }
+
+        function resetFont() {
+            sessionStorage.removeItem(chiaveStorage);
+            applicaModificaGlobale(0); // Applica un delta di 0 (reset)
+        }
+
+        // 4. Applica la modifica del font a TUTTI gli elementi in base al delta
+        function applicaModificaGlobale(delta) {
+            // Selezioniamo nuovamente TUTTI gli elementi, inclusi quelli nuovi da UpdatePanel
+            var affectedElements = document.querySelectorAll(selettori);
+
+            affectedElements.forEach(function (element) {
+                var originale = dimensioniOriginali.get(element);
+
+                // Assicuriamoci di avere una dimensione originale per questo elemento
+                if (originale === undefined) {
+                    // Se è un elemento NUOVO non ancora inizializzato (raro a questo punto), lo salviamo ora
+                    originale = getAttualeDimensionePx(element);
+                    dimensioniOriginali.set(element, originale);
+                }
+
+                element.style.fontSize = (originale + delta) + 'px';
+            });
+        }
+
+
+        // 5. Gestione degli UpdatePanel (Punto cruciale per ASP.NET AJAX)
+        if (typeof Sys !== 'undefined' && Sys.WebForms && Sys.WebForms.PageRequestManager) {
+            // Questa riga esegue la funzione dopo ogni postback parziale
+            Sys.WebForms.PageRequestManager.getInstance().add_endRequest(inizializzaGestoreFont);
+        }
+
+        // Esegue la funzione al caricamento iniziale della pagina
+        window.onload = inizializzaGestoreFont;
+    </script>
+    <!-- /datepicker -->
+    <!-- /footer content --> 
+    
+ 
+</body>
+</html>
