@@ -19,6 +19,8 @@ __MACOSX/
 *secret*
 *credential*
 *password*
+!frontend/src/api/client/models/reset-password-request.ts
+!frontend/src/api/client/models/reset-password-confirm-request.ts
 *.token
 .token
 token
