@@ -69,6 +69,11 @@ cache/
 *.temp
 *.log
 logs/
+!backend/Contracts/Log/
+!backend/Contracts/Log/*.cs
+!frontend/src/composables/useTokenMonitor.ts
+!frontend/src/service/TokenService.ts
+!frontend/src/utils/tokenUtils.ts
 
 # Databases / local state
 *.db

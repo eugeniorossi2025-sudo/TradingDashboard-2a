@@ -311,6 +311,8 @@ Desktop.ini
 *.log
 logs/
 Log/
+!Contracts/Log/
+!Contracts/Log/*.cs
 
 ###############################
 # Temporary files
