@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>IronSoftware.Drawing.Abstractions</name>
+    </assembly>
+    <members>
+        <member name="T:IronSoftware.IAnyImage">
+            <summary>
+            Represents an image
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IAnyImage.Height">
+            <summary>
+            Image height
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IAnyImage.Width">
+            <summary>
+            Image width
+            </summary>
+        </member>
+        <member name="M:IronSoftware.IAnyImage.ExportBytesAsJpg">
+            <summary>
+            Export image bytes as jpg format
+            </summary>
+            <returns>Jpg image data</returns>
+        </member>
+        <member name="T:IronSoftware.IBounded">
+            <summary>
+            Object with visual bounding dimensions
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IBounded.BoundingBox">
+            <summary>
+            Object bounding box
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IColored">
+            <summary>
+            Object with visual fill and stroke colors
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IColored.FillColor">
+            <summary>
+            Text fill color
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IColored.StrokeColor">
+            <summary>
+            Text stroke color
+            </summary>
+        </member>
+    </members>
+</doc>

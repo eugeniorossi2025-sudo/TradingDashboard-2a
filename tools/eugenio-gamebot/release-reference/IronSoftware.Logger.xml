@@ -1,0 +1,106 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>IronSoftware.Logger</name>
+    </assembly>
+    <members>
+        <member name="T:IronSoftware.Logger">
+            <summary>
+            Iron Software logging and log configuration
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Logger.CustomLogger">
+            <summary>
+            Custom logger interface
+            </summary>
+            <remarks>Compatible with Azure loggers, as well as other Microsoft loggers</remarks>
+        </member>
+        <member name="P:IronSoftware.Logger.LogFilePath">
+            <summary>
+            Log file path
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Logger.LoggingMode">
+            <summary>
+            Log output modes
+            </summary>
+            <remarks>Accepts any combination of <see cref="T:IronSoftware.Logger.LoggingModes"/></remarks>
+        </member>
+        <member name="E:IronSoftware.Logger.MessageLogged">
+            <summary>
+            Event fired when a message is logged
+            </summary>
+        </member>
+        <member name="M:IronSoftware.Logger.ClearLogs">
+            <summary>
+            Clear all log files
+            </summary>
+        </member>
+        <member name="M:IronSoftware.Logger.Log(System.String,System.ConsoleColor)">
+            <summary>
+            Log the specified message text
+            <para>
+            See <see cref="P:IronSoftware.Logger.LoggingMode"/> to configure where messages are logged
+            </para>
+            </summary>
+            <param name="message">Message text to log</param>
+            <param name="color">Optional console output color</param>
+        </member>
+        <member name="M:IronSoftware.Logger.Log(System.Exception,System.ConsoleColor)">
+            <summary>
+            Log the specified message exception
+            </summary>
+            <param name="exception">Message exception to log</param>
+            <param name="color">Optional console output color</param>
+        </member>
+        <member name="M:IronSoftware.Logger.Log(System.String,System.Exception,System.ConsoleColor)">
+            <summary>
+            Log the specified message text and exception
+            </summary>
+            <param name="message">Message text to log</param>
+            <param name="exception">Message exception to log</param>
+            <param name="color">Optional console output color</param>
+        </member>
+        <member name="M:IronSoftware.Logger.LogAndThrow(System.Exception)">
+            <summary>
+            Log the specified exception, then throw it
+            </summary>
+            <param name="exception">Message exception to log and throw</param>
+        </member>
+        <member name="T:IronSoftware.Logger.LoggingModes">
+            <summary>
+            Different Ways to log developer notices and warnings 
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.None">
+            <summary>
+            Do not log messages
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.DebugOutputWindow">
+            <summary>
+            Sends Messages to System.Diagnostics.Debug
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.Console">
+            <summary>
+            Sends Messages to System.Console
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.Custom">
+            <summary>
+            Send messages to custom logger
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.File">
+            <summary>
+            Send messages to file
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Logger.LoggingModes.All">
+            <summary>
+            Send messages to all available endpoints
+            </summary>
+        </member>
+    </members>
+</doc>

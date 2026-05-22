@@ -1,0 +1,1037 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>IronSoftware.Abstractions</name>
+    </assembly>
+    <members>
+        <member name="T:IronSoftware.Abstractions.IDocumentPageCollection`1">
+            <summary>
+            Collection of document pages
+            </summary>
+            <typeparam name="PageType">Text object type</typeparam>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentPageCollection`1.Item(System.Int32)">
+            <summary>
+            Indexer to access pages by index
+            </summary>
+            <param name="index">Page index</param>
+            <returns>Document page</returns>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentPage`1">
+            <summary>
+            Single page within a document
+            </summary>
+            <typeparam name="DomType">DOM object type</typeparam>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentPage`1.ObjectModel">
+            <summary>
+            Object model for this page (text, images, paths, etc.)
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentPageContainer`1">
+            <summary>
+            Container of pages which may contain text
+            </summary>
+            <typeparam name="PageCollectionType">Page collection object type</typeparam>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentPageContainer`1.Pages">
+            <summary>
+            Read-only collection of all pages within this container
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentWithExtractableText">
+            <summary>
+            Document with a number of pages which contain extractable text
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentWithExtractableText.PageCount">
+            <summary>Gets the number of pages in the PDF document.</summary>
+            <value>The page count.</value>
+        </member>
+        <member name="M:IronSoftware.Abstractions.IDocumentWithExtractableText.ExtractTextFromPage(System.Int32)">
+            <summary>
+            Extracts the text content from one page of the PDF and returns it as a string.
+            </summary>
+            <param name="PageIndex">Index of the page.  Note: Page 1 has index 0...</param>
+            <returns>The text extracted from the PDF page as a string.</returns>
+        </member>
+        <member name="M:IronSoftware.Abstractions.IDocumentWithExtractableText.ExtractTextFromPages(System.Collections.Generic.IEnumerable{System.Int32})">
+            <summary>
+            Extracts the written text content from specified pages in the PDF PDF and returns it as a string.   Pages
+            will be separated by 4 consecutive Environment.NewLines
+            </summary>
+            <param name="PageIndices">An IEnumerable list of page indexes.</param>
+            <returns>The text extracted from the PDF pages as a string.</returns>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IFileArchive">
+            <summary>
+            Basic file archive
+            </summary>
+        </member>
+        <member name="M:IronSoftware.Abstractions.IFileArchive.Extract(System.String)">
+            <summary>
+            Extract all files to the specified path
+            </summary>
+            <param name="Path">Path to extract files to</param>
+        </member>
+        <member name="M:IronSoftware.Abstractions.IFileArchive.GetBytes">
+            <summary>
+            Retrieve binary data for the current archive
+            </summary>
+            <returns>Archive as byte array</returns>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IPageContainer">
+            <summary>
+            Document page with physical dimensions and an identifying page index
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.Width">
+            <summary>
+            Document width
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.Height">
+            <summary>
+            Document height
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.PageIndex">
+            <summary>
+            Index of this page
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.MarginLeft">
+            <summary>
+            Document left margin
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.MarginRight">
+            <summary>
+            Document right margin
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.MarginTop">
+            <summary>
+            Document top margin
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IPageContainer.MarginBottom">
+            <summary>
+            Document bottom margin
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentElementCollection`1">
+            <summary>
+            Collection of document elements
+            </summary>
+            <typeparam name="ElementType">Element object type</typeparam>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentElementCollection`1.Item(System.Int32)">
+            <summary>
+            Indexer to access pages by index
+            </summary>
+            <param name="index">Page index</param>
+            <returns>Document page</returns>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentElement">
+            <summary>
+            Single element within a layout
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentLayoutContainer`2">
+            <summary>
+            Container of elements to experience layout
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentLayoutContainer`2.Height">
+            <summary>
+            Document height, in millimeters (mm)
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentLayoutContainer`2.Width">
+            <summary>
+            Document width, in millimeters (mm)
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentLayoutFriendly">
+            <summary>
+            Attributes for assisting layout and positioning of an object within a layed-out document
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentLayoutFriendly.AnchorOrigin">
+            <summary>
+            Determines how the object's origin is transformed
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentLayoutFriendly.AnchorStyle">
+            <summary>
+            Determines how the object is layed out within the document
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentLayoutFriendly.ZOrder">
+            <summary>
+            Determines whether the object is rendered in-front-of or behind existing content
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.IDocumentParagraph">
+            <summary>
+            Document paragraph
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.DefaultFontSize">
+            <summary>
+            Default font size (pt)
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.DefaultFontName">
+            <summary>
+            Default font name
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.DefaultFontIsBold">
+            <summary>
+            Default font is bold
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.DefaultFontIsItalic">
+            <summary>
+            Default font is italic
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.FirstLineIndention">
+            <summary>
+            Indention of the first line, in inches
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.LineSpacing">
+            <summary>
+            Spacing between lines, in points
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.SpacingAfter">
+            <summary>
+            Spacing after this paragraph, in points
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.SpacingBefore">
+            <summary>
+            Spacing before this paragraph, in points
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.IDocumentParagraph.HorizontalContentAlignment">
+            <summary>
+            Alignment of text within the paragraph
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.LayoutAnchorStyles">
+            <summary>
+            Specifies anchor styles for determining how to transform the origin of an object
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorStyles.Unspecified">
+            <summary>
+            Anchor style is unspecified - use the default for the target document type
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorStyles.Inline">
+            <summary>
+            Flow the object in a matter consistent with the existing content
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorStyles.Floating">
+            <summary>
+            Use an absolute position to place the object at a specific location
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.LayoutAnchorOrigins">
+            <summary>
+            Specifies anchor origins for determining how to transform the origin of an object
+            </summary>
+            <remarks>Only applicable for `LayoutAnchorStyles.FloatOnContent`</remarks>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorOrigins.Page">
+            <summary>
+            Anchor to the top-left corner of the page
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorOrigins.Margin">
+            <summary>
+            Anchor to the top-left corner of the editable page area (excluding margins)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutAnchorOrigins.Paragraph">
+            <summary>
+            Anchor to the top-left corner of the current paragraph
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.LayoutZOrders">
+            <summary>
+            Specifies Z-orders laying-out a given object
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutZOrders.Unspecified">
+            <summary>
+            Z-order is unspecified. Typically draw in the order they are added
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutZOrders.Background">
+            <summary>
+            Draw the object in the background
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.LayoutZOrders.Foreground">
+            <summary>
+            Draw the object in the foreground
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.Styling.ITextStyle">
+            <summary>
+            Text style
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.Styling.LineSpacingRules">
+            <summary>
+            Various ways to configure vertical line spacing
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.LineSpacingRules.Auto">
+            <summary>
+            Automatically determined line spacing
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.LineSpacingRules.Exact">
+            <summary>
+            Exact line spacing
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.LineSpacingRules.AtLeast">
+            <summary>
+            Minimum line spacing
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.Styling.LineSpacing">
+            <summary>
+            Represents the spacing between lines in a paragraph.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.EnableAutoSpacingAfterParagraph">
+            <summary>
+            Enable automatic spacing is applied after the paragraph.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.EnableAutoSpacingBeforeParagraph">
+            <summary>
+            Enable automatic spacing is applied before the paragraph.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.LinesAfterParagraph">
+            <summary>
+            Spacing after the paragraph, in number of lines.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.LinesBeforeParagraph">
+            <summary>
+            Spacing before the paragraph, in number of lines.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.LineSpacingRule">
+            <summary>
+            Rule for line spacing in the paragraph.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.SpacingAfterParagraph">
+            <summary>
+            Spacing after the paragraph, in twentieths of a point.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.SpacingBeforeParagraph">
+            <summary>
+            Spacing before the paragraph, in twentieths of a point.
+            </summary>
+        </member>
+        <member name="P:IronSoftware.Abstractions.Styling.LineSpacing.SpacingBetweenLines">
+            <summary>
+            Spacing between each line in the paragraph, in twentieths of a point.
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.Styling.VerticalAlignments">
+            <summary>
+            Vertical alignment of an item within a parent container
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.VerticalAlignments.Top">
+            <summary>
+            Align item to the top of the parent container (or bottom of previous child)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.VerticalAlignments.Center">
+            <summary>
+            Align item to the vertical center of the parent container (adjacent to other children)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.VerticalAlignments.Bottom">
+            <summary>
+            Align item to the bottom of the parent container (or top of previous child)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.VerticalAlignments.Stretch">
+            <summary>
+            Stretch item vertically to fill the parent container (shared between other children)
+            </summary>
+        </member>
+        <member name="T:IronSoftware.Abstractions.Styling.HorizontalAlignments">
+            <summary>
+            Horizontal alignment of an item within a parent container
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.HorizontalAlignments.Left">
+            <summary>
+            Align item to the left of the parent container (or right of previous child)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.HorizontalAlignments.Center">
+            <summary>
+            Align item to the horizontal center of the parent container (adjacent to other children)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.HorizontalAlignments.Right">
+            <summary>
+            Align item to the right of the parent container (or left of previous child)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.Abstractions.Styling.HorizontalAlignments.Stretch">
+            <summary>
+            Stretch item horizontally to fill the parent container (shared between other children)
+            </summary>
+        </member>
+        <member name="T:IronSoftware.DocumentId">
+            <summary>
+            Pdf document identifier
+            </summary>
+        </member>
+        <member name="P:IronSoftware.DocumentId.IsValid">
+            <inheritdoc/>
+        </member>
+        <member name="P:IronSoftware.DocumentId.NativeId">
+            <inheritdoc/>
+        </member>
+        <member name="P:IronSoftware.DocumentId.RemoteId">
+            <inheritdoc/>
+        </member>
+        <member name="P:IronSoftware.DocumentId.ReferenceType">
+            <summary>
+            Pdf document identifier type (local or remote)
+            </summary>
+        </member>
+        <member name="M:IronSoftware.DocumentId.IncrementReference">
+            <inheritdoc/>
+        </member>
+        <member name="M:IronSoftware.DocumentId.#ctor(System.Int32)">
+            <summary>
+            Create a new Pdf document identifier instance from a local document
+            </summary>
+            <param name="nativeId">Local identifier</param>
+        </member>
+        <member name="M:IronSoftware.DocumentId.#ctor(System.String)">
+            <summary>
+            Create a new Pdf document identifier instance from a remote document
+            </summary>
+            <param name="remoteId">Remote identifier</param>
+        </member>
+        <member name="M:IronSoftware.DocumentId.#ctor(IronSoftware.IDocumentId)">
+            <summary>
+            Copy a Pdf document identifier
+            </summary>
+            <param name="id">Identifier to copy</param>
+        </member>
+        <member name="M:IronSoftware.DocumentId.ToString">
+            <inheritdoc/>
+        </member>
+        <member name="M:IronSoftware.DocumentId.Equals(System.Object)">
+            <inheritdoc/>
+        </member>
+        <member name="M:IronSoftware.DocumentId.GetHashCode">
+            <inheritdoc/>
+        </member>
+        <member name="M:IronSoftware.DocumentId.Dispose">
+            <inheritdoc/>
+        </member>
+        <member name="T:IronSoftware.DocumentReferenceType">
+            <summary>
+            Document type
+            </summary>
+        </member>
+        <member name="F:IronSoftware.DocumentReferenceType.Native">
+            <summary>
+            Native document (in memory)
+            </summary>
+        </member>
+        <member name="F:IronSoftware.DocumentReferenceType.Remote">
+            <summary>
+            Remote document identifier
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentCharCollection">
+            <summary>
+            Collection of characters
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentCharacter">
+            <summary>
+            Document character
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Left">
+            <summary>
+            Left (exact) bounding position
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Right">
+            <summary>
+            Right (exact) bounding position
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Top">
+            <summary>
+            Top (exact) bounding position
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Bottom">
+            <summary>
+            Bottom (exact) bounding position
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.LooseLeft">
+            <summary>
+            Left (loose) bounding position
+            </summary>
+            <remarks>The entire vertical area any glyph of a font could occupy</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.LooseRight">
+            <summary>
+            Right (loose) bounding position
+            </summary>
+            <remarks>The entire vertical area any glyph of a font could occupy</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.LooseTop">
+            <summary>
+            Top (loose) bounding position
+            </summary>
+            <remarks>The entire vertical area any glyph of a font could occupy</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.LooseBottom">
+            <summary>
+            Bottom (loose) bounding position
+            </summary>
+            <remarks>The entire vertical area any glyph of a font could occupy</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Contents">
+            <summary>
+            Text contents
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentCharacter.Angle">
+            <summary>
+            Rotation angle
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentFontObjectCollection">
+            <summary>
+            Collection of font objects
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentFontObject">
+            <summary>
+            Font as it exists within a document
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentFontObject.FontData">
+            <summary>
+            Font file data
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentFontObject.FontSize">
+            <summary>
+            Font size (ems)
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentFontObject.IsEmbedded">
+            <summary>
+            All font data is embedded within the document
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentFontObject.Name">
+            <summary>
+            Font name
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentId">
+            <summary>
+            Document identifier
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentId.IsValid">
+            <summary>
+            Document identifier is valid
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentId.NativeId">
+            <summary>
+            Internal native document identifier
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentId.RemoteId">
+            <summary>
+            Internal remote document identifier
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentId.ReferenceType">
+            <summary>
+            Document reference type
+            </summary>
+        </member>
+        <member name="M:IronSoftware.IDocumentId.IncrementReference">
+            <summary>
+            Increment internal reference counter
+            </summary>
+        </member>
+        <member name="T:IronSoftware.DocumentImageFormats">
+            <summary>
+            Commonly accepted image formats for all documents
+            </summary>
+        </member>
+        <member name="F:IronSoftware.DocumentImageFormats.Unknown">
+            <summary>
+            Unknown format - may or may not be accepted
+            </summary>
+        </member>
+        <member name="F:IronSoftware.DocumentImageFormats.Bitmap">
+            <summary>
+            Standard bitmap format with uncompressed pixel data
+            </summary>
+        </member>
+        <member name="F:IronSoftware.DocumentImageFormats.Jpeg">
+            <summary>
+            Standard compressed jpeg format
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentImageObjectCollection`1">
+            <summary>
+            Collection of image objects
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentImageObject">
+            <summary>
+            Document image object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentImageObject.Image">
+            <summary>
+            Image object
+            </summary>
+            <remarks>Modifiable</remarks>
+        </member>
+        <member name="T:IronSoftware.IBoundedDocumentObject">
+            <summary>
+            Document object with bounds
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentObject">
+            <summary>
+            Document object
+            <para>
+            A unique and specific object existing within a document
+            </para>
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentObject.ObjNum">
+            <summary>
+            Internal object number
+            </summary>
+            <remarks>Typically refers to a unique identifier but in some cases can refer to an index</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentObject.PageIndex">
+            <summary>
+            Index of the page which contains the object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentObject.DocumentId">
+            <summary>
+            Document identifier
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentPageObjectModel`3">
+            <summary>
+            Object model necessary to represent all contents on a given page
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPageObjectModel`3.PageIndex">
+            <summary>
+            Page index
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPageObjectModel`3.ImageObjects">
+            <summary>
+            Image object collection for this page
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPageObjectModel`3.PathObjects">
+            <summary>
+            Path object collection for this page
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPageObjectModel`3.TextObjects">
+            <summary>
+            Text object collection for this page
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentPathObjectCollection`1">
+            <summary>
+            Collection of path objects
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentPathObject">
+            <summary>
+            Document path object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPathObject.FillMode">
+            <summary>
+            Fill mode (see <see cref="T:IronSoftware.PathFillModes"/>
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPathObject.IsStroked">
+            <summary>
+            True if the path is stroked
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentPathObject.Points">
+            <summary>
+            Path points
+            </summary>
+        </member>
+        <member name="T:IronSoftware.TextRenderModes">
+            <summary>
+            Text rendering modes
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.Unknown">
+            <summary>
+            Unknown text rendering mode
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.Fill">
+            <summary>
+            Fill the text area
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.Stroke">
+            <summary>
+            Stroke the text area
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.FillStroke">
+            <summary>
+            Fill and stroke the text area
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.Invisible">
+            <summary>
+            Invisible text
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.FillClip">
+            <summary>
+            Fill the text area and clip
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.StrokeClip">
+            <summary>
+            Stroke the text area and clip
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.FillStrokeClip">
+            <summary>
+            Fill and stroke the text area and clip
+            </summary>
+        </member>
+        <member name="F:IronSoftware.TextRenderModes.Clip">
+            <summary>
+            Clip the text area
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentTextObjectCollection`1">
+            <summary>
+            Collection of text objects
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentTextObject">
+            <summary>
+            Document text object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.ContentStart">
+            <summary>
+            Index of the first character (of this text object) into the complete text of the encapsulating container
+            </summary>
+            <remarks>Useful for ordering text objects and associating with individual character info</remarks>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.Contents">
+            <summary>
+            Text contents
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.Font">
+            <summary>
+            Font
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.FontSize">
+            <summary>
+            Font size
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.IsBold">
+            <summary>
+            Text is bold
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.IsItalic">
+            <summary>
+            Text is italic (slanted)
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentTextObject.RenderMode">
+            <summary>
+            Text render mode
+            </summary>
+        </member>
+        <member name="T:IronSoftware.VirtualObjectTypes">
+            <summary>
+            Special object types to help describe a document
+            </summary>
+        </member>
+        <member name="F:IronSoftware.VirtualObjectTypes.PageBreak">
+            <summary>
+            Document page break
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentVirtualObjectCollection`1">
+            <summary>
+            Collection of virtual objects
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IDocumentVirtualObject">
+            <summary>
+            Document virtual object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentVirtualObject.FillMode">
+            <summary>
+            Fill mode (see <see cref="T:IronSoftware.PathFillModes"/>
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentVirtualObject.IsStroked">
+            <summary>
+            True if the path is stroked
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IDocumentVirtualObject.VirtualObjectType">
+            <summary>
+            Type of virtual object
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IExtensibleRenderer">
+            <summary>
+            Extensible rendering interface
+            </summary>
+        </member>
+        <member name="M:IronSoftware.IExtensibleRenderer.RenderHtmlAsPdfForExtension(System.String)">
+            <summary>
+            Internal helper method for converting various document types to PDF via intermediate HTML
+            </summary>
+            <param name="Html">Html to convert</param>
+            <returns>Pdf document identifier</returns>
+        </member>
+        <member name="M:IronSoftware.IExtensibleRenderer.RenderHtmlAsPdfForExtensionAsync(System.String)">
+            <summary>
+            Internal helper method for asynchronously converting various document types to PDF via intermediate HTML
+            </summary>
+            <param name="Html">Html to convert</param>
+            <returns>Pdf document identifier (task)</returns>
+        </member>
+        <member name="T:IronSoftware.IJsonSerializable">
+            <summary>
+            Serializable to JSON
+            </summary>
+        </member>
+        <member name="M:IronSoftware.IJsonSerializable.ToJson">
+            <summary>
+            Convert this object to JSON
+            </summary>
+            <returns>JSON string representing the object</returns>
+        </member>
+        <member name="T:IronSoftware.IMatrixStruct">
+            <summary>
+            Simple 6 component matrix (3x2) for object transformation.
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IOcrEngine">
+            <summary>
+            OCR engine
+            </summary>
+        </member>
+        <member name="M:IronSoftware.IOcrEngine.Read(IronSoftware.IDocumentId)">
+            <summary>
+            OCR the specified PDF document and return the result
+            </summary>
+            <param name="Document">Document to OCR</param>
+            <returns>OCR result</returns>
+        </member>
+        <member name="T:IronSoftware.IOcrResult">
+            <summary>
+            Ocr results
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IOcrResult.Confidence">
+            <summary>
+            Confidence percentage (0 - 100%)
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IOcrResult.Text">
+            <summary>
+            Result text
+            </summary>
+        </member>
+        <member name="T:IronSoftware.PathSegmentTypes">
+            <summary>
+            Type of path segment, determining how the path is drawn
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathSegmentTypes.Unknown">
+            <summary>
+            Unknown path segment type
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathSegmentTypes.LineTo">
+            <summary>
+            Represents a component of a straight line
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathSegmentTypes.BezierTo">
+            <summary>
+            Represents a component of a bezier curve
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathSegmentTypes.MoveTo">
+            <summary>
+            Represents a jump to a new point
+            </summary>
+        </member>
+        <member name="T:IronSoftware.PathFillModes">
+            <summary>
+            Fill mode, determines how portions are considered "inside" or "outside" of the path area
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathFillModes.Unknown">
+            <summary>
+            Unknown path fill mode
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathFillModes.None">
+            <summary>
+            Don't fill the path
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathFillModes.Alternate">
+            <summary>
+            Fills regions with an odd number of ray intersections
+            </summary>
+        </member>
+        <member name="F:IronSoftware.PathFillModes.Winding">
+            <summary>
+            Fills regions which have a non-zero segment intersection count
+            </summary>
+        </member>
+        <member name="T:IronSoftware.IPathSegment">
+            <summary>
+            Segment of a path
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IPathSegment.Coordinate">
+            <summary>
+            Coordinate associated with this path segment
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IPathSegment.IsClose">
+            <summary>
+            True if this segment closes the path
+            </summary>
+        </member>
+        <member name="P:IronSoftware.IPathSegment.Type">
+            <summary>
+            Segment type (see <see cref="T:IronSoftware.PathSegmentTypes"/>
+            </summary>
+        </member>
+        <member name="T:IronSoftware.ITransformable">
+            <summary>
+            Transformation parameters for an object
+            </summary>
+        </member>
+        <member name="P:IronSoftware.ITransformable.Scale">
+            <summary>
+            Target scale
+            </summary>
+        </member>
+        <member name="P:IronSoftware.ITransformable.Translate">
+            <summary>
+            Target translation
+            </summary>
+        </member>
+        <member name="P:IronSoftware.ITransformable.Matrix">
+            <summary>
+            Transformation matrix
+            </summary>
+        </member>
+        <member name="P:IronSoftware.ITransformable.Rotation">
+            <summary>
+            Target rotation
+            </summary>
+        </member>
+        <member name="T:IronSoftware.MatrixStruct">
+            <summary>
+            Simple 6 component matrix (3x2) for object transformation.
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.A">
+            <summary>
+            A component
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.B">
+            <summary>
+            B component
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.C">
+            <summary>
+            C component
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.D">
+            <summary>
+            D component
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.E">
+            <summary>
+            E component
+            </summary>
+        </member>
+        <member name="F:IronSoftware.MatrixStruct.F">
+            <summary>
+            F component
+            </summary>
+        </member>
+    </members>
+</doc>

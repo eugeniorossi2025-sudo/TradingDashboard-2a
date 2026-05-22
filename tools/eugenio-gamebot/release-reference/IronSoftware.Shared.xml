@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>IronSoftware.Shared</name>
+    </assembly>
+    <members>
+        <member name="T:IronSoftware.Shared.SharedNativeResourceFactory">
+            <summary>
+            Internal factory class for generating and sharing native resources
+            </summary>
+        </member>
+        <member name="M:IronSoftware.Shared.SharedNativeResourceFactory.Get(System.String)">
+            <summary>
+            Get an existing native resource associated with the specified name
+            </summary>
+            <param name="Name">Resource name</param>
+            <returns>Resource value</returns>
+        </member>
+        <member name="M:IronSoftware.Shared.SharedNativeResourceFactory.Set(System.String,System.IntPtr)">
+            <summary>
+            Set a new native resource and associate it with a name
+            </summary>
+            <param name="Name">Resource name</param>
+            <param name="Value">Resource value</param>
+            <exception cref="T:System.Exception">Resource already exists</exception>
+        </member>
+    </members>
+</doc>
