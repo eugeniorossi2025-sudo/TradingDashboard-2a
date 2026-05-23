@@ -15,6 +15,6 @@ jobs:
       - uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_1 }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2A }}
           channelId: live
-          projectId: eugenio-dashboard-1
+          projectId: eugenio-dashboard-2a
