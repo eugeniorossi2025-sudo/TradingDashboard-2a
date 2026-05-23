@@ -1,0 +1,37 @@
+---
+description: Map "Dash due" requests to the correct DASH2A repository
+alwaysApply: true
+---
+
+# DASH2A Repository Memory
+
+When the user says "Dash due", "Dash2A", "DASH2A", or refers to the Dashboard 2A frontend, use only this local repository:
+
+```text
+C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri
+```
+
+Before modifying anything, verify:
+
+```bash
+git remote -v
+git branch --show-current
+git status --short
+```
+
+The expected remote and branch are:
+
+```text
+origin: https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a.git
+branch: main
+```
+
+Frontend work belongs under:
+
+```text
+frontend/
+```
+
+Do not use `TradingDashboard-iis`, `NuovaDashboard-MarcoTurri` as the old Dashboard 1 identity, `Dashboard 1`, or `eugenio-dashboard-1.web.app` for DASH2A work.
+
+Do not deploy unless the user explicitly asks for deploy.
