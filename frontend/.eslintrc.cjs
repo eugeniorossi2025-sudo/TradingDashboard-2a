@@ -10,7 +10,7 @@ module.exports = {
     parserOptions: {
         ecmaVersion: 'latest'
     },
-    setting: {
+    settings: {
         'import/resolver': {
             typescript: {} // permette di risolvere path TS
         }

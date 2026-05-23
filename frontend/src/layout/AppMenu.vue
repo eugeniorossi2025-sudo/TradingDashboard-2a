@@ -3,27 +3,19 @@ import { useAuth } from '@/composables/useAuth';
 import { computed } from 'vue';
 import AppMenuItem from './AppMenuItem.vue';
 
-const {
-    isAdmin,
-    canManageBots,
-    canManageUsers,
-    canManageRoles,
-    canViewLogs,
-    canManageDevices,
-    canExecuteCommands,
-    canViewConfigurations
-} = useAuth();
+const { isAdmin, canManageUsers, canManageRoles, canViewLogs, canManageDevices, canExecuteCommands, canViewConfigurations } = useAuth();
 
 // 🔹 BASE MENU ITEMS (VISIBLE TO ALL AUTHENTICATED USERS)
 const baseMenuItems = [
     {
         label: 'Home',
         items: [
-            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }
+            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
+            { label: 'Client Desktop', icon: 'pi pi-fw pi-desktop', to: '/client/desktop' },
+            { label: 'Mobile Cliente', icon: 'pi pi-fw pi-mobile', to: '/client/mobile' }
         ]
     }
 ];
-
 
 // 🔹 ADMIN & MANAGEMENT MENU ITEMS (BASED ON PERMISSIONS)
 const managementMenuItems = computed(() => {
@@ -43,6 +35,10 @@ const managementMenuItems = computed(() => {
 
         if (canViewConfigurations.value) {
             adminItems.push({ label: 'Configurations', icon: 'pi pi-fw pi-check-square', to: '/pages/configurations' });
+        }
+
+        if (isAdmin.value) {
+            adminItems.push({ label: 'Mobile Admin', icon: 'pi pi-fw pi-tablet', to: '/admin/mobile-live' });
         }
 
         if (canManageDevices.value) {

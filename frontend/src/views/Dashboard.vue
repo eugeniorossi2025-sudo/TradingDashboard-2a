@@ -24,9 +24,7 @@ const statisticsData = ref([]);
 const isConnected = ref(false);
 const decisionMethod = ref(null);
 
-const {
-    isAdmin
-} = useAuth();
+const { isAdmin } = useAuth();
 
 // 🔹 FETCH INITIAL DASHBOARD DATA
 const fetchDashboardData = async () => {
@@ -35,7 +33,7 @@ const fetchDashboardData = async () => {
         chartData.value = await DashboardService.getChartData();
         if (data) {
             dashboardData.value = data;
-            const rows = data.rows || [];
+            const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
             if (rows.length > 0) {
                 const mostRecent = rows.reduce((a, b) => {
                     const aTime = new Date(a.lastUpdate || a.last_update || 0).getTime();
@@ -45,7 +43,7 @@ const fetchDashboardData = async () => {
                 if (mostRecent.lastInfo) {
                     try {
                         lastInfo.value = JSON.parse(mostRecent.lastInfo);
-                    } catch (e) {
+                    } catch {
                         lastInfo.value = null;
                     }
                 } else {
@@ -54,7 +52,7 @@ const fetchDashboardData = async () => {
                 if (mostRecent.resultValutation) {
                     try {
                         resultValutation.value = JSON.parse(mostRecent.resultValutation);
-                    } catch (e) {
+                    } catch {
                         resultValutation.value = null;
                     }
                 } else {
@@ -64,13 +62,13 @@ const fetchDashboardData = async () => {
                 lastInfo.value = null;
                 resultValutation.value = null;
             }
-            tableData.value = rows.map(row => {
+            tableData.value = rows.map((row) => {
                 const lastAdviceStr = row.last_advice || row.lastAdvice;
                 let lastAdvice = null;
                 if (lastAdviceStr && typeof lastAdviceStr === 'string') {
                     try {
                         lastAdvice = parseJsonRecursive(lastAdviceStr);
-                    } catch (e) {
+                    } catch {
                         lastAdvice = null;
                     }
                 }
@@ -78,7 +76,7 @@ const fetchDashboardData = async () => {
                 if (row.lastInfo && typeof row.lastInfo === 'string') {
                     try {
                         parsedLastInfo = parseJsonRecursive(row.lastInfo);
-                    } catch (e) {
+                    } catch {
                         parsedLastInfo = null;
                     }
                 }
@@ -96,7 +94,7 @@ const fetchDashboardData = async () => {
                         tableScore: lastAdvice.TableScore || row.tableScore,
                         levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
                         _lastAdvice: lastAdvice,
-                        _lastInfo: parsedLastInfo,
+                        _lastInfo: parsedLastInfo
                     };
                 }
                 return { ...row, _lastAdvice: lastAdvice, _lastInfo: parsedLastInfo };
@@ -109,7 +107,7 @@ const fetchDashboardData = async () => {
                                 try {
                                     const parsed = JSON.parse(obj[key]);
                                     obj[key] = parseJsonRecursive(parsed);
-                                } catch (e) {
+                                } catch {
                                     // non è un json annidato, lascia la stringa
                                 }
                             }
@@ -119,7 +117,7 @@ const fetchDashboardData = async () => {
                 }
             });
         }
-    } catch (error) {
+    } catch {
         toast.add({
             severity: 'error',
             summary: 'Error',
@@ -128,7 +126,6 @@ const fetchDashboardData = async () => {
         });
     }
 };
-
 
 const showResetDialog = ref(false);
 const resetLoading = ref(false);
@@ -195,7 +192,7 @@ const onDashboardUpdate = (jsonPayload) => {
                 try {
                     lastInfo.value = JSON.parse(data[0].lastInfo);
                     resultValutation.value = JSON.parse(data[0].resultValutation);
-                } catch (e) {
+                } catch {
                     lastInfo.value = null;
                     resultValutation.value = null;
                 }
@@ -204,13 +201,13 @@ const onDashboardUpdate = (jsonPayload) => {
                 resultValutation.value = null;
             }
             // Applica mapping last_advice anche qui
-            tableData.value = data.map(row => {
+            tableData.value = data.map((row) => {
                 const lastAdviceStr = row.last_advice || row.lastAdvice;
                 let lastAdvice = null;
                 if (lastAdviceStr && typeof lastAdviceStr === 'string') {
                     try {
                         lastAdvice = JSON.parse(lastAdviceStr);
-                    } catch (e) {
+                    } catch {
                         lastAdvice = null;
                     }
                 }
@@ -225,7 +222,7 @@ const onDashboardUpdate = (jsonPayload) => {
                         authorizedHeavy: lastAdvice.AuthorizedHeavy ?? row.authorizedHeavy,
                         signalW10: lastAdvice.SignalW10 || row.signalW10,
                         tableScore: lastAdvice.TableScore || row.tableScore,
-                        levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
+                        levelIndex: lastAdvice.LevelIndex ?? row.levelIndex
                     };
                 }
                 return row;
@@ -238,7 +235,7 @@ const onDashboardUpdate = (jsonPayload) => {
                     try {
                         lastInfo.value = JSON.parse(data.tables[0].lastInfo);
                         resultValutation.value = JSON.parse(data.tables[0].resultValutation);
-                    } catch (e) {
+                    } catch {
                         lastInfo.value = null;
                         resultValutation.value = null;
                     }
@@ -246,13 +243,13 @@ const onDashboardUpdate = (jsonPayload) => {
                     lastInfo.value = null;
                     resultValutation.value = null;
                 }
-                tableData.value = data.tables.map(row => {
+                tableData.value = data.tables.map((row) => {
                     const lastAdviceStr = row.last_advice || row.lastAdvice;
                     let lastAdvice = null;
                     if (lastAdviceStr && typeof lastAdviceStr === 'string') {
                         try {
                             lastAdvice = JSON.parse(lastAdviceStr);
-                        } catch (e) {
+                        } catch {
                             lastAdvice = null;
                         }
                     }
@@ -267,7 +264,7 @@ const onDashboardUpdate = (jsonPayload) => {
                             authorizedHeavy: lastAdvice.AuthorizedHeavy ?? row.authorizedHeavy,
                             signalW10: lastAdvice.SignalW10 || row.signalW10,
                             tableScore: lastAdvice.TableScore || row.tableScore,
-                            levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
+                            levelIndex: lastAdvice.LevelIndex ?? row.levelIndex
                         };
                     }
                     return row;
@@ -281,7 +278,7 @@ const onDashboardUpdate = (jsonPayload) => {
 
 onMounted(async () => {
     loading.value = true;
-    const decisionMethodResponse = await ConfigurationService.getConfigurationById("DECISION_METHOD");
+    const decisionMethodResponse = await ConfigurationService.getConfigurationById('DECISION_METHOD');
     decisionMethod.value = decisionMethodResponse ? decisionMethodResponse.value : null;
     await fetchDashboardData();
     try {
@@ -323,7 +320,7 @@ onMounted(async () => {
 const latestStatisticData = computed(() => {
     // Cerca la statistica con dataFine null (cioè ancora "aperta")
     if (statisticsData.value && statisticsData.value.length > 0) {
-        const openStat = statisticsData.value.find(stat => stat.dataFine == null);
+        const openStat = statisticsData.value.find((stat) => stat.dataFine == null);
         if (openStat) return openStat;
         return statisticsData.value[statisticsData.value.length - 1];
     }
@@ -335,7 +332,6 @@ onUnmounted(async () => {
     signalRService.off('ReceiveDashboardUpdate', onDashboardUpdate);
     await signalRService.stopConnection();
 });
-
 </script>
 
 <template>
@@ -343,7 +339,7 @@ onUnmounted(async () => {
         <!-- Loading State -->
         <div v-if="loading" class="col-span-12">
             <div class="card">
-                <div class="flex justify-content-center align-items-center" style="min-height: 200px;">
+                <div class="flex justify-content-center align-items-center" style="min-height: 200px">
                     <ProgressSpinner />
                 </div>
             </div>
@@ -364,17 +360,14 @@ onUnmounted(async () => {
                     Reset Dashboard
                 </Button>
             </div>
-            <Dialog v-model:visible="showStopEmergencyDialog" :closable="!resetLoading" :modal="true"
-                :dismissableMask="!resetLoading" :style="{ width: '350px' }">
+            <Dialog v-model:visible="showStopEmergencyDialog" :closable="!resetLoading" :modal="true" :dismissableMask="!resetLoading" :style="{ width: '350px' }">
                 <template #header>
                     <span>Arresto di emergenza</span>
                 </template>
                 <div class="mb-4">Sei sicuro di voler stoppare tutti i PC?</div>
                 <div class="flex justify-end gap-2">
-                    <Button class="p-button p-component" @click="showStopEmergencyDialog = false"
-                        :disabled="resetLoading">Annulla</Button>
-                    <Button severity="danger" class="p-button p-component" @click="confirmStopEmergency"
-                        :disabled="resetLoading">
+                    <Button class="p-button p-component" @click="showStopEmergencyDialog = false" :disabled="resetLoading">Annulla</Button>
+                    <Button severity="danger" class="p-button p-component" @click="confirmStopEmergency" :disabled="resetLoading">
                         <span v-if="resetLoading" class="pi pi-spin pi-spinner mr-2"></span>
                         <span v-else class="pi pi-check mr-2"></span>
                         Conferma
@@ -382,18 +375,14 @@ onUnmounted(async () => {
                 </div>
             </Dialog>
 
-
-            <Dialog v-model:visible="showResetDialog" :closable="!resetLoading" :modal="true"
-                :dismissableMask="!resetLoading" :style="{ width: '350px' }">
+            <Dialog v-model:visible="showResetDialog" :closable="!resetLoading" :modal="true" :dismissableMask="!resetLoading" :style="{ width: '350px' }">
                 <template #header>
                     <span>Conferma Reset</span>
                 </template>
                 <div class="mb-4">Sei sicuro di voler resettare la dashboard?</div>
                 <div class="flex justify-end gap-2">
-                    <Button class="p-button p-component" @click="showResetDialog = false"
-                        :disabled="resetLoading">Annulla</Button>
-                    <Button severity="danger" class="p-button p-component p-button-danger"
-                        @click="confirmResetDashboard" :disabled="resetLoading">
+                    <Button class="p-button p-component" @click="showResetDialog = false" :disabled="resetLoading">Annulla</Button>
+                    <Button severity="danger" class="p-button p-component p-button-danger" @click="confirmResetDashboard" :disabled="resetLoading">
                         <span v-if="resetLoading" class="pi pi-spin pi-spinner mr-2"></span>
                         <span v-else class="pi pi-check mr-2"></span>
                         Conferma

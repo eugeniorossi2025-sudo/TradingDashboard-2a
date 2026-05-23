@@ -170,6 +170,25 @@ const router = createRouter({
             component: () => import('@/views/pages/Landing.vue')
         },
         {
+            path: '/client/desktop',
+            name: 'client-desktop',
+            beforeEnter: authGuard,
+            component: () => import('@/views/client/ClientDesktop.vue')
+        },
+        {
+            path: '/client/mobile',
+            name: 'client-mobile',
+            beforeEnter: authGuard,
+            component: () => import('@/views/mobile/ClientMobile.vue')
+        },
+        {
+            path: '/admin/mobile-live',
+            name: 'admin-mobile-live',
+            beforeEnter: adminGuard,
+            meta: { requiresAdmin: true },
+            component: () => import('@/views/mobile/AdminMobileLive.vue')
+        },
+        {
             path: '/pages/notfound',
             name: 'notfound',
             component: () => import('@/views/pages/NotFound.vue')

@@ -5,7 +5,7 @@
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",
-        "lint": "eslint --fix . --ext .vue,.js,.jsx,.cjs,.mjs --fix --ignore-path .gitignore",
+        "lint": "set ESLINT_USE_FLAT_CONFIG=false&& eslint --fix src public/service-worker.js --ext .vue,.js,.jsx,.cjs,.mjs",
         "download-swagger": "curl -k http://localhost:5299/swagger/v1/swagger.json -o src/api/swagger.json",
         "generate-api": "openapi-generator-cli generate -i src/api/swagger.json -g typescript-axios -o src/api/client --additional-properties=supportsES6=true,withSeparateModelsAndApi=true,apiPackage=api,modelPackage=models",
         "update-api": "npm run download-swagger && npm run generate-api"
