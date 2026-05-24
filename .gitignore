@@ -5,6 +5,7 @@ __MACOSX/
 .idea/
 .vscode/
 .vs/
+.cursor/
 *.user
 *.suo
 *.userosscache
