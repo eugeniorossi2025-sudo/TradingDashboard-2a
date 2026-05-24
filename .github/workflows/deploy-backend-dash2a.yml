@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Guard deployment scope
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           if ('${{ github.event.inputs.confirm_safe_backend_deploy }}' -ne 'I_UNDERSTAND_BACKEND_DEPLOY_ONLY') {
@@ -54,15 +54,15 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Restore backend
-        shell: pwsh
+        shell: powershell
         run: dotnet restore backend\WebApi\WebApi.csproj
 
       - name: Build backend Release
-        shell: pwsh
+        shell: powershell
         run: dotnet build backend\WebApi\WebApi.csproj --configuration $env:CONFIGURATION --no-restore
 
       - name: Publish backend Release
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           if (Test-Path -LiteralPath $env:PUBLISH_DIR) {
@@ -75,7 +75,7 @@ jobs:
             --no-self-contained
 
       - name: Deploy backend to IIS safely
-        shell: pwsh
+        shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           .\ops\dash2a-readiness\deploy-backend-safe.ps1 `
