@@ -156,9 +156,7 @@ async function deletePC() {
 
 async function deleteSelectedPCs() {
     try {
-        const deletePromises = selectedPCs.value.map(device =>
-            PCManagerService.deletePC(device.id)
-        );
+        const deletePromises = selectedPCs.value.map((device) => PCManagerService.deletePC(device.id));
         await Promise.all(deletePromises);
 
         deletePCsDialog.value = false;
@@ -180,7 +178,6 @@ async function deleteSelectedPCs() {
         });
     }
 }
-
 </script>
 
 <template>
@@ -189,22 +186,30 @@ async function deleteSelectedPCs() {
             <Toolbar class="mb-6">
                 <template #start>
                     <div class="flex flex-col sm:flex-row gap-2">
-                        <Button label="New" icon="pi pi-plus" severity="secondary" @click="openNew"
-                            class="w-full sm:w-auto" />
+                        <Button label="New" icon="pi pi-plus" severity="secondary" @click="openNew" class="w-full sm:w-auto" />
                     </div>
                 </template>
 
                 <template #end>
-                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="dt.exportCSV()"
-                        class="w-full sm:w-auto" />
+                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="dt.exportCSV()" class="w-full sm:w-auto" />
                 </template>
             </Toolbar>
 
-            <DataTable ref="dt" v-model:selection="selectedPCs" :value="pcs" dataKey="id" :paginator="true" :rows="10"
-                :filters="filters" :loading="loading" responsiveLayout="scroll" breakpoint="960px"
+            <DataTable
+                ref="dt"
+                v-model:selection="selectedPCs"
+                :value="pcs"
+                dataKey="id"
+                :paginator="true"
+                :rows="10"
+                :filters="filters"
+                :loading="loading"
+                responsiveLayout="scroll"
+                breakpoint="960px"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 :rowsPerPageOptions="[5, 10, 25]"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} PCs">
+                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} PCs"
+            >
                 <template #header>
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <h4 class="m-0 text-lg">Manage PCs</h4>
@@ -212,14 +217,12 @@ async function deleteSelectedPCs() {
                             <InputIcon>
                                 <i class="pi pi-search" />
                             </InputIcon>
-                            <InputText v-model="filters['global'].value" placeholder="Search..."
-                                class="w-full sm:w-auto" />
+                            <InputText v-model="filters['global'].value" placeholder="Search..." class="w-full sm:w-auto" />
                         </IconField>
                     </div>
                 </template>
 
                 <Column field="title" header="Title" sortable :style="{ minWidth: '180px' }" />
-
 
                 <Column field="amount" header="Amount" sortable :style="{ minWidth: '120px' }">
                     <template #body="slotProps">
@@ -230,10 +233,8 @@ async function deleteSelectedPCs() {
                 <Column :exportable="false" :style="{ minWidth: '120px', width: '120px' }">
                     <template #body="slotProps">
                         <div class="flex gap-2">
-                            <Button icon="pi pi-pencil" outlined rounded size="small" @click="editPC(slotProps.data)"
-                                v-tooltip.top="'Edit'" />
-                            <Button icon="pi pi-trash" outlined rounded severity="danger" size="small"
-                                @click="confirmDeletePC(slotProps.data)" v-tooltip.top="'Delete'" />
+                            <Button icon="pi pi-pencil" outlined rounded size="small" @click="editPC(slotProps.data)" v-tooltip.top="'Edit'" />
+                            <Button icon="pi pi-trash" outlined rounded severity="danger" size="small" @click="confirmDeletePC(slotProps.data)" v-tooltip.top="'Delete'" />
                         </div>
                     </template>
                 </Column>
@@ -248,21 +249,17 @@ async function deleteSelectedPCs() {
         </div>
 
         <!-- PC Dialog -->
-        <Dialog v-model:visible="pcDialog" :style="{ width: '90vw', maxWidth: '450px' }"
-            :header="isEditMode ? 'Edit Device' : 'New Device'" :modal="true"
-            :breakpoints="{ '960px': '75vw', '640px': '95vw' }">
+        <Dialog v-model:visible="pcDialog" :style="{ width: '90vw', maxWidth: '450px' }" :header="isEditMode ? 'Edit Device' : 'New Device'" :modal="true" :breakpoints="{ '960px': '75vw', '640px': '95vw' }">
             <div class="flex flex-col gap-4">
                 <div v-if="!isEditMode">
                     <label class="block font-bold mb-2">ID (Optional)</label>
-                    <InputText v-model.trim="pc.id" fluid
-                        placeholder="Enter device ID (leave empty for auto-generate)" />
+                    <InputText v-model.trim="pc.id" fluid placeholder="Enter device ID (leave empty for auto-generate)" />
                     <small class="text-gray-500">If not provided, an ID will be automatically generated.</small>
                 </div>
 
                 <div>
                     <label class="block font-bold mb-2">Title</label>
-                    <InputText v-model.trim="pc.title" required :invalid="submitted && !pc.title" fluid
-                        placeholder="Enter device title" />
+                    <InputText v-model.trim="pc.title" required :invalid="submitted && !pc.title" fluid placeholder="Enter device title" />
                     <small v-if="submitted && !pc.title" class="text-red-500">Title is required.</small>
                 </div>
 
@@ -282,35 +279,34 @@ async function deleteSelectedPCs() {
         </Dialog>
 
         <!-- Delete PC -->
-        <Dialog v-model:visible="deletePCDialog" :style="{ width: '90vw', maxWidth: '450px' }" header="Confirm Delete"
-            :modal="true" :breakpoints="{ '640px': '95vw' }">
+        <Dialog v-model:visible="deletePCDialog" :style="{ width: '90vw', maxWidth: '450px' }" header="Confirm Delete" :modal="true" :breakpoints="{ '640px': '95vw' }">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle text-3xl text-orange-500" />
-                <span>Are you sure you want to delete <b>{{ pc.title }}</b>?</span>
+                <span
+                    >Are you sure you want to delete <b>{{ pc.title }}</b
+                    >?</span
+                >
             </div>
             <template #footer>
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-end">
-                    <Button label="No" text icon="pi pi-times" @click="deletePCDialog = false"
-                        class="w-full sm:w-auto" />
-                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deletePC"
-                        class="w-full sm:w-auto" />
+                    <Button label="No" text icon="pi pi-times" @click="deletePCDialog = false" class="w-full sm:w-auto" />
+                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deletePC" class="w-full sm:w-auto" />
                 </div>
             </template>
         </Dialog>
 
         <!-- Delete selected -->
-        <Dialog v-model:visible="deletePCsDialog" :style="{ width: '90vw', maxWidth: '450px' }"
-            header="Confirm Delete Multiple" :modal="true" :breakpoints="{ '640px': '95vw' }">
+        <Dialog v-model:visible="deletePCsDialog" :style="{ width: '90vw', maxWidth: '450px' }" header="Confirm Delete Multiple" :modal="true" :breakpoints="{ '640px': '95vw' }">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle text-3xl text-orange-500" />
-                <span>Are you sure you want to delete <b>{{ selectedPCs?.length || 0 }}</b> selected device(s)?</span>
+                <span
+                    >Are you sure you want to delete <b>{{ selectedPCs?.length || 0 }}</b> selected device(s)?</span
+                >
             </div>
             <template #footer>
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-end">
-                    <Button label="No" text icon="pi pi-times" @click="deletePCsDialog = false"
-                        class="w-full sm:w-auto" />
-                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedPCs"
-                        class="w-full sm:w-auto" />
+                    <Button label="No" text icon="pi pi-times" @click="deletePCsDialog = false" class="w-full sm:w-auto" />
+                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedPCs" class="w-full sm:w-auto" />
                 </div>
             </template>
         </Dialog>

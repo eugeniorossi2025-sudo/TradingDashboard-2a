@@ -152,18 +152,25 @@ onUnmounted(() => {
         <div class="flex justify-between items-center mb-4">
             <h2 class="text-2xl font-bold">Sessioni Bot Attive</h2>
             <div class="flex gap-2">
-                <Button icon="pi pi-refresh" label="Aggiorna" @click="fetchActiveSessions" :loading="loading"
-                    outlined />
-                <Button icon="pi pi-trash" label="Pulisci Inattive" @click="cleanupInactive" severity="warning"
-                    outlined />
+                <Button icon="pi pi-refresh" label="Aggiorna" @click="fetchActiveSessions" :loading="loading" outlined />
+                <Button icon="pi pi-trash" label="Pulisci Inattive" @click="cleanupInactive" severity="warning" outlined />
             </div>
         </div>
 
-        <DataTable v-model:selection="selectedSessions" :value="sessions" :loading="loading" dataKey="id" paginator
-            :rows="10" :rowsPerPageOptions="[5, 10, 20, 50]"
+        <DataTable
+            v-model:selection="selectedSessions"
+            :value="sessions"
+            :loading="loading"
+            dataKey="id"
+            paginator
+            :rows="10"
+            :rowsPerPageOptions="[5, 10, 20, 50]"
             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-            currentPageReportTemplate="Mostrando {first} a {last} di {totalRecords} sessioni" stripedRows
-            responsiveLayout="scroll" class="p-datatable-sm">
+            currentPageReportTemplate="Mostrando {first} a {last} di {totalRecords} sessioni"
+            stripedRows
+            responsiveLayout="scroll"
+            class="p-datatable-sm"
+        >
             <template #empty>
                 <div class="text-center p-4">
                     <i class="pi pi-inbox text-4xl text-gray-400 mb-3"></i>
@@ -226,15 +233,13 @@ onUnmounted(() => {
 
             <Column field="isActive" header="Stato" sortable style="min-width: 100px">
                 <template #body="{ data }">
-                    <Tag :value="data.isActive ? 'Attivo' : 'Inattivo'"
-                        :severity="data.isActive ? 'success' : 'danger'" />
+                    <Tag :value="data.isActive ? 'Attivo' : 'Inattivo'" :severity="data.isActive ? 'success' : 'danger'" />
                 </template>
             </Column>
 
             <Column header="Azioni" style="min-width: 100px">
                 <template #body="{ data }">
-                    <Button icon="pi pi-stop-circle" severity="danger" size="small" @click="stopSession(data)"
-                        :disabled="!data.isActive" v-tooltip.top="'Ferma sessione'" text rounded />
+                    <Button icon="pi pi-stop-circle" severity="danger" size="small" @click="stopSession(data)" :disabled="!data.isActive" v-tooltip.top="'Ferma sessione'" text rounded />
                 </template>
             </Column>
         </DataTable>

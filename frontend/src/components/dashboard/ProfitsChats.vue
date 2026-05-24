@@ -21,16 +21,14 @@ const props = defineProps({
     }
 });
 
-const chartData = ref([]);
+const sourceChartData = ref([]);
 
 const chartDataRef = ref(null);
 
 const chartOptions = ref(null);
 
 const formattedChartData = computed(() => {
-
     const documentStyle = getComputedStyle(document.documentElement);
-
 
     // Usa i dati originali
     const originalPoints = Array.isArray(props.chartData) ? props.chartData : [];
@@ -39,10 +37,10 @@ const formattedChartData = computed(() => {
     let chartPoints = [...originalPoints];
 
     // Trova tutte le date uniche ordinate
-    const allDates = Array.from(new Set(chartPoints.map(item => item.timestamp))).sort();
+    const allDates = Array.from(new Set(chartPoints.map((item) => item.timestamp))).sort();
     let selectedDates = allDates;
 
-    const labels = allDates.map(dateStr => {
+    const labels = allDates.map((dateStr) => {
         if (selectedDates.includes(dateStr)) {
             const date = new Date(dateStr);
             const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -59,11 +57,11 @@ const formattedChartData = computed(() => {
 
     const dataByDate = {};
 
-    chartPoints.forEach(item => {
+    chartPoints.forEach((item) => {
         dataByDate[item.timestamp] = item.margine;
     });
 
-    const data = allDates.map(date => dataByDate[date] ?? null);
+    const data = allDates.map((date) => dataByDate[date] ?? null);
 
     const color = documentStyle.getPropertyValue('--p-primary-500') || '#3b82f6';
 
@@ -76,7 +74,7 @@ const formattedChartData = computed(() => {
             borderColor: color,
             tension: 0.4,
             spanGaps: true
-        },
+        }
     ];
 
     return {
@@ -130,7 +128,7 @@ function setChartOptions() {
     };
 }
 
-watch([getPrimary, getSurface, isDarkTheme, chartData], () => {
+watch([getPrimary, getSurface, isDarkTheme, sourceChartData], () => {
     chartDataRef.value = formattedChartData.value;
     chartOptions.value = setChartOptions();
 });
@@ -140,7 +138,7 @@ watch(margine, () => {
 });
 
 onMounted(async () => {
-    chartData.value = props.chartData;
+    sourceChartData.value = props.chartData;
     chartDataRef.value = formattedChartData.value;
     chartOptions.value = setChartOptions();
 });

@@ -42,10 +42,7 @@ const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
 ];
-const missionModeOptions = [
-    { label: 'Tutte', value: 'All' },
-    ...reportModeOptions
-];
+const missionModeOptions = [{ label: 'Tutte', value: 'All' }, ...reportModeOptions];
 
 onMounted(() => {
     fetchLogs();

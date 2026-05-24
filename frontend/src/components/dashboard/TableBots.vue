@@ -1,8 +1,6 @@
 <script setup>
 import { computed, ref } from 'vue';
 
-const emit = defineEmits(['show-bot-detail']);
-
 const props = defineProps({
     tableData: {
         type: Array,
@@ -26,7 +24,7 @@ function onRowCollapse() {
 
 // 🔹 Data source
 const displayData = computed(() => {
-    return (props.tableData ?? []).map(row => ({
+    return (props.tableData ?? []).map((row) => ({
         ...row,
         id: `${row.account ?? ''}-${row.computer ?? ''}`
     }));
@@ -120,14 +118,14 @@ function isOnline(timestamp) {
     // Aggiungi un'ora (3600000 ms) al timestamp
     const ts = new Date(timestamp).getTime() + 3600000;
     // console.log((now - ts));
-    return (now - ts) <= 300 * 1000;
+    return now - ts <= 300 * 1000;
 }
 const getLastAdviceField = (lastAdvice, field) => {
     if (!lastAdvice) return null;
     try {
         const adviceObj = JSON.parse(lastAdvice);
         return adviceObj[field] ?? null;
-    } catch (e) {
+    } catch {
         return null;
     }
 };
@@ -135,18 +133,9 @@ const parseTooltipJson = (tooltipJson) => {
     if (!tooltipJson) return {};
     try {
         return JSON.parse(tooltipJson);
-    } catch (e) {
+    } catch {
         return {};
     }
-};
-
-const getColorSeverity = (color) => {
-    const map = {
-        VERDE: 'success',
-        GIALLO: 'warn',
-        ROSSO: 'danger'
-    };
-    return map[color?.toUpperCase()] ?? 'info';
 };
 </script>
 
@@ -154,15 +143,23 @@ const getColorSeverity = (color) => {
     <div class="card">
         <div class="flex justify-between items-center mb-4">
             <div class="font-semibold text-xl">Decision method {{ decisionMethod }}, Report Bot</div>
-            <small class="text-gray-500">{{displayData.filter(e => isOnline(e.dtUltimo)).length}} bot attivi</small>
+            <small class="text-gray-500">{{ displayData.filter((e) => isOnline(e.dtUltimo)).length }} bot attivi</small>
         </div>
 
-        <DataTable v-model:expandedRows="expandedRows" :value="displayData" dataKey="id" :paginator="true" :rows="10"
+        <DataTable
+            v-model:expandedRows="expandedRows"
+            :value="displayData"
+            dataKey="id"
+            :paginator="true"
+            :rows="10"
             :rowsPerPageOptions="[5, 10, 25]"
             paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-            currentPageReportTemplate="Showing {first} to {last} of {totalRecords} bots" responsiveLayout="scroll"
-            stripedRows @rowExpand="onRowExpand" @rowCollapse="onRowCollapse">
-
+            currentPageReportTemplate="Showing {first} to {last} of {totalRecords} bots"
+            responsiveLayout="scroll"
+            stripedRows
+            @rowExpand="onRowExpand"
+            @rowCollapse="onRowCollapse"
+        >
             <!-- Expand Colsumn -->
             <Column expander style="width: 3rem" />
 
@@ -170,11 +167,7 @@ const getColorSeverity = (color) => {
                 <template #body="slotProps">
                     <div class="font-semibold flex items-center gap-2">
                         <!-- Cerchio stato online/offline use isOnline(slotProps.data.timestamp) -->
-                        <i :class="[
-                            'pi',
-                            isOnline(slotProps.data.dtUltimo) ? 'pi-circle-fill text-green-500' : 'pi-circle-fill text-gray-400',
-                            'text-xs'
-                        ]"></i>
+                        <i :class="['pi', isOnline(slotProps.data.dtUltimo) ? 'pi-circle-fill text-green-500' : 'pi-circle-fill text-gray-400', 'text-xs']"></i>
                         {{ slotProps.data.computer }}
                     </div>
                 </template>
@@ -213,36 +206,35 @@ const getColorSeverity = (color) => {
 
             <Column field="pbt" header="PBT" sortable frozen style="min-width: 120px" class="hidden md:table-cell">
                 <template #body="slotProps">
-                    <span :class="[
-                        'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center w-fit',
-                        slotProps.data.pbt === 'T' ? 'bg-green-800 text-white' : '',
-                        slotProps.data.pbt === 'B' ? 'bg-red-800 text-white' : '',
-                        slotProps.data.pbt === 'P' ? 'bg-blue-800 text-white' : '',
-                        'border border-surface-300 dark:border-surface-700'
-                    ]">
+                    <span
+                        :class="[
+                            'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center w-fit',
+                            slotProps.data.pbt === 'T' ? 'bg-green-800 text-white' : '',
+                            slotProps.data.pbt === 'B' ? 'bg-red-800 text-white' : '',
+                            slotProps.data.pbt === 'P' ? 'bg-blue-800 text-white' : '',
+                            'border border-surface-300 dark:border-surface-700'
+                        ]"
+                    >
                         {{ slotProps.data.pbt }}
                     </span>
                 </template>
             </Column>
 
             <!-- Saldo Iniziale -->
-            <Column field="actioncode" header="Action Code:" sortable style="min-width: 140px"
-                class="hidden lg:table-cell">
+            <Column field="actioncode" header="Action Code:" sortable style="min-width: 140px" class="hidden lg:table-cell">
                 <template #body="slotProps">
                     <span class="font-semibold">{{ slotProps.data.lastAction }}</span>
                 </template>
             </Column>
             <!-- Saldo Iniziale -->
-            <Column field="saldoIniziale" header="Saldo Iniziale" sortable style="min-width: 140px"
-                class="hidden lg:table-cell">
+            <Column field="saldoIniziale" header="Saldo Iniziale" sortable style="min-width: 140px" class="hidden lg:table-cell">
                 <template #body="slotProps">
                     <span class="font-semibold">{{ formatCurrency(slotProps.data.saldoIniziale) }}</span>
                 </template>
             </Column>
 
             <!-- Saldo Istantaneo -->
-            <Column field="saldoIstantaneo" header="Saldo Corrente" sortable style="min-width: 140px"
-                class="hidden lg:table-cell">
+            <Column field="saldoIstantaneo" header="Saldo Corrente" sortable style="min-width: 140px" class="hidden lg:table-cell">
                 <template #body="slotProps">
                     <span class="font-semibold">{{ formatCurrency(slotProps.data.saldoIstantaneo) }}</span>
                 </template>
@@ -252,31 +244,29 @@ const getColorSeverity = (color) => {
                     <div>
                         <Tag :value="parseInt(slotProps.data.colpoMartingala)" severity="info" />
                         <div class="mt-1">
-                            <Tag :value="slotProps.data.reason"
-                                :severity="slotProps.data.reason === 'Default' ? 'success' : 'warn'" rounded />
+                            <Tag :value="slotProps.data.reason" :severity="slotProps.data.reason === 'Default' ? 'success' : 'warn'" rounded />
                         </div>
                     </div>
                 </template>
             </Column>
 
-            <Column field="valoreGiocato" header="Valore Giocato" sortable style="min-width: 140px"
-                class="hidden xl:table-cell">
+            <Column field="valoreGiocato" header="Valore Giocato" sortable style="min-width: 140px" class="hidden xl:table-cell">
                 <template #body="slotProps">
-                    <span class="text-primary font-semibold">{{ formatCurrency(slotProps.data.valoreGiocato)
-                        }}</span>
+                    <span class="text-primary font-semibold">{{ formatCurrency(slotProps.data.valoreGiocato) }}</span>
                 </template>
             </Column>
 
-            <Column field="chosenColor" header="Colore Giocato" sortable frozen style="min-width: 120px"
-                class="hidden md:table-cell">
+            <Column field="chosenColor" header="Colore Giocato" sortable frozen style="min-width: 120px" class="hidden md:table-cell">
                 <template #body="slotProps">
-                    <span :class="[
-                        'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center w-fit',
-                        slotProps.data.chosenColor === 'T' ? 'bg-green-800 text-white' : '',
-                        slotProps.data.chosenColor === 'B' ? 'bg-red-800 text-white' : '',
-                        slotProps.data.chosenColor === 'P' ? 'bg-blue-800 text-white' : '',
-                        'border border-surface-300 dark:border-surface-700'
-                    ]">
+                    <span
+                        :class="[
+                            'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center w-fit',
+                            slotProps.data.chosenColor === 'T' ? 'bg-green-800 text-white' : '',
+                            slotProps.data.chosenColor === 'B' ? 'bg-red-800 text-white' : '',
+                            slotProps.data.chosenColor === 'P' ? 'bg-blue-800 text-white' : '',
+                            'border border-surface-300 dark:border-surface-700'
+                        ]"
+                    >
                         {{ slotProps.data.chosenColor }}
                     </span>
                 </template>
@@ -308,34 +298,25 @@ const getColorSeverity = (color) => {
                                     Informazioni Principali
                                 </h6>
                                 <div class="space-y-2 text-sm">
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Minuti Passati:</span>
-                                        <span class="font-semibold">{{
-                                            calculateMinutesPassed(slotProps.data.ore)
-                                            }}</span>
+                                        <span class="font-semibold">{{ calculateMinutesPassed(slotProps.data.ore) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Tavolo:</span>
-                                        <span class="font-semibold">{{ slotProps.data.tavolo || '-'
-                                            }}</span>
+                                        <span class="font-semibold">{{ slotProps.data.tavolo || '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Mazzo:</span>
                                         <span class="font-semibold">{{ slotProps.data.mazzo || '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Stato:</span>
-                                        <Tag :value="slotProps.data.stato"
-                                            :severity="getStatusSeverity(slotProps.data.stato)" />
+                                        <Tag :value="slotProps.data.stato" :severity="getStatusSeverity(slotProps.data.stato)" />
                                     </div>
                                     <div class="flex justify-between py-1">
                                         <span class="text-muted-color">Ore:</span>
-                                        <span class="font-semibold">{{ formatTime(slotProps.data.ore)
-                                            }}</span>
+                                        <span class="font-semibold">{{ formatTime(slotProps.data.ore) }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -349,52 +330,35 @@ const getColorSeverity = (color) => {
                                     Bilanci e Puntate
                                 </h6>
                                 <div class="space-y-2 text-sm">
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Saldo Iniziale:</span>
-                                        <span class="font-bold text-blue-600">{{
-                                            formatCurrency(slotProps.data.saldoIniziale) }}</span>
+                                        <span class="font-bold text-blue-600">{{ formatCurrency(slotProps.data.saldoIniziale) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Saldo Istantaneo:</span>
-                                        <span class="font-bold text-green-600">{{
-                                            formatCurrency(slotProps.data.saldoIstantaneo) }}</span>
+                                        <span class="font-bold text-green-600">{{ formatCurrency(slotProps.data.saldoIstantaneo) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Margine:</span>
                                         <span :class="getMarginClass(slotProps.data.margine)" class="text-lg">
                                             {{ formatCurrency(slotProps.data.margine) }}
                                         </span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Media/Ora:</span>
-                                        <span class="font-semibold">{{ formatCurrency(parseFloat(slotProps.data.margine)
-                                            / 60) }}/
-                                            ora</span>
+                                        <span class="font-semibold">{{ formatCurrency(parseFloat(slotProps.data.margine) / 60) }}/ ora</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Valore Giocato:</span>
-                                        <span class="font-semibold">{{
-                                            formatCurrency(slotProps.data.valoreGiocato)
-                                            }}</span>
+                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.valoreGiocato) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Margine Min:</span>
-                                        <span class="font-semibold">{{
-                                            formatCurrency(slotProps.data.margineMin)
-                                            }}</span>
+                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.margineMin) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Margine Max:</span>
-                                        <span class="font-semibold">{{
-                                            formatCurrency(slotProps.data.margineMax)
-                                            }}</span>
+                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.margineMax) }}</span>
                                     </div>
                                 </div>
                             </div>
@@ -408,96 +372,64 @@ const getColorSeverity = (color) => {
                                     Strategia e Analisi
                                 </h6>
                                 <div class="space-y-2 text-sm">
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Martingala:</span>
-                                        <Tag :value="slotProps.data.colpoMartingala ?? slotProps.data.martingale ?? '-'"
-                                            severity="info" />
+                                        <Tag :value="slotProps.data.colpoMartingala ?? slotProps.data.martingale ?? '-'" severity="info" />
                                     </div>
 
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Stop L6:</span>
-                                        <Tag :value="slotProps.data.StopL6 ? 'Sì' : 'No'"
-                                            :severity="slotProps.data.StopL6 ? 'danger' : 'success'" />
+                                        <Tag :value="slotProps.data.StopL6 ? 'Sì' : 'No'" :severity="slotProps.data.StopL6 ? 'danger' : 'success'" />
                                     </div>
                                     <!-- Nuovi campi da lastAdvice -->
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Stato Tavolo:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'State') || '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'State') || '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Martingala:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'Martingala') ?? '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'Martingala') ?? '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Margine Locale:</span>
-                                        <span class="font-semibold">{{
-                                            formatCurrency(getLastAdviceField(slotProps.data.lastAdvice, 'LocalMargin'))
-                                        }}</span>
+                                        <span class="font-semibold">{{ formatCurrency(getLastAdviceField(slotProps.data.lastAdvice, 'LocalMargin')) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Margine Globale:</span>
-                                        <span class="font-semibold">{{
-                                            formatCurrency(getLastAdviceField(slotProps.data.lastAdvice,
-                                                'GlobalMargin')) }}</span>
+                                        <span class="font-semibold">{{ formatCurrency(getLastAdviceField(slotProps.data.lastAdvice, 'GlobalMargin')) }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Minuti Trascorsi:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'Elapsed') ? Math.round(getLastAdviceField(slotProps.data.lastAdvice,
-                                                'Elapsed')) : '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed') ? Math.round(getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed')) : '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">HotZone:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'HotZone') ? 'Sì' : 'No' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'HotZone') ? 'Sì' : 'No' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalAuthL6Counter:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'GlobalAuthL6Counter') ?? '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalAuthL6Counter') ?? '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalL5Loss:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'GlobalL5Loss') ?? '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalL5Loss') ?? '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalPBHandsPlayed:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'GlobalPBHandsPlayed') ?? '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalPBHandsPlayed') ?? '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalPauseScalping:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'GlobalPauseScalping') ? 'Sì' : 'No' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalPauseScalping') ? 'Sì' : 'No' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalPauseScalpingDuration:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice,
-                                            'GlobalPauseScalpingDuration') ?? '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalPauseScalpingDuration') ?? '-' }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Motivo:</span>
                                         <span class="font-semibold">
-                                            <Tag :value="slotProps.data.reason"
-                                                :severity="slotProps.data.reason === 'Default' ? 'success' : 'warn'"
-                                                rounded />
+                                            <Tag :value="slotProps.data.reason" :severity="slotProps.data.reason === 'Default' ? 'success' : 'warn'" rounded />
                                         </span>
                                     </div>
                                 </div>
@@ -512,30 +444,27 @@ const getColorSeverity = (color) => {
                                     Timing e Attività
                                 </h6>
                                 <div class="space-y-2 text-sm">
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Ore Attività:</span>
-                                        <span class="font-bold text-purple-600">{{ slotProps.data.ore
-                                            }}</span>
+                                        <span class="font-bold text-purple-600">{{ slotProps.data.ore }}</span>
                                     </div>
-                                    <div
-                                        class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Minuti Passati:</span>
-                                        <span class="font-semibold">{{
-                                            calculateMinutesPassed(slotProps.data.ore) }}
-                                            min</span>
+                                        <span class="font-semibold">{{ calculateMinutesPassed(slotProps.data.ore) }} min</span>
                                     </div>
                                     <div class="flex justify-between py-1">
                                         <span class="text-muted-color">PBT:</span>
                                         <span class="flex gap-1">
                                             <template v-if="slotProps.data.pbt">
-                                                <span :class="[
-                                                    'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center',
-                                                    slotProps.data.pbt === 'T' ? 'bg-green-800 text-white' : '',
-                                                    slotProps.data.pbt === 'B' ? 'bg-red-800 text-white' : '',
-                                                    slotProps.data.pbt === 'P' ? 'bg-blue-800 text-white' : '',
-                                                    'border border-surface-300 dark:border-surface-700'
-                                                ]">
+                                                <span
+                                                    :class="[
+                                                        'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center',
+                                                        slotProps.data.pbt === 'T' ? 'bg-green-800 text-white' : '',
+                                                        slotProps.data.pbt === 'B' ? 'bg-red-800 text-white' : '',
+                                                        slotProps.data.pbt === 'P' ? 'bg-blue-800 text-white' : '',
+                                                        'border border-surface-300 dark:border-surface-700'
+                                                    ]"
+                                                >
                                                     {{ slotProps.data.pbt }}
                                                 </span>
                                             </template>
@@ -547,16 +476,18 @@ const getColorSeverity = (color) => {
                                     <div class="flex justify-between py-1">
                                         <span class="text-muted-color">PBT History:</span>
                                         <span class="flex gap-1">
-                                            <template
-                                                v-if="Array.isArray(slotProps.data.pbtHistory) && slotProps.data.pbtHistory.length">
-                                                <span v-for="(item, idx) in slotProps.data.pbtHistory" :key="idx"
+                                            <template v-if="Array.isArray(slotProps.data.pbtHistory) && slotProps.data.pbtHistory.length">
+                                                <span
+                                                    v-for="(item, idx) in slotProps.data.pbtHistory"
+                                                    :key="idx"
                                                     :class="[
                                                         'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center',
                                                         item === 'T' ? 'bg-green-800 text-white' : '',
                                                         item === 'B' ? 'bg-red-800 text-white' : '',
                                                         item === 'P' ? 'bg-blue-800 text-white' : '',
                                                         'border border-surface-300 dark:border-surface-700'
-                                                    ]">
+                                                    ]"
+                                                >
                                                     {{ item }}
                                                 </span>
                                             </template>
@@ -578,13 +509,9 @@ const getColorSeverity = (color) => {
                                 </h6>
                                 <div class="space-y-2 text-sm">
                                     <div class="py-1 space-y-1">
-                                        <template
-                                            v-if="slotProps.data.lastAdvice && getLastAdviceField(slotProps.data.lastAdvice, 'ToolTipJson')">
-                                            <template
-                                                v-for="(value, key) in parseTooltipJson(getLastAdviceField(slotProps.data.lastAdvice, 'ToolTipJson'))"
-                                                :key="key">
-                                                <span class="text-muted-color block mb-1 mt-2">{{ key.replace('_', ' ')
-                                                }}</span>
+                                        <template v-if="slotProps.data.lastAdvice && getLastAdviceField(slotProps.data.lastAdvice, 'ToolTipJson')">
+                                            <template v-for="(value, key) in parseTooltipJson(getLastAdviceField(slotProps.data.lastAdvice, 'ToolTipJson'))" :key="key">
+                                                <span class="text-muted-color block mb-1 mt-2">{{ key.replace('_', ' ') }}</span>
                                                 <span class="font-semibold">{{ value }}</span>
                                             </template>
                                         </template>
@@ -603,8 +530,7 @@ const getColorSeverity = (color) => {
                                     <i class="pi pi-image"></i>
                                     Screenshot Bot
                                 </h6>
-                                <img :src="slotProps.data.image" alt="Bot screenshot"
-                                    class="w-full max-w-4xl mx-auto rounded-lg shadow-lg border-2 border-surface-200 dark:border-surface-700" />
+                                <img :src="slotProps.data.image" alt="Bot screenshot" class="w-full max-w-4xl mx-auto rounded-lg shadow-lg border-2 border-surface-200 dark:border-surface-700" />
                             </div>
                         </div>
                     </div>

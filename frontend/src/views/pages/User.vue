@@ -141,10 +141,18 @@ function formatDate(value) {
                         <InputText v-model="data.notificationEmail" placeholder="email@dominio" class="w-full" />
                     </template>
                 </Column>
-                <Column header="Enabled"><template #body="{ data }"><Checkbox v-model="data.enabled" binary /></template></Column>
-                <Column header="Mission"><template #body="{ data }"><Checkbox v-model="data.mission" binary /></template></Column>
-                <Column header="System"><template #body="{ data }"><Checkbox v-model="data.system" binary /></template></Column>
-                <Column header="Errors"><template #body="{ data }"><Checkbox v-model="data.errors" binary /></template></Column>
+                <Column header="Enabled"
+                    ><template #body="{ data }"><Checkbox v-model="data.enabled" binary /></template
+                ></Column>
+                <Column header="Mission"
+                    ><template #body="{ data }"><Checkbox v-model="data.mission" binary /></template
+                ></Column>
+                <Column header="System"
+                    ><template #body="{ data }"><Checkbox v-model="data.system" binary /></template
+                ></Column>
+                <Column header="Errors"
+                    ><template #body="{ data }"><Checkbox v-model="data.errors" binary /></template
+                ></Column>
                 <Column header="Azioni" :style="{ minWidth: '150px' }">
                     <template #body="{ data }">
                         <div class="flex gap-2">
@@ -203,7 +211,9 @@ function formatDate(value) {
 
         <Dialog v-model:visible="accessDialog" :header="`Report accessi - ${selectedUser?.username || ''}`" modal :style="{ width: '900px', maxWidth: '95vw' }">
             <DataTable :value="accessEvents" :loading="accessLoading" responsiveLayout="scroll" breakpoint="960px">
-                <Column field="occurredAtUtc" header="Quando"><template #body="{ data }">{{ formatDate(data.occurredAtUtc) }}</template></Column>
+                <Column field="occurredAtUtc" header="Quando"
+                    ><template #body="{ data }">{{ formatDate(data.occurredAtUtc) }}</template></Column
+                >
                 <Column field="eventType" header="Evento" />
                 <Column field="ipAddress" header="IP" />
                 <Column field="page" header="Pagina" />

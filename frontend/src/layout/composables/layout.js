@@ -18,7 +18,7 @@ const loadConfigFromStorage = () => {
         try {
             const parsed = JSON.parse(saved);
             Object.assign(layoutConfig, parsed);
-        } catch (e) {
+        } catch {
             // ignore parse error
         }
     }
@@ -26,7 +26,7 @@ const loadConfigFromStorage = () => {
     if (savedDark !== null) {
         try {
             layoutConfig.darkTheme = JSON.parse(savedDark);
-        } catch (e) {
+        } catch {
             // ignore parse error
         }
     }
@@ -56,7 +56,6 @@ const layoutState = reactive({
 
 export function useLayout() {
     onMounted(() => {
-
         if (layoutConfig.darkTheme) {
             document.documentElement.classList.add('app-dark');
         } else {

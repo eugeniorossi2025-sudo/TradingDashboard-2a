@@ -12,7 +12,7 @@ const telemetryData = computed(() => {
     if (!props.telemetry) return {};
     try {
         return JSON.parse(props.telemetry);
-    } catch (e) {
+    } catch {
         return {};
     }
 });
@@ -151,15 +151,9 @@ const telemetryData = computed(() => {
             <div class="text-sm text-muted-color mt-2">
                 {{ telemetryData?.GlobalPauseScalpingDetails }}
             </div>
-            <div class="text-sm text-muted-color">
-                Durata: {{ telemetryData?.GlobalPauseScalpingDuration }}
-            </div>
-            <div class="text-sm text-muted-color">
-                Pause Soglie: {{ telemetryData?.TotalPauseScalpingSoglieActivated }}
-            </div>
-             <div class="text-sm text-muted-color">
-                Pause EWMA: {{ telemetryData?.TotalPauseScalpingEWMAActivated }}
-            </div>
+            <div class="text-sm text-muted-color">Durata: {{ telemetryData?.GlobalPauseScalpingDuration }}</div>
+            <div class="text-sm text-muted-color">Pause Soglie: {{ telemetryData?.TotalPauseScalpingSoglieActivated }}</div>
+            <div class="text-sm text-muted-color">Pause EWMA: {{ telemetryData?.TotalPauseScalpingEWMAActivated }}</div>
         </div>
     </div>
 
@@ -180,5 +174,4 @@ const telemetryData = computed(() => {
             </div>
         </div>
     </div>
-
 </template>

@@ -3,15 +3,13 @@ import { useAuth } from '@/composables/useAuth';
 import { computed } from 'vue';
 import AppMenuItem from './AppMenuItem.vue';
 
-const { isAdmin, canManageUsers, canManageRoles, canViewLogs, canManageDevices, canExecuteCommands, canViewConfigurations } = useAuth();
+const { canManageUsers, canManageRoles, canViewLogs, canManageDevices, canExecuteCommands, canViewConfigurations } = useAuth();
 
 // 🔹 BASE MENU ITEMS (VISIBLE TO ALL AUTHENTICATED USERS)
 const baseMenuItems = [
     {
         label: 'Home',
-        items: [
-            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }
-        ]
+        items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }]
     }
 ];
 

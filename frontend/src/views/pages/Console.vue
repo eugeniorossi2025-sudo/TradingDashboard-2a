@@ -90,7 +90,7 @@ const handleKeyDown = (event) => {
     // Arrow Up - Previous command
     if (event.key === 'ArrowUp') {
         event.preventDefault();
-        const commands = commandHistory.value.map(h => h.command);
+        const commands = commandHistory.value.map((h) => h.command);
         if (commands.length > 0) {
             if (historyIndex.value < commands.length - 1) {
                 historyIndex.value++;
@@ -104,7 +104,7 @@ const handleKeyDown = (event) => {
         event.preventDefault();
         if (historyIndex.value > 0) {
             historyIndex.value--;
-            const commands = commandHistory.value.map(h => h.command);
+            const commands = commandHistory.value.map((h) => h.command);
             commandInput.value = commands[commands.length - 1 - historyIndex.value];
         } else if (historyIndex.value === 0) {
             historyIndex.value = -1;
@@ -125,9 +125,7 @@ const onInputChange = () => {
     const input = commandInput.value.toLowerCase().trim();
 
     if (input.length > 0) {
-        filteredCommands.value = availableCommands.value.filter(cmd =>
-            cmd.toLowerCase().startsWith(input)
-        );
+        filteredCommands.value = availableCommands.value.filter((cmd) => cmd.toLowerCase().startsWith(input));
         showSuggestions.value = filteredCommands.value.length > 0;
     } else {
         showSuggestions.value = false;
@@ -176,9 +174,7 @@ const showHelp = () => {
         id: Date.now().toString(),
         command: 'help',
         timestamp: new Date(),
-        output: `Available commands:\n${availableCommands.value.map(cmd =>
-            `  ${cmd.padEnd(20)} - ${CommandService.getCommandHelp(cmd)}`
-        ).join('\n')}`,
+        output: `Available commands:\n${availableCommands.value.map((cmd) => `  ${cmd.padEnd(20)} - ${CommandService.getCommandHelp(cmd)}`).join('\n')}`,
         success: true
     };
 
@@ -214,10 +210,7 @@ const formatTime = (date) => {
         </div>
 
         <!-- TERMINAL OUTPUT -->
-        <div ref="terminalOutput"
-            class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm mb-4 overflow-y-auto"
-            style="height: 500px; max-height: 70vh;">
-
+        <div ref="terminalOutput" class="bg-gray-900 text-green-400 p-4 rounded-lg font-mono text-sm mb-4 overflow-y-auto" style="height: 500px; max-height: 70vh">
             <!-- WELCOME MESSAGE -->
             <div v-if="commandHistory.length === 0" class="text-gray-500 italic">
                 <p>Bot Dashboard Command Console v1.0</p>
@@ -232,10 +225,7 @@ const formatTime = (date) => {
                     <span class="text-yellow-400">$</span>
                     <span>{{ entry.command }}</span>
                 </div>
-                <div :class="[
-                    'mt-1 pl-4 whitespace-pre-wrap',
-                    entry.success ? 'text-green-400' : 'text-red-400'
-                ]">
+                <div :class="['mt-1 pl-4 whitespace-pre-wrap', entry.success ? 'text-green-400' : 'text-red-400']">
                     {{ entry.output }}
                 </div>
             </div>
@@ -252,19 +242,23 @@ const formatTime = (date) => {
             <div class="flex gap-2">
                 <IconField class="flex-1">
                     <InputIcon class="pi pi-chevron-right text-green-500" />
-                    <InputText v-model="commandInput" @keydown.enter="executeCommand" @keydown="handleKeyDown"
-                        @input="onInputChange" placeholder="Type a command... (Tab for autocomplete, ↑↓ for history)"
-                        :disabled="executing" class="font-mono" fluid />
+                    <InputText
+                        v-model="commandInput"
+                        @keydown.enter="executeCommand"
+                        @keydown="handleKeyDown"
+                        @input="onInputChange"
+                        placeholder="Type a command... (Tab for autocomplete, ↑↓ for history)"
+                        :disabled="executing"
+                        class="font-mono"
+                        fluid
+                    />
                 </IconField>
-                <Button label="Execute" icon="pi pi-play" @click="executeCommand" :loading="executing"
-                    :disabled="!commandInput.trim() || executing" />
+                <Button label="Execute" icon="pi pi-play" @click="executeCommand" :loading="executing" :disabled="!commandInput.trim() || executing" />
             </div>
 
             <!-- AUTOCOMPLETE SUGGESTIONS -->
-            <div v-if="showSuggestions"
-                class="absolute top-full left-0 right-0 mt-1 bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
-                <div v-for="cmd in filteredCommands" :key="cmd" @click="selectSuggestion(cmd)"
-                    class="px-4 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 cursor-pointer font-mono text-sm">
+            <div v-if="showSuggestions" class="absolute top-full left-0 right-0 mt-1 bg-surface-0 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded-lg shadow-lg z-10 max-h-48 overflow-y-auto">
+                <div v-for="cmd in filteredCommands" :key="cmd" @click="selectSuggestion(cmd)" class="px-4 py-2 hover:bg-surface-100 dark:hover:bg-surface-700 cursor-pointer font-mono text-sm">
                     <div class="flex justify-between items-center">
                         <span class="font-semibold">{{ cmd }}</span>
                         <span class="text-xs text-muted-color">Press Tab</span>
@@ -280,9 +274,19 @@ const formatTime = (date) => {
         <div class="mt-4 pt-4 border-t border-surface-200 dark:border-surface-700">
             <div class="text-sm font-semibold mb-2 text-muted-color">Quick Commands:</div>
             <div class="flex flex-wrap gap-2">
-                <Button v-for="cmd in ['status', 'get-stats', 'list-bots', 'reload-config']" :key="cmd" :label="cmd"
-                    size="small" severity="secondary" outlined @click="commandInput = cmd; executeCommand()"
-                    :disabled="executing" />
+                <Button
+                    v-for="cmd in ['status', 'get-stats', 'list-bots', 'reload-config']"
+                    :key="cmd"
+                    :label="cmd"
+                    size="small"
+                    severity="secondary"
+                    outlined
+                    @click="
+                        commandInput = cmd;
+                        executeCommand();
+                    "
+                    :disabled="executing"
+                />
             </div>
         </div>
     </div>

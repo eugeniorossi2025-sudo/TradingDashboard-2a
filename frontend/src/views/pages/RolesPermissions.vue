@@ -20,17 +20,17 @@ const availablePermissions = ref([]);
 // Statistics
 const statistics = computed(() => ({
     totalUsers: users.value.length,
-    usersWithRoles: users.value.filter(u => u.roles && u.roles.length > 0).length,
-    usersWithPermissions: users.value.filter(u => u.permissions && u.permissions.length > 0).length,
-    adminUsers: users.value.filter(u => u.isAdmin).length
+    usersWithRoles: users.value.filter((u) => u.roles && u.roles.length > 0).length,
+    usersWithPermissions: users.value.filter((u) => u.permissions && u.permissions.length > 0).length,
+    adminUsers: users.value.filter((u) => u.isAdmin).length
 }));
 
 // Role statistics
 const roleStats = computed(() => {
     const stats = {};
-    users.value.forEach(user => {
+    users.value.forEach((user) => {
         if (user.roles) {
-            user.roles.forEach(role => {
+            user.roles.forEach((role) => {
                 if (!stats[role]) {
                     stats[role] = { role, count: 0, users: [] };
                 }
@@ -45,9 +45,9 @@ const roleStats = computed(() => {
 // Permission statistics
 const permissionStats = computed(() => {
     const stats = {};
-    users.value.forEach(user => {
+    users.value.forEach((user) => {
         if (user.permissions) {
-            user.permissions.forEach(perm => {
+            user.permissions.forEach((perm) => {
                 if (!stats[perm]) {
                     stats[perm] = { permission: perm, count: 0, users: [] };
                 }
@@ -132,9 +132,7 @@ const assignBulkRole = async () => {
 
     try {
         loading.value = true;
-        const promises = selectedUsersForBulk.value.map(userId =>
-            RoleService.assignRole(userId, selectedRole.value)
-        );
+        const promises = selectedUsersForBulk.value.map((userId) => RoleService.assignRole(userId, selectedRole.value));
         await Promise.all(promises);
 
         toast.add({
@@ -190,9 +188,7 @@ const assignBulkPermission = async () => {
 
     try {
         loading.value = true;
-        const promises = selectedUsersForPermission.value.map(userId =>
-            RoleService.assignPermission(userId, selectedPermission.value)
-        );
+        const promises = selectedUsersForPermission.value.map((userId) => RoleService.assignPermission(userId, selectedPermission.value));
         await Promise.all(promises);
 
         toast.add({
@@ -230,8 +226,7 @@ const assignBulkPermission = async () => {
                                 <span class="block text-muted-color font-medium mb-3">Total Users</span>
                                 <div class="text-primary-500 font-medium text-xl">{{ statistics.totalUsers }}</div>
                             </div>
-                            <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-full"
-                                style="width: 2.5rem; height: 2.5rem">
+                            <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-full" style="width: 2.5rem; height: 2.5rem">
                                 <i class="pi pi-users text-blue-500 !text-xl"></i>
                             </div>
                         </div>
@@ -245,8 +240,7 @@ const assignBulkPermission = async () => {
                                 <span class="block text-muted-color font-medium mb-3">Users with Roles</span>
                                 <div class="text-blue-500 font-medium text-xl">{{ statistics.usersWithRoles }}</div>
                             </div>
-                            <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-full"
-                                style="width: 2.5rem; height: 2.5rem">
+                            <div class="flex items-center justify-center bg-blue-100 dark:bg-blue-400/10 rounded-full" style="width: 2.5rem; height: 2.5rem">
                                 <i class="pi pi-shield text-blue-500 !text-xl"></i>
                             </div>
                         </div>
@@ -258,11 +252,9 @@ const assignBulkPermission = async () => {
                         <div class="flex justify-between mb-3">
                             <div>
                                 <span class="block text-muted-color font-medium mb-3">Users with Permissions</span>
-                                <div class="text-green-500 font-medium text-xl">{{ statistics.usersWithPermissions }}
-                                </div>
+                                <div class="text-green-500 font-medium text-xl">{{ statistics.usersWithPermissions }}</div>
                             </div>
-                            <div class="flex items-center justify-center bg-green-100 dark:bg-green-400/10 rounded-full"
-                                style="width: 2.5rem; height: 2.5rem">
+                            <div class="flex items-center justify-center bg-green-100 dark:bg-green-400/10 rounded-full" style="width: 2.5rem; height: 2.5rem">
                                 <i class="pi pi-lock text-green-500 !text-xl"></i>
                             </div>
                         </div>
@@ -276,8 +268,7 @@ const assignBulkPermission = async () => {
                                 <span class="block text-muted-color font-medium mb-3">Admin Users</span>
                                 <div class="text-orange-500 font-medium text-xl">{{ statistics.adminUsers }}</div>
                             </div>
-                            <div class="flex items-center justify-center bg-orange-100 dark:bg-orange-400/10 rounded-full"
-                                style="width: 2.5rem; height: 2.5rem">
+                            <div class="flex items-center justify-center bg-orange-100 dark:bg-orange-400/10 rounded-full" style="width: 2.5rem; height: 2.5rem">
                                 <i class="pi pi-star text-orange-500 !text-xl"></i>
                             </div>
                         </div>
@@ -291,8 +282,7 @@ const assignBulkPermission = async () => {
             <div class="card">
                 <div class="flex justify-between items-center mb-4">
                     <h5 class="m-0">Roles Distribution</h5>
-                    <Button label="Bulk Assign Role" icon="pi pi-users" @click="openBulkRoleDialog" severity="info"
-                        size="small" />
+                    <Button label="Bulk Assign Role" icon="pi pi-users" @click="openBulkRoleDialog" severity="info" size="small" />
                 </div>
 
                 <DataTable :value="roleStats" :loading="loading" responsiveLayout="scroll" breakpoint="960px">
@@ -310,8 +300,7 @@ const assignBulkPermission = async () => {
                         <template #body="slotProps">
                             <ScrollPanel style="width: 100%; height: 60px">
                                 <div class="flex gap-1 flex-wrap">
-                                    <Chip v-for="username in slotProps.data.users" :key="username" :label="username"
-                                        class="text-xs" />
+                                    <Chip v-for="username in slotProps.data.users" :key="username" :label="username" class="text-xs" />
                                 </div>
                             </ScrollPanel>
                         </template>
@@ -329,12 +318,10 @@ const assignBulkPermission = async () => {
             <div class="card">
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
                     <h5 class="m-0">Permissions Distribution</h5>
-                    <Button label="Bulk Assign Permission" icon="pi pi-lock" @click="openBulkPermissionDialog"
-                        severity="success" size="small" class="w-full sm:w-auto" />
+                    <Button label="Bulk Assign Permission" icon="pi pi-lock" @click="openBulkPermissionDialog" severity="success" size="small" class="w-full sm:w-auto" />
                 </div>
 
-                <DataTable :value="permissionStats" :loading="loading" responsiveLayout="scroll" :paginator="true"
-                    :rows="5" breakpoint="960px">
+                <DataTable :value="permissionStats" :loading="loading" responsiveLayout="scroll" :paginator="true" :rows="5" breakpoint="960px">
                     <Column field="permission" header="Permission" sortable :style="{ minWidth: '180px' }">
                         <template #body="slotProps">
                             <Tag :value="slotProps.data.permission" severity="success" />
@@ -349,8 +336,7 @@ const assignBulkPermission = async () => {
                         <template #body="slotProps">
                             <ScrollPanel style="width: 100%; height: 60px">
                                 <div class="flex gap-1 flex-wrap">
-                                    <Chip v-for="username in slotProps.data.users" :key="username" :label="username"
-                                        class="text-xs" />
+                                    <Chip v-for="username in slotProps.data.users" :key="username" :label="username" class="text-xs" />
                                 </div>
                             </ScrollPanel>
                         </template>
@@ -369,12 +355,19 @@ const assignBulkPermission = async () => {
             <div class="card">
                 <h5>Users - Roles & Permissions Details</h5>
 
-                <DataTable :value="users" dataKey="id" :paginator="true" :rows="10" :filters="filters"
-                    :loading="loading" responsiveLayout="scroll" breakpoint="960px"
+                <DataTable
+                    :value="users"
+                    dataKey="id"
+                    :paginator="true"
+                    :rows="10"
+                    :filters="filters"
+                    :loading="loading"
+                    responsiveLayout="scroll"
+                    breakpoint="960px"
                     paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                     :rowsPerPageOptions="[5, 10, 25]"
-                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} users">
-
+                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} users"
+                >
                     <template #header>
                         <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
                             <h4 class="m-0 text-lg">All Users</h4>
@@ -382,19 +375,16 @@ const assignBulkPermission = async () => {
                                 <InputIcon>
                                     <i class="pi pi-search" />
                                 </InputIcon>
-                                <InputText v-model="filters['global'].value" placeholder="Search..."
-                                    class="w-full sm:w-auto" />
+                                <InputText v-model="filters['global'].value" placeholder="Search..." class="w-full sm:w-auto" />
                             </IconField>
                         </div>
                     </template>
 
                     <Column field="username" header="Username" sortable :style="{ minWidth: '150px' }"></Column>
 
-                    <Column field="isAdmin" header="Admin" sortable :style="{ minWidth: '100px' }"
-                        :class="'hidden md:table-cell'">
+                    <Column field="isAdmin" header="Admin" sortable :style="{ minWidth: '100px' }" :class="'hidden md:table-cell'">
                         <template #body="slotProps">
-                            <Tag :value="slotProps.data.isAdmin ? 'Yes' : 'No'"
-                                :severity="slotProps.data.isAdmin ? 'success' : 'secondary'" />
+                            <Tag :value="slotProps.data.isAdmin ? 'Yes' : 'No'" :severity="slotProps.data.isAdmin ? 'success' : 'secondary'" />
                         </template>
                     </Column>
 
@@ -402,21 +392,17 @@ const assignBulkPermission = async () => {
                         <template #body="slotProps">
                             <div class="flex gap-1 flex-wrap">
                                 <Tag v-for="role in slotProps.data.roles" :key="role" :value="role" severity="info" />
-                                <span v-if="!slotProps.data.roles || slotProps.data.roles.length === 0"
-                                    class="text-gray-400">No roles</span>
+                                <span v-if="!slotProps.data.roles || slotProps.data.roles.length === 0" class="text-gray-400">No roles</span>
                             </div>
                         </template>
                     </Column>
 
-                    <Column field="permissions" header="Permissions" :style="{ minWidth: '200px' }"
-                        :class="'hidden lg:table-cell'">
+                    <Column field="permissions" header="Permissions" :style="{ minWidth: '200px' }" :class="'hidden lg:table-cell'">
                         <template #body="slotProps">
                             <ScrollPanel style="width: 100%; height: 60px">
                                 <div class="flex gap-1 flex-wrap">
-                                    <Tag v-for="perm in slotProps.data.permissions" :key="perm" :value="perm"
-                                        severity="success" rounded />
-                                    <span v-if="!slotProps.data.permissions || slotProps.data.permissions.length === 0"
-                                        class="text-gray-400">No permissions</span>
+                                    <Tag v-for="perm in slotProps.data.permissions" :key="perm" :value="perm" severity="success" rounded />
+                                    <span v-if="!slotProps.data.permissions || slotProps.data.permissions.length === 0" class="text-gray-400">No permissions</span>
                                 </div>
                             </ScrollPanel>
                         </template>
@@ -437,15 +423,12 @@ const assignBulkPermission = async () => {
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="block font-bold mb-2">Select Role:</label>
-                    <Select v-model="selectedRole" :options="availableRoles" placeholder="Choose a role" fluid
-                        showClear />
+                    <Select v-model="selectedRole" :options="availableRoles" placeholder="Choose a role" fluid showClear />
                 </div>
 
                 <div>
                     <label class="block font-bold mb-2">Select Users:</label>
-                    <MultiSelect v-model="selectedUsersForBulk"
-                        :options="users.map(u => ({ label: u.username, value: u.id }))" optionLabel="label"
-                        optionValue="value" placeholder="Select users" display="chip" fluid />
+                    <MultiSelect v-model="selectedUsersForBulk" :options="users.map((u) => ({ label: u.username, value: u.id }))" optionLabel="label" optionValue="value" placeholder="Select users" display="chip" fluid />
                 </div>
             </div>
 
@@ -456,20 +439,16 @@ const assignBulkPermission = async () => {
         </Dialog>
 
         <!-- BULK PERMISSION ASSIGNMENT DIALOG -->
-        <Dialog v-model:visible="bulkPermissionDialog" :style="{ width: '500px' }" header="Bulk Assign Permission"
-            :modal="true">
+        <Dialog v-model:visible="bulkPermissionDialog" :style="{ width: '500px' }" header="Bulk Assign Permission" :modal="true">
             <div class="flex flex-col gap-4">
                 <div>
                     <label class="block font-bold mb-2">Select Permission:</label>
-                    <Select v-model="selectedPermission" :options="availablePermissions"
-                        placeholder="Choose a permission" fluid showClear />
+                    <Select v-model="selectedPermission" :options="availablePermissions" placeholder="Choose a permission" fluid showClear />
                 </div>
 
                 <div>
                     <label class="block font-bold mb-2">Select Users:</label>
-                    <MultiSelect v-model="selectedUsersForPermission"
-                        :options="users.map(u => ({ label: u.username, value: u.id }))" optionLabel="label"
-                        optionValue="value" placeholder="Select users" display="chip" fluid />
+                    <MultiSelect v-model="selectedUsersForPermission" :options="users.map((u) => ({ label: u.username, value: u.id }))" optionLabel="label" optionValue="value" placeholder="Select users" display="chip" fluid />
                 </div>
             </div>
 
