@@ -31,7 +31,7 @@ Come `Restart APP`, ma alla fine avvia anche WebApi e frontend locali.
 
 URL attesi:
 - WebApi: `http://localhost:5299`
-- Frontend: `http://localhost:5173`
+- Frontend: `http://localhost:5001`
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run

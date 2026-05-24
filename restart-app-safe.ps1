@@ -69,7 +69,7 @@ try {
     Assert-Dash2Safety
 
     Write-Step "Stop pulito processi locali DASH2"
-    @(5173, 5299, 7203, 5286, 7084) | ForEach-Object { Stop-Port $_ }
+    @(5001, 5173, 5299, 7203, 5286, 7084) | ForEach-Object { Stop-Port $_ }
 
     if (-not $SkipBuild) {
         Write-Step "Clean e build backend WebApi"
@@ -88,9 +88,9 @@ try {
     if ($Run) {
         Write-Step "Avvio WebApi e frontend locali"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\backend\WebApi`"; dotnet run --launch-profile http"
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\frontend`"; npm run dev -- --host 0.0.0.0"
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\frontend`"; npm run dev -- --host 0.0.0.0 --port 5001 --strictPort"
         Write-Host "WebApi: http://localhost:5299"
-        Write-Host "Frontend: http://localhost:5173"
+        Write-Host "Frontend: http://localhost:5001"
     } else {
         Write-Host ""
         Write-Host "Restart safe completato. Usa -Run per avviare WebApi e frontend locali." -ForegroundColor Green
