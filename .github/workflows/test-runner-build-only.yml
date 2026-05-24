@@ -25,6 +25,31 @@ jobs:
         run: |
           Write-Host "TEST ONLY - No IIS changes, no deploy, no DB changes."
 
+      - name: Ensure Git is in PATH
+        shell: powershell
+        run: |
+          $gitPaths = @(
+            "C:\Program Files\Git\cmd",
+            "C:\Program Files (x86)\Git\cmd"
+          )
+          $found = $false
+          foreach ($p in $gitPaths) {
+            if (Test-Path "$p\git.exe") {
+              Write-Host "Git trovato in: $p"
+              $env:PATH = "$p;$env:PATH"
+              [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
+              $found = $true
+              break
+            }
+          }
+          if (-not $found) {
+            Write-Host "Git non trovato - installo via winget..."
+            winget install --id Git.Git -e --source winget --accept-package-agreements --accept-source-agreements
+            $env:PATH = "C:\Program Files\Git\cmd;$env:PATH"
+            [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
+          }
+          git --version
+
       - name: Checkout
         uses: actions/checkout@v4
 
