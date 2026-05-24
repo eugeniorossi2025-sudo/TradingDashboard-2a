@@ -4,6 +4,7 @@ using Scalar.AspNetCore;
 using WebApi.Extensions;
 using WebApi.Hubs;
 using System.Reflection;
+using WebApi.Data;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -108,6 +109,12 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     try
     {
+        if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:EnsureCreated"))
+        {
+            var context = services.GetRequiredService<AppDbContext>();
+            await context.Database.EnsureCreatedAsync();
+        }
+
         await WebApi.Data.DbInitializer.Initialize(services, app.Configuration);
     }
     catch (Exception ex)

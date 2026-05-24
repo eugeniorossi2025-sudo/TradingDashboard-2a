@@ -53,6 +53,9 @@ public static class MissionReportHtmlBuilder
         AddCard(sb, "Average Daily Return", FormatPercent(report.Totals.AverageDailyReturnPct), Tone(report.Totals.AverageDailyReturnPct));
         AddCard(sb, "Working Days", report.Totals.WorkingDays.ToString(CultureInfo.InvariantCulture), "neutral");
         AddCard(sb, "Reporting Days", report.Totals.ReportingDays.ToString(CultureInfo.InvariantCulture), "neutral");
+        AddCard(sb, "Sessions", report.Totals.SessionCount.ToString(CultureInfo.InvariantCulture), "neutral");
+        AddCard(sb, "Real Hands", report.Totals.RealHandsCount.ToString(CultureInfo.InvariantCulture), "neutral");
+        AddCard(sb, "Tables", report.Totals.ActiveTables.ToString(CultureInfo.InvariantCulture), "neutral");
         sb.AppendLine("</div>");
         sb.AppendLine("<p class=\"methodNote\">Invested capital is withheld for privacy. Performance ratios are calculated on the configured capital base. Annualised return is calculated from the observed period performance and does not represent a guaranteed future return.</p>");
 
@@ -78,6 +81,20 @@ public static class MissionReportHtmlBuilder
                 sb.AppendLine($"<tr><td>{row.Date.ToString("dd MMMM yyyy", culture)}</td><td class=\"ledgerAmount {Tone(row.NetPnl)}\">{FormatEuro(row.NetPnl)}</td><td class=\"mono {Tone(row.DailyReturnPct)}\">{FormatPercent(row.DailyReturnPct)}</td></tr>");
             }
             sb.AppendLine($"<tr><td><b>Total Period</b></td><td class=\"ledgerAmount {Tone(report.Totals.TotalMarginEuro)}\"><b>{FormatEuro(report.Totals.TotalMarginEuro)}</b></td><td class=\"mono {Tone(report.Totals.PeriodReturnPct)}\"><b>{FormatPercent(report.Totals.PeriodReturnPct)}</b></td></tr>");
+            sb.AppendLine("</tbody></table></div>");
+        }
+        else
+        {
+            sb.AppendLine("<div class=\"section\"><h2>Daily Performance</h2><div class=\"sectionSub\">Nessun dato contabile missione per il periodo selezionato.</div></div>");
+        }
+
+        if (report.Sessions.Count > 0)
+        {
+            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>Margin</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
+            foreach (var session in report.Sessions)
+            {
+                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
+            }
             sb.AppendLine("</tbody></table></div>");
         }
 

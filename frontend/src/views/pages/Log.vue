@@ -29,6 +29,15 @@ const reportFrom = ref(new Date(new Date().getFullYear(), new Date().getMonth(),
 const reportTo = ref(new Date());
 const reportRuntimeMode = ref('Production');
 const reportLoading = ref(false);
+const missionReports = ref([]);
+const missionReportsTotal = ref(0);
+const missionReportsLoading = ref(false);
+const missionReportSkip = ref(0);
+const missionReportLimit = ref(100);
+const historicalImportFile = ref(null);
+const historicalImportReplace = ref(false);
+const historicalImportLoading = ref(false);
+const historicalImportResult = ref(null);
 const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
@@ -36,6 +45,7 @@ const reportModeOptions = [
 
 onMounted(() => {
     fetchLogs();
+    loadMissionReports();
 });
 
 async function fetchLogs() {
@@ -116,6 +126,45 @@ async function downloadFinancialCsv() {
     }
 }
 
+async function loadMissionReports() {
+    missionReportsLoading.value = true;
+    try {
+        const range = getReportRange();
+        const response = await FinancialReportService.getReportsIndex(range.mode, range.from, range.to, missionReportSkip.value, missionReportLimit.value);
+        missionReports.value = response.items || [];
+        missionReportsTotal.value = response.total || 0;
+    } finally {
+        missionReportsLoading.value = false;
+    }
+}
+
+function openMissionSession(sessionId, format) {
+    FinancialReportService.openSessionReport(sessionId, format);
+}
+
+function onHistoricalImportFileChange(event) {
+    historicalImportFile.value = event.target.files?.[0] || null;
+    historicalImportResult.value = null;
+}
+
+async function importHistoricalDemo() {
+    if (!historicalImportFile.value) return;
+    historicalImportLoading.value = true;
+    try {
+        historicalImportResult.value = await FinancialReportService.importHistoricalDemo(historicalImportFile.value, historicalImportReplace.value);
+        reportRuntimeMode.value = 'Demo';
+        await loadMissionReports();
+    } finally {
+        historicalImportLoading.value = false;
+    }
+}
+
+function formatMoney(value) {
+    const amount = Number(value || 0);
+    const sign = amount > 0 ? '+' : amount < 0 ? '-' : '';
+    return `${sign}${Math.abs(amount).toFixed(2)} €`;
+}
+
 async function onExportCSV() {
     // Chiamata fetchLogs con pageSize -1 per ottenere tutti i dati
     const res = await LogService.getLogs(from.value || undefined, to.value || undefined, pc.value || undefined, action.value || undefined, description.value || undefined, 1, 1000000000);
@@ -177,6 +226,7 @@ function formatLocalDate(date) {
                         <label class="font-semibold">Modalità</label>
                         <Select v-model="reportRuntimeMode" :options="reportModeOptions" optionLabel="label" optionValue="value" fluid />
                     </div>
+                    <Button label="Carica archivio" icon="pi pi-refresh" severity="secondary" outlined :loading="missionReportsLoading" @click="loadMissionReports" />
                     <Button label="Apri report" icon="pi pi-external-link" :loading="reportLoading" @click="openFinancialReport" />
                     <div class="flex gap-2">
                         <Button label="JSON" icon="pi pi-download" severity="secondary" outlined class="flex-1" :disabled="reportLoading" @click="downloadFinancialJson" />
@@ -186,7 +236,91 @@ function formatLocalDate(date) {
             </div>
         </div>
 
+        <div class="card mb-4">
+            <div class="flex flex-col gap-4">
+                <div>
+                    <h4 class="m-0 text-lg">Import storico Demo</h4>
+                    <p class="text-muted-color mt-2 mb-0">Importa CSV/Excel storico come backup Demo: una missione per giorno, senza toccare Production.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                    <div class="flex flex-col gap-2 md:col-span-2">
+                        <label class="font-semibold">File CSV/Excel log storico</label>
+                        <input type="file" accept=".csv,.txt,.xlsx,.xls" class="p-inputtext p-component" @change="onHistoricalImportFileChange" />
+                    </div>
+                    <label class="flex items-center gap-2">
+                        <input v-model="historicalImportReplace" type="checkbox" />
+                        <span>Replace esplicito giorni già importati</span>
+                    </label>
+                    <Button label="Importa Demo" icon="pi pi-upload" severity="secondary" :loading="historicalImportLoading" :disabled="!historicalImportFile" @click="importHistoricalDemo" />
+                </div>
+
+                <div v-if="historicalImportResult" class="rounded border border-surface-200 dark:border-surface-700 p-3 text-sm">
+                    <div><strong>Runtime:</strong> {{ historicalImportResult.runtimeMode }}</div>
+                    <div><strong>Righe lette:</strong> {{ historicalImportResult.totalRows }}</div>
+                    <div><strong>Giorni importati:</strong> {{ historicalImportResult.imported }}</div>
+                    <div><strong>Giorni saltati:</strong> {{ historicalImportResult.skipped }}</div>
+                    <div v-if="historicalImportResult.skippedDays?.length" class="text-muted-color mt-2">Saltati: {{ historicalImportResult.skippedDays.join(', ') }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="flex flex-col gap-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-2">
+                    <div>
+                        <h4 class="m-0 text-lg">Archivio Rapporti Missione</h4>
+                        <p class="text-muted-color mt-2 mb-0">Dataset contabile separato dai log runtime: sessioni, margini, mani reali e tavoli.</p>
+                    </div>
+                    <div class="md:ml-auto text-sm text-muted-color">Totale: {{ missionReportsTotal }}</div>
+                </div>
+
+                <DataTable :value="missionReports" :loading="missionReportsLoading" dataKey="sessionId" responsiveLayout="scroll" breakpoint="960px">
+                    <Column field="sessionId" header="Sessione" :style="{ width: '110px' }">
+                        <template #body="{ data }">
+                            <strong>#{{ data.sessionId }}</strong>
+                        </template>
+                    </Column>
+                    <Column field="startUtc" header="Start">
+                        <template #body="{ data }">
+                            {{ formatLocalDate(data.startUtc) }}
+                        </template>
+                    </Column>
+                    <Column field="endUtc" header="End">
+                        <template #body="{ data }">
+                            {{ data.endUtc ? formatLocalDate(data.endUtc) : '-' }}
+                        </template>
+                    </Column>
+                    <Column field="runtimeMode" header="Mode" />
+                    <Column field="totalMarginEuro" header="Margin €">
+                        <template #body="{ data }">
+                            <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro) }}</span>
+                        </template>
+                    </Column>
+                    <Column field="realHandsCount" header="Mani reali" />
+                    <Column field="activeTables" header="Tavoli" />
+                    <Column field="samplesCount" header="Samples" />
+                    <Column header="Apri">
+                        <template #body="{ data }">
+                            <div class="flex gap-2">
+                                <Button label="HTML" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'html')" />
+                                <Button label="JSON" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'json')" />
+                                <Button label="CSV" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'csv')" />
+                            </div>
+                        </template>
+                    </Column>
+                    <template #empty>
+                        <div class="text-center py-6 text-muted-color">Nessuna missione contabile trovata per il periodo selezionato.</div>
+                    </template>
+                </DataTable>
+            </div>
+        </div>
+
         <div class="card">
+            <div class="mb-4">
+                <h4 class="m-0 text-lg">Log runtime tecnici</h4>
+                <p class="text-muted-color mt-2 mb-0">Supporto operativo separato dai report finanziari. Queste righe non entrano nei PDF contabili.</p>
+            </div>
             <Toolbar class="mb-6">
                 <template #start>
                     <div class="flex flex-col sm:flex-row gap-2">

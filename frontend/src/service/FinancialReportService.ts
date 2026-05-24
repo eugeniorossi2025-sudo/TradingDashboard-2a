@@ -34,6 +34,47 @@ export interface MissionRangeReport {
     samples: MissionReportSample[];
 }
 
+export interface MissionReportIndexItem {
+    sessionId: number;
+    startUtc: string;
+    endUtc?: string | null;
+    completed: boolean;
+    runtimeMode: string;
+    totalMarginEuro: number;
+    globalTargetEuro: number;
+    kFactor: number;
+    activeTables: number;
+    realHandsCount: number;
+    samplesCount: number;
+}
+
+export interface MissionReportsIndex {
+    serverUtc: string;
+    total: number;
+    skip: number;
+    limit: number;
+    items: MissionReportIndexItem[];
+}
+
+export interface HistoricalMissionImportResponse {
+    fileName: string;
+    runtimeMode: string;
+    replace: boolean;
+    totalRows: number;
+    imported: number;
+    skipped: number;
+    importedDays: Array<{
+        date: string;
+        startUtc: string;
+        endUtc: string;
+        totalMargin: number;
+        samples: number;
+        realHandsCount: number;
+        activeTables: number;
+    }>;
+    skippedDays: string[];
+}
+
 export interface RuntimeModeInfo {
     runtimeMode: string;
     isDemoMode: boolean;
@@ -61,55 +102,34 @@ export const FinancialReportService = {
     },
 
     async getRangeReport(runtimeMode: 'Production' | 'Demo', from: string, to: string): Promise<MissionRangeReport> {
-        try {
-            const response = await apiClient.get('/api/mission/report/range', {
-                params: {
-                    runtimeMode,
-                    from,
-                    to,
-                    format: 'json',
-                    summary: true
-                }
-            });
+        const response = await apiClient.get('/api/mission/report/range', {
+            params: {
+                runtimeMode,
+                from,
+                to,
+                format: 'json',
+                summary: true
+            }
+        });
 
-            return unwrap<MissionRangeReport>(response);
-        } catch (error) {
-            return buildFallbackReport(runtimeMode, from, to);
-        }
+        return unwrap<MissionRangeReport>(response);
     },
 
     async downloadCsv(runtimeMode: 'Production' | 'Demo', from: string, to: string): Promise<void> {
         let blob: Blob;
 
-        try {
-            const response = await apiClient.get('/api/mission/report/range', {
-                params: {
-                    runtimeMode,
-                    from,
-                    to,
-                    format: 'csv',
-                    summary: false
-                },
-                responseType: 'blob'
-            });
+        const response = await apiClient.get('/api/mission/report/range', {
+            params: {
+                runtimeMode,
+                from,
+                to,
+                format: 'csv',
+                summary: false
+            },
+            responseType: 'blob'
+        });
 
-            blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-        } catch (error) {
-            const report = await buildFallbackReport(runtimeMode, from, to);
-            const csv = [
-                'RuntimeMode,DateTime,Account,Tavolo,Margine,MediaOra,Stato',
-                ...report.samples.map(sample => [
-                    runtimeMode,
-                    sample.dateTime,
-                    sample.account || '',
-                    sample.tavolo || '',
-                    sample.margine,
-                    sample.mediaOra || '',
-                    sample.stato || ''
-                ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
-            ].join('\n');
-            blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        }
+        blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
 
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -158,62 +178,40 @@ export const FinancialReportService = {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(link.href);
+    },
+
+    async getReportsIndex(runtimeMode: 'Production' | 'Demo', from: string, to: string, skip = 0, limit = 100): Promise<MissionReportsIndex> {
+        const response = await apiClient.get('/api/mission/reports/index', {
+            params: {
+                runtimeMode,
+                fromUtc: from,
+                toUtc: to,
+                skip,
+                limit,
+                completedOnly: true
+            }
+        });
+
+        return unwrap<MissionReportsIndex>(response);
+    },
+
+    openSessionReport(sessionId: number, format: 'html' | 'json' | 'csv' = 'html'): void {
+        const baseURL = apiClient.defaults.baseURL || '';
+        const url = `${baseURL}/api/mission/report/${encodeURIComponent(String(sessionId))}?format=${encodeURIComponent(format)}`;
+        window.open(url, '_blank', 'noopener,noreferrer');
+    },
+
+    async importHistoricalDemo(file: File, replace = false): Promise<HistoricalMissionImportResponse> {
+        const form = new FormData();
+        form.append('file', file);
+
+        const response = await apiClient.post('/api/mission/historical-import', form, {
+            params: { replace },
+            headers: {
+                'Content-Type': 'multipart/form-data'
+            }
+        });
+
+        return unwrap<HistoricalMissionImportResponse>(response);
     }
 };
-
-async function buildFallbackReport(runtimeMode: 'Production' | 'Demo', from: string, to: string): Promise<MissionRangeReport> {
-    if (runtimeMode === 'Demo') {
-        return emptyReport(runtimeMode, from, to);
-    }
-
-    try {
-        const response = await apiClient.get('/api/Dashboard/margini-chart');
-        const points = unwrap<any[]>(response) || [];
-        const samples = points.map(point => ({
-            dateTime: point.timestamp || point.dateTime || point.date || new Date().toISOString(),
-            account: point.account || null,
-            tavolo: point.tavolo || null,
-            margine: Number(point.margine ?? point.margin ?? 0),
-            mediaOra: point.mediaOra ?? null,
-            stato: point.stato || null
-        }));
-
-        const totalMargin = samples.length ? samples[samples.length - 1].margine : 0;
-
-        return {
-            runtimeMode,
-            isDemoMode: false,
-            from,
-            to,
-            totals: {
-                totalMarginEuro: totalMargin,
-                globalTargetEuro: 0,
-                progressPct: 0,
-                sampleCount: samples.length,
-                margineMin: samples.length ? Math.min(...samples.map(sample => sample.margine)) : 0,
-                margineMax: samples.length ? Math.max(...samples.map(sample => sample.margine)) : 0
-            },
-            samples
-        };
-    } catch (error) {
-        return emptyReport(runtimeMode, from, to);
-    }
-}
-
-function emptyReport(runtimeMode: 'Production' | 'Demo', from: string, to: string): MissionRangeReport {
-    return {
-        runtimeMode,
-        isDemoMode: runtimeMode === 'Demo',
-        from,
-        to,
-        totals: {
-            totalMarginEuro: 0,
-            globalTargetEuro: 0,
-            progressPct: 0,
-            sampleCount: 0,
-            margineMin: 0,
-            margineMax: 0
-        },
-        samples: []
-    };
-}
