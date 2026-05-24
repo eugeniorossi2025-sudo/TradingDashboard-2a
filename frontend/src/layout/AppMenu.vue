@@ -10,9 +10,7 @@ const baseMenuItems = [
     {
         label: 'Dashboard',
         items: [
-            { label: 'Dashboard Live', icon: 'pi pi-fw pi-home', to: '/' },
-            { label: 'Client Desktop', icon: 'pi pi-fw pi-desktop', to: '/client/desktop' },
-            { label: 'Client Mobile', icon: 'pi pi-fw pi-mobile', to: '/client/mobile' }
+            { label: 'Dashboard Live', icon: 'pi pi-fw pi-home', to: '/' }
         ]
     }
 ];
