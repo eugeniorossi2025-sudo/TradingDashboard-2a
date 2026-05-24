@@ -1,45 +1,62 @@
-<script setup lang="ts">
-import { ConfigurationService } from "@/service/ConfigurationService";
-import type { Configuration } from "@/service/Dto/Configuration/Configuration";
-import type { CreateConfigurationDTO } from "@/service/Dto/Configuration/CreateConfigurationDTO";
+<script setup>
+import { ConfigurationService } from '@/service/ConfigurationService';
+import { FinancialReportService } from '@/service/FinancialReportService';
 import { useToast } from 'primevue/usetoast';
-import { onMounted, ref } from "vue";
+import { onMounted, ref } from 'vue';
 
 const toast = useToast();
 const dt = ref();
-const configurations = ref<Configuration[]>([]);
-const selectedConfigurations = ref<Configuration[]>([]);
+const configurations = ref([]);
+const selectedConfigurations = ref([]);
 const configurationDialog = ref(false);
 const deleteDialog = ref(false);
 const deleteConfigurationsDialog = ref(false);
-const currentConfig = ref<Configuration | CreateConfigurationDTO>({
-    k: "",
-    description: "",
-    value: "0",
+const currentConfig = ref({
+    k: '',
+    description: '',
+    value: '0',
     pos: 1
 });
 const submitted = ref(false);
+const runtimeMode = ref({ runtimeMode: 'Production', isDemoMode: false });
+const runtimeModeLoading = ref(false);
 
 const filters = ref({
-    global: { value: "", matchMode: "contains" }
+    global: { value: '', matchMode: 'contains' }
 });
 
 async function loadData() {
     configurations.value = await ConfigurationService.getConfigurations();
 }
 
-function openNew() {
-    currentConfig.value = {
-        k: "",
-        description: "",
-        value: "0",
-        pos: 1
-    };
-    submitted.value = false;
-    configurationDialog.value = true;
+async function loadRuntimeMode() {
+    runtimeMode.value = await FinancialReportService.getRuntimeMode();
 }
 
-function editConfig(config: Configuration) {
+async function setRuntimeMode(mode) {
+    runtimeModeLoading.value = true;
+    try {
+        runtimeMode.value = await FinancialReportService.setRuntimeMode(mode);
+        toast.add({
+            severity: 'success',
+            summary: 'Modalità aggiornata',
+            detail: mode === 'Demo' ? 'Contabilità in DEMO' : 'Contabilità in PRODUZIONE',
+            life: 2500
+        });
+    } catch (error) {
+        console.error('Runtime mode update failed:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Errore',
+            detail: 'Impossibile aggiornare Production/Demo',
+            life: 3500
+        });
+    } finally {
+        runtimeModeLoading.value = false;
+    }
+}
+
+function editConfig(config) {
     currentConfig.value = { ...config };
     configurationDialog.value = true;
 }
@@ -50,7 +67,7 @@ async function saveConfig() {
     if (!currentConfig.value.k) return;
 
     try {
-        if ("k" in currentConfig.value && currentConfig.value.k) {
+        if ('k' in currentConfig.value && currentConfig.value.k) {
             // Update existing configuration
             await ConfigurationService.updateConfiguration(currentConfig.value.k, {
                 description: currentConfig.value.description,
@@ -65,7 +82,7 @@ async function saveConfig() {
             });
         } else {
             // Create new configuration
-            await ConfigurationService.createConfiguration(currentConfig.value as CreateConfigurationDTO);
+            await ConfigurationService.createConfiguration(currentConfig.value);
             toast.add({
                 severity: 'success',
                 summary: 'Success',
@@ -87,14 +104,14 @@ async function saveConfig() {
     }
 }
 
-function confirmDelete(config: Configuration) {
+function confirmDelete(config) {
     currentConfig.value = { ...config };
     deleteDialog.value = true;
 }
 
 async function deleteConfig() {
     try {
-        if ("k" in currentConfig.value && currentConfig.value.k) {
+        if ('k' in currentConfig.value && currentConfig.value.k) {
             await ConfigurationService.deleteConfiguration(currentConfig.value.k);
             toast.add({
                 severity: 'success',
@@ -118,9 +135,7 @@ async function deleteConfig() {
 
 async function deleteSelectedConfigurations() {
     try {
-        const deletePromises = selectedConfigurations.value.map(config =>
-            ConfigurationService.deleteConfiguration(config.k)
-        );
+        const deletePromises = selectedConfigurations.value.map((config) => ConfigurationService.deleteConfiguration(config.k));
         await Promise.all(deletePromises);
 
         deleteConfigurationsDialog.value = false;
@@ -147,34 +162,60 @@ function exportCSV() {
     dt.value.exportCSV();
 }
 
-onMounted(loadData);
+onMounted(async () => {
+    await Promise.all([loadData(), loadRuntimeMode()]);
+});
 </script>
 
 <template>
     <div>
+        <div class="card mb-4">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <div class="text-xl font-semibold mb-1">Modalità contabile</div>
+                    <div class="text-muted-color text-sm">In Demo i dati restano separati dalla reportistica ufficiale Production.</div>
+                    <div class="mt-2 text-sm">
+                        Stato corrente:
+                        <strong :class="runtimeMode.isDemoMode ? 'text-orange-400' : 'text-green-500'">
+                            {{ runtimeMode.isDemoMode ? 'DEMO' : 'PRODUZIONE' }}
+                        </strong>
+                    </div>
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                    <Button label="PRODUZIONE" :severity="runtimeMode.isDemoMode ? 'secondary' : 'success'" :outlined="runtimeMode.isDemoMode" :loading="runtimeModeLoading && !runtimeMode.isDemoMode" @click="setRuntimeMode('Production')" />
+                    <Button label="DEMO" :severity="runtimeMode.isDemoMode ? 'warn' : 'secondary'" :outlined="!runtimeMode.isDemoMode" :loading="runtimeModeLoading && runtimeMode.isDemoMode" @click="setRuntimeMode('Demo')" />
+                </div>
+            </div>
+        </div>
+
         <div class="card">
             <Toolbar class="mb-6">
-
                 <template #end>
-                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="exportCSV"
-                        class="w-full sm:w-auto" />
+                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="exportCSV" class="w-full sm:w-auto" />
                 </template>
             </Toolbar>
 
-            <DataTable ref="dt" :value="configurations" v-model:selection="selectedConfigurations" dataKey="k"
-                :paginator="true" :rows="10" :filters="filters" responsiveLayout="scroll" breakpoint="960px"
+            <DataTable
+                ref="dt"
+                :value="configurations"
+                v-model:selection="selectedConfigurations"
+                dataKey="k"
+                :paginator="true"
+                :rows="10"
+                :filters="filters"
+                responsiveLayout="scroll"
+                breakpoint="960px"
                 :rowsPerPageOptions="[5, 10, 20]"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} configurations">
-
+                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} configurations"
+            >
                 <template #header>
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
                         <h4 class="m-0 text-lg">Configurations</h4>
 
                         <IconField class="w-full sm:w-auto">
                             <InputIcon><i class="pi pi-search" /></InputIcon>
-                            <InputText v-model="filters.global.value" placeholder="Search..."
-                                class="w-full sm:w-auto" />
+                            <InputText v-model="filters.global.value" placeholder="Search..." class="w-full sm:w-auto" />
                         </IconField>
                     </div>
                 </template>
@@ -183,8 +224,7 @@ onMounted(loadData);
                 <Column field="k" header="Key" :style="{ minWidth: '150px' }" />
 
                 <!-- Description: nascosta su mobile, visibile su tablet+ -->
-                <Column field="description" header="Description" :class="'hidden sm:table-cell'"
-                    :style="{ minWidth: '200px' }">
+                <Column field="description" header="Description" :class="'hidden sm:table-cell'" :style="{ minWidth: '200px' }">
                     <template #body="{ data }">
                         <span class="line-clamp-2">{{ data.description }}</span>
                     </template>
@@ -199,10 +239,8 @@ onMounted(loadData);
                 <Column :exportable="false" header="Actions" :style="{ minWidth: '120px', width: '120px' }">
                     <template #body="{ data }">
                         <div class="flex gap-2">
-                            <Button icon="pi pi-pencil" outlined rounded size="small" @click="editConfig(data)"
-                                v-tooltip.top="'Edit'" />
-                            <Button v-if="false" icon="pi pi-trash" outlined rounded size="small" severity="danger"
-                                @click="confirmDelete(data)" v-tooltip.top="'Delete'" />
+                            <Button icon="pi pi-pencil" outlined rounded size="small" @click="editConfig(data)" v-tooltip.top="'Edit'" />
+                            <Button v-if="false" icon="pi pi-trash" outlined rounded size="small" severity="danger" @click="confirmDelete(data)" v-tooltip.top="'Delete'" />
                         </div>
                     </template>
                 </Column>
@@ -218,10 +256,8 @@ onMounted(loadData);
         </div>
 
         <!-- DIALOG per create/edit -->
-        <Dialog v-model:visible="configurationDialog" header="Configuration Details" :modal="true"
-            :style="{ width: '90vw', maxWidth: '450px' }" :breakpoints="{ '960px': '75vw', '640px': '95vw' }">
+        <Dialog v-model:visible="configurationDialog" header="Configuration Details" :modal="true" :style="{ width: '90vw', maxWidth: '450px' }" :breakpoints="{ '960px': '75vw', '640px': '95vw' }">
             <div class="flex flex-col gap-4">
-
                 <div v-if="!('k' in currentConfig)">
                     <label class="font-bold block mb-2">Key</label>
                     <InputText v-model="currentConfig.k" :invalid="submitted && !currentConfig.k" fluid />
@@ -242,38 +278,36 @@ onMounted(loadData);
                     <label class="font-bold block mb-2">Position</label>
                     <InputNumber v-model="currentConfig.pos" fluid />
                 </div>
-
             </div>
 
             <template #footer>
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-end">
-                    <Button label="Cancel" icon="pi pi-times" text @click="configurationDialog = false"
-                        class="w-full sm:w-auto" />
+                    <Button label="Cancel" icon="pi pi-times" text @click="configurationDialog = false" class="w-full sm:w-auto" />
                     <Button label="Save" icon="pi pi-check" @click="saveConfig" class="w-full sm:w-auto" />
                 </div>
             </template>
         </Dialog>
 
         <!-- DIALOG per conferma delete -->
-        <Dialog v-model:visible="deleteDialog" header="Confirm" :modal="true"
-            :style="{ width: '90vw', maxWidth: '350px' }" :breakpoints="{ '640px': '95vw' }">
+        <Dialog v-model:visible="deleteDialog" header="Confirm" :modal="true" :style="{ width: '90vw', maxWidth: '350px' }" :breakpoints="{ '640px': '95vw' }">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle text-3xl" />
-                <span>Are you sure you want to delete <b>{{ currentConfig.k }}</b>?</span>
+                <span
+                    >Are you sure you want to delete <b>{{ currentConfig.k }}</b
+                    >?</span
+                >
             </div>
 
             <template #footer>
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-end">
                     <Button label="No" icon="pi pi-times" text @click="deleteDialog = false" class="w-full sm:w-auto" />
-                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteConfig"
-                        class="w-full sm:w-auto" />
+                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteConfig" class="w-full sm:w-auto" />
                 </div>
             </template>
         </Dialog>
 
         <!-- DIALOG per conferma delete multiplo -->
-        <Dialog v-model:visible="deleteConfigurationsDialog" header="Confirm" :modal="true"
-            :style="{ width: '90vw', maxWidth: '350px' }" :breakpoints="{ '640px': '95vw' }">
+        <Dialog v-model:visible="deleteConfigurationsDialog" header="Confirm" :modal="true" :style="{ width: '90vw', maxWidth: '350px' }" :breakpoints="{ '640px': '95vw' }">
             <div class="flex items-center gap-4">
                 <i class="pi pi-exclamation-triangle text-3xl" />
                 <span>Are you sure you want to delete the selected configurations?</span>
@@ -281,10 +315,8 @@ onMounted(loadData);
 
             <template #footer>
                 <div class="flex flex-col sm:flex-row gap-2 sm:gap-0 sm:justify-end">
-                    <Button label="No" icon="pi pi-times" text @click="deleteConfigurationsDialog = false"
-                        class="w-full sm:w-auto" />
-                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedConfigurations"
-                        class="w-full sm:w-auto" />
+                    <Button label="No" icon="pi pi-times" text @click="deleteConfigurationsDialog = false" class="w-full sm:w-auto" />
+                    <Button label="Yes" icon="pi pi-check" severity="danger" @click="deleteSelectedConfigurations" class="w-full sm:w-auto" />
                 </div>
             </template>
         </Dialog>

@@ -6,7 +6,7 @@ export class SignalRService {
     private baseUrl: string;
 
     constructor() {
-        this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7203';
+        this.baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5299';
     }
 
     /**

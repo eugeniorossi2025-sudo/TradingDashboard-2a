@@ -1,4 +1,6 @@
 import AppLayout from '@/layout/AppLayout.vue';
+import { TokenService } from '@/service/TokenService';
+import { UserService } from '@/service/UserService';
 import { createRouter, createWebHistory } from 'vue-router';
 import { adminGuard, authGuard, guestGuard } from './middleware';
 
@@ -170,6 +172,25 @@ const router = createRouter({
             component: () => import('@/views/pages/Landing.vue')
         },
         {
+            path: '/client/desktop',
+            name: 'client-desktop',
+            beforeEnter: authGuard,
+            component: () => import('@/views/client/ClientDesktop.vue')
+        },
+        {
+            path: '/client/mobile',
+            name: 'client-mobile',
+            beforeEnter: authGuard,
+            component: () => import('@/views/mobile/ClientMobile.vue')
+        },
+        {
+            path: '/admin/mobile-live',
+            name: 'admin-mobile-live',
+            beforeEnter: adminGuard,
+            meta: { requiresAdmin: true },
+            component: () => import('@/views/mobile/AdminMobileLive.vue')
+        },
+        {
             path: '/pages/notfound',
             name: 'notfound',
             component: () => import('@/views/pages/NotFound.vue')
@@ -199,6 +220,21 @@ const router = createRouter({
             component: () => import('@/views/pages/auth/AccessDenied.vue')
         }
     ]
+});
+
+let lastTrackedPath = '';
+let lastTrackedAt = 0;
+
+router.afterEach((to) => {
+    const path = to.fullPath;
+    const now = Date.now();
+    if (!TokenService.getToken() || path.includes('/auth/') || (path === lastTrackedPath && now - lastTrackedAt < 30000)) {
+        return;
+    }
+
+    lastTrackedPath = path;
+    lastTrackedAt = now;
+    UserService.trackAccessEvent('PAGE_VIEW', path).catch(() => {});
 });
 
 export default router;

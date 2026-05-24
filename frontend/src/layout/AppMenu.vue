@@ -3,16 +3,7 @@ import { useAuth } from '@/composables/useAuth';
 import { computed } from 'vue';
 import AppMenuItem from './AppMenuItem.vue';
 
-const {
-    isAdmin,
-    canManageBots,
-    canManageUsers,
-    canManageRoles,
-    canViewLogs,
-    canManageDevices,
-    canExecuteCommands,
-    canViewConfigurations
-} = useAuth();
+const { isAdmin, canManageUsers, canManageRoles, canViewLogs, canManageDevices, canExecuteCommands, canViewConfigurations } = useAuth();
 
 // 🔹 BASE MENU ITEMS (VISIBLE TO ALL AUTHENTICATED USERS)
 const baseMenuItems = [
@@ -23,7 +14,6 @@ const baseMenuItems = [
         ]
     }
 ];
-
 
 // 🔹 ADMIN & MANAGEMENT MENU ITEMS (BASED ON PERMISSIONS)
 const managementMenuItems = computed(() => {

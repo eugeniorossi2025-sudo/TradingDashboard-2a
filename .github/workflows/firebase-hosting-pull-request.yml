@@ -1,0 +1,16 @@
+name: Frontend Build
+on: pull_request
+permissions:
+  checks: write
+  contents: read
+  pull-requests: write
+jobs:
+  build:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    env:
+      VITE_API_BASE_URL: http://51.83.159.175
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm ci && npm run build
+        working-directory: frontend

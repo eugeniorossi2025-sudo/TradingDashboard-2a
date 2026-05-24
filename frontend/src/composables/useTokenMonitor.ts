@@ -1,4 +1,5 @@
 import { TokenService } from '@/service/TokenService';
+import { UserService } from '@/service/UserService';
 import { formatTimeRemaining, getTokenTimeRemaining, isTokenExpired, isTokenExpiringSoon } from '@/utils/tokenUtils';
 import { useToast } from 'primevue/usetoast';
 import { computed, ref } from 'vue';
@@ -42,9 +43,10 @@ export function useTokenMonitor() {
     };
 
     const handleTokenExpired = () => {
+        const currentPath = window.location.pathname + window.location.search;
+        UserService.trackAccessEvent('SESSION_TIMEOUT', currentPath).catch(() => {});
         TokenService.clearAll();
         
-        const currentPath = window.location.pathname + window.location.search;
         if (!currentPath.includes('/auth/')) {
             TokenService.setRedirectPath(currentPath);
         }

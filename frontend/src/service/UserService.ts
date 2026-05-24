@@ -1,4 +1,4 @@
-import { getApiConfiguration } from '@/api/apiClient';
+import { apiClient, getApiConfiguration } from '@/api/apiClient';
 import { UserApi } from '@/api/client/api/user-api';
 import type { User as ApiUser, CreateUserRequest } from '@/api/client/models';
 import { RoleService } from './RoleService';
@@ -28,6 +28,57 @@ export interface UpdateUserDTO {
     email?: string;
     password?: string;
     isAdmin?: boolean;
+}
+
+export interface AdminUserOverviewRow {
+    userId: number;
+    username: string;
+    email?: string | null;
+    role: string;
+    roles: string[];
+    accountType: string;
+    status: string;
+    lastLoginUtc?: string | null;
+    lastIp?: string | null;
+    lastPage?: string | null;
+    lastEvent?: string | null;
+    enabled: boolean;
+}
+
+export interface AdminUsersOverview {
+    operative: AdminUserOverviewRow[];
+    bots: AdminUserOverviewRow[];
+    admins: AdminUserOverviewRow[];
+}
+
+export interface UserNotificationSetting {
+    userId: number;
+    username: string;
+    loginEmail?: string | null;
+    notificationEmail?: string | null;
+    enabled: boolean;
+    mission: boolean;
+    system: boolean;
+    errors: boolean;
+}
+
+export interface UserAccessEvent {
+    id: number;
+    userId?: number | null;
+    username?: string | null;
+    eventType: string;
+    ipAddress?: string | null;
+    page?: string | null;
+    userAgent?: string | null;
+    occurredAtUtc: string;
+}
+
+function unwrap<T>(response: { data: T | { data?: T } }): T {
+    const body = response.data as T | { data?: T };
+    if (body && typeof body === 'object' && 'data' in body) {
+        return (body as { data?: T }).data as T;
+    }
+    return body as T;
 }
 
 // Mapping da API User a User locale (senza caricare ruoli/permessi)
@@ -115,5 +166,43 @@ export const UserService = {
         const userApi = new UserApi(getApiConfiguration());
         const response = await userApi.apiUserIdDelete(id);
         return response.data.success || false;
+    },
+
+    async getAdminOverview(): Promise<AdminUsersOverview> {
+        const response = await apiClient.get('/api/admin/users/overview');
+        return unwrap<AdminUsersOverview>(response);
+    },
+
+    async getNotificationSettings(): Promise<UserNotificationSetting[]> {
+        const response = await apiClient.get('/api/admin/user-notification-settings');
+        return unwrap<UserNotificationSetting[]>(response);
+    },
+
+    async saveNotificationSetting(setting: UserNotificationSetting): Promise<void> {
+        await apiClient.put(`/api/admin/user-notification-settings/${encodeURIComponent(String(setting.userId))}`, {
+            notificationEmail: setting.notificationEmail,
+            enabled: setting.enabled,
+            mission: setting.mission,
+            system: setting.system,
+            errors: setting.errors
+        });
+    },
+
+    async sendNotificationTest(userId: number): Promise<void> {
+        await apiClient.post(`/api/admin/user-notification-settings/${encodeURIComponent(String(userId))}/test`);
+    },
+
+    async getAccessReport(userId: number): Promise<UserAccessEvent[]> {
+        const response = await apiClient.get(`/api/admin/users/${encodeURIComponent(String(userId))}/access-report`, {
+            params: { limit: 250 }
+        });
+        return unwrap<UserAccessEvent[]>(response);
+    },
+
+    async trackAccessEvent(eventType: string, page?: string): Promise<void> {
+        await apiClient.post('/api/admin/access-events', {
+            eventType,
+            page: page || window.location.pathname
+        });
     },
 };

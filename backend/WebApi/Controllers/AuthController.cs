@@ -16,14 +16,16 @@ namespace WebApi.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
+    private readonly IUserAccessTracker _accessTracker;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthController"/> class.
     /// </summary>
     /// <param name="authService">The authentication service.</param>
-    public AuthController(IAuthService authService)
+    public AuthController(IAuthService authService, IUserAccessTracker accessTracker)
     {
         _authService = authService;
+        _accessTracker = accessTracker;
     }
 
     /// <summary>
@@ -39,6 +41,14 @@ public class AuthController : ControllerBase
         try
         {
             var response = await _authService.LoginAsync(request.Username, request.Password);
+            if (response != null)
+            {
+                var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(response.Token);
+                var userIdValue = token.Claims.FirstOrDefault(c => c.Type == WebApi.Constants.AuthConstants.Claims.UserId)?.Value;
+                var username = token.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value ?? request.Username;
+                int.TryParse(userIdValue, out var userId);
+                await _accessTracker.TrackAsync(userId == 0 ? null : userId, username, "LOGIN", "/auth/login", HttpContext);
+            }
             return Ok(response);
         }
         catch
@@ -132,4 +142,16 @@ public class AuthController : ControllerBase
             "Password has been reset successfully. You can now login with your new password."
         ));
     }
+}
+
+public class ResetPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ResetPasswordConfirmRequest
+{
+    public string Email { get; set; } = string.Empty;
+    public string Token { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }

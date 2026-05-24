@@ -17,6 +17,28 @@ const isLoading = ref(false);
 const showResetPassword = ref(false);
 const resetEmail = ref('');
 
+const isMobileViewport = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+};
+
+const getMobileHome = () => {
+    return AuthService.isAdmin.value ? '/admin/mobile-live' : '/client/mobile';
+};
+
+const resolvePostLoginRoute = () => {
+    const savedRedirect = TokenService.getAndClearRedirectPath();
+    const requestedRedirect = savedRedirect || route.query.redirect;
+    const redirectTo = Array.isArray(requestedRedirect) ? requestedRedirect[0] : requestedRedirect;
+
+    if (isMobileViewport()) {
+        const explicitMobile = redirectTo === '/admin/mobile-live' || redirectTo === '/client/mobile';
+        return explicitMobile ? redirectTo : getMobileHome();
+    }
+
+    return redirectTo || '/';
+};
+
 // Mostra messaggio di sessione scaduta se presente
 onMounted(() => {
     if (route.query.expired === 'true') {
@@ -57,12 +79,7 @@ const handleLogin = async () => {
 
         // Piccolo delay per mostrare il toast
         setTimeout(() => {
-            // Controlla se c'è un redirect salvato da un errore 401
-            const savedRedirect = TokenService.getAndClearRedirectPath();
-
-            // Redirect alla pagina richiesta, o quella salvata, o alla dashboard
-            const redirectTo = savedRedirect || route.query.redirect || '/';
-            router.push(redirectTo);
+            router.push(resolvePostLoginRoute());
         }, 500);
     } catch (error) {
         console.error('Login error:', error);
@@ -141,73 +158,53 @@ const cancelResetPassword = () => {
 <template>
     <Toast />
     <FloatingConfigurator />
-    <div
-        class="bg-surface-50 dark:bg-surface-950 flex items-center justify-center min-h-screen min-w-[100vw] overflow-hidden">
+    <div class="bg-surface-50 dark:bg-surface-950 flex items-center justify-center min-h-screen min-w-[100vw] overflow-hidden">
         <div class="flex flex-col items-center justify-center">
-            <div
-                style="border-radius: 56px; padding: 0.3rem; background: linear-gradient(180deg, var(--primary-color) 10%, rgba(33, 150, 243, 0) 30%)">
+            <div style="border-radius: 56px; padding: 0.3rem; background: linear-gradient(180deg, var(--primary-color) 10%, rgba(33, 150, 243, 0) 30%)">
                 <div class="w-full bg-surface-0 dark:bg-surface-900 py-20 px-8 sm:px-20" style="border-radius: 53px">
-
                     <!-- Login Form -->
                     <div v-if="!showResetPassword">
                         <div class="text-center mb-8">
-                            <div class="text-surface-900 dark:text-surface-0 text-3xl font-medium mb-4">Benvenuti in
-                                Eugenio!</div>
+                            <div class="text-surface-900 dark:text-surface-0 text-3xl font-medium mb-4">Benvenuti in Eugenio!</div>
                             <span class="text-muted-color font-medium">Accedi per continuare</span>
                         </div>
 
                         <form @submit.prevent="handleLogin">
-                            <label for="username1"
-                                class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Username</label>
-                            <InputText id="username1" type="text" placeholder="Username"
-                                class="w-full md:w-[30rem] mb-8" v-model="username" :disabled="isLoading" required />
+                            <label for="username1" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Username</label>
+                            <InputText id="username1" type="text" placeholder="Username" class="w-full md:w-[30rem] mb-8" v-model="username" :disabled="isLoading" required />
 
-                            <label for="password1"
-                                class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Password</label>
-                            <Password id="password1" v-model="password" placeholder="Password" :toggleMask="true"
-                                class="mb-4" fluid :feedback="false" :disabled="isLoading" required />
+                            <label for="password1" class="block text-surface-900 dark:text-surface-0 font-medium text-xl mb-2">Password</label>
+                            <Password id="password1" v-model="password" placeholder="Password" :toggleMask="true" class="mb-4" fluid :feedback="false" :disabled="isLoading" required />
 
                             <div class="flex items-center justify-between mt-2 mb-8 gap-8">
                                 <div class="flex items-center">
-                                    <Checkbox v-model="rememberMe" id="rememberme1" binary class="mr-2"
-                                        :disabled="isLoading"></Checkbox>
+                                    <Checkbox v-model="rememberMe" id="rememberme1" binary class="mr-2" :disabled="isLoading"></Checkbox>
                                     <label for="rememberme1">Ricordami</label>
                                 </div>
-                                <span class="font-medium no-underline ml-2 text-right cursor-pointer text-primary"
-                                    @click="handleForgotPassword">
-                                    Password dimenticata?
-                                </span>
+                                <span class="font-medium no-underline ml-2 text-right cursor-pointer text-primary" @click="handleForgotPassword"> Password dimenticata? </span>
                             </div>
 
-                            <Button type="submit" label="Accedi" class="w-full" :loading="isLoading"
-                                :disabled="isLoading" />
+                            <Button type="submit" label="Accedi" class="w-full" :loading="isLoading" :disabled="isLoading" />
                         </form>
                     </div>
 
                     <!-- Reset Password Form -->
                     <div v-else>
                         <div class="text-center mb-8">
-                            <div class="text-surface-900 dark:text-surface-0 text-3xl font-medium mb-4">Reset Password
-                            </div>
-                            <span class="text-muted-color font-medium">Inserisci la tua email per reimpostare la
-                                password</span>
+                            <div class="text-surface-900 dark:text-surface-0 text-3xl font-medium mb-4">Reset Password</div>
+                            <span class="text-muted-color font-medium">Inserisci la tua email per reimpostare la password</span>
                         </div>
 
                         <form @submit.prevent="handleResetPasswordSubmit">
-                            <label for="resetEmail"
-                                class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Email</label>
-                            <InputText id="resetEmail" type="email" placeholder="Email" class="w-full md:w-[30rem] mb-8"
-                                v-model="resetEmail" :disabled="isLoading" required />
+                            <label for="resetEmail" class="block text-surface-900 dark:text-surface-0 text-xl font-medium mb-2">Email</label>
+                            <InputText id="resetEmail" type="email" placeholder="Email" class="w-full md:w-[30rem] mb-8" v-model="resetEmail" :disabled="isLoading" required />
 
                             <div class="flex gap-4">
-                                <Button type="button" label="Annulla" severity="secondary" class="w-full"
-                                    :disabled="isLoading" @click="cancelResetPassword" />
-                                <Button type="submit" label="Invia" class="w-full" :loading="isLoading"
-                                    :disabled="isLoading" />
+                                <Button type="button" label="Annulla" severity="secondary" class="w-full" :disabled="isLoading" @click="cancelResetPassword" />
+                                <Button type="submit" label="Invia" class="w-full" :loading="isLoading" :disabled="isLoading" />
                             </div>
                         </form>
                     </div>
-
                 </div>
             </div>
         </div>

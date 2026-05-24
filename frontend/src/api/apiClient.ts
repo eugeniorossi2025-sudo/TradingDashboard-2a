@@ -3,7 +3,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Configuration } from './client/configuration';
 
 // Base URL del backend
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7203';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5299';
 
 // Istanza axios configurata
 export const apiClient: AxiosInstance = axios.create({
@@ -36,11 +36,17 @@ apiClient.interceptors.response.use(
         if (error.response?.status === 401) {
             // 401 Unauthorized: Token scaduto o non valido
             console.warn('Token scaduto o non valido - Redirect al login');
+            const currentPath = window.location.pathname + window.location.search;
+            if (TokenService.getToken() && !String(error.config?.url || '').includes('/api/admin/access-events')) {
+                apiClient.post('/api/admin/access-events', {
+                    eventType: 'SESSION_TIMEOUT',
+                    page: currentPath
+                }).catch(() => {});
+            }
             
             TokenService.clearAll();
             
             // Salva l'URL corrente per il redirect post-login
-            const currentPath = window.location.pathname + window.location.search;
             if (currentPath !== '/auth/login' && !currentPath.includes('/auth/')) {
                 TokenService.setRedirectPath(currentPath);
             }

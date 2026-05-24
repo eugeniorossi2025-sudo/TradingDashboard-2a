@@ -1,4 +1,4 @@
-import { getApiConfiguration } from '@/api/apiClient';
+import { apiClient, getApiConfiguration } from '@/api/apiClient';
 import { ConfigurationApi } from '@/api/client/api/configuration-api';
 import type {
     Configuration as ApiConfiguration,
@@ -29,8 +29,8 @@ export interface UpdateConfigurationDTO {
 
 // Mapping da API Configuration a Configuration locale
 const mapApiConfiguration = (apiConfig: ApiConfiguration): Configuration => ({
-    id: parseInt(apiConfig.k),
-    k: apiConfig.k,
+    id: Number(apiConfig.id || 0),
+    k: apiConfig.k || apiConfig.key || '',
     description: apiConfig.description || '',
     pos: apiConfig.pos || 0,
     value: apiConfig.value || '',
@@ -50,13 +50,13 @@ export const ConfigurationService = {
 
     // 🔹 GET CONFIGURATION BY ID
     async getConfigurationById(id: string): Promise<Configuration | null> {
-        const configApi = new ConfigurationApi(getApiConfiguration());
-        const response = await configApi.apiConfigurationKGet(id);
-        
-        if (response.data) {
-            return mapApiConfiguration(response.data as unknown as ApiConfiguration);
+        try {
+            const response = await apiClient.get(`/api/Configuration/key/${encodeURIComponent(id)}`);
+            return response.data ? mapApiConfiguration(response.data as unknown as ApiConfiguration) : null;
+        } catch (error) {
+            if (error?.response?.status === 404) return null;
+            throw error;
         }
-        return null;
     },
 
     // 🔹 CREATE CONFIGURATION (Admin only)

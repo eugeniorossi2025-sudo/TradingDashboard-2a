@@ -2,6 +2,8 @@ using Contracts.Configuration;
 using Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using WebApi.Data;
 using WebApi.Services;
 
 namespace WebApi.Controllers;
@@ -15,14 +17,16 @@ namespace WebApi.Controllers;
 public class ConfigurationController : ControllerBase
 {
     private readonly IConfigurationService _configurationService;
+    private readonly AppDbContext _context;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="ConfigurationController"/> class.
     /// </summary>
     /// <param name="configurationService">The configuration service.</param>
-    public ConfigurationController(IConfigurationService configurationService)
+    public ConfigurationController(IConfigurationService configurationService, AppDbContext context)
     {
         _configurationService = configurationService;
+        _context = context;
     }
 
     /// <summary>
@@ -50,6 +54,19 @@ public class ConfigurationController : ControllerBase
     public async Task<ActionResult<Configuration>> GetById(int id)
     {
         var configuration = await _configurationService.GetByIdAsync(id);
+        if (configuration == null) return NotFound();
+        return Ok(configuration);
+    }
+
+    [HttpGet("key/{key}")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Configuration>> GetByKey(string key)
+    {
+        var configuration = await _context.Configurations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.Key == key);
         if (configuration == null) return NotFound();
         return Ok(configuration);
     }

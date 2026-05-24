@@ -50,6 +50,20 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
     public DbSet<UserGridConfiguration> UserGridConfigurations { get; set; }
 
     /// <summary>
+    /// Gets or sets the accounting mission sessions used by financial reports.
+    /// </summary>
+    public DbSet<MissionSession> MissionSessions { get; set; }
+
+    /// <summary>
+    /// Gets or sets the accounting margin samples for mission sessions.
+    /// </summary>
+    public DbSet<MissionMarginSample> MissionMarginSamples { get; set; }
+
+    public DbSet<UserNotificationSetting> UserNotificationSettings { get; set; }
+
+    public DbSet<UserAccessEvent> UserAccessEvents { get; set; }
+
+    /// <summary>
     /// Configures the entity model.
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
@@ -102,6 +116,86 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Notes).HasColumnName("Notes");
             entity.Property(e => e.Json).HasColumnName("Json");
             entity.HasIndex(e => e.DateTime);
+        });
+
+        // Configure mission report entities. These are intentionally separate from runtime Logs/Values.
+        modelBuilder.Entity<MissionSession>(entity =>
+        {
+            entity.ToTable("MissionSessions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.MissionKey).HasMaxLength(128);
+            entity.Property(e => e.TotalMargin).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.LastTotalMarginForRealHands).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.GlobalTarget).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.KFactor).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.RuntimeMode).HasMaxLength(32);
+            entity.Property(e => e.FinalizationReason).HasMaxLength(128);
+            entity.HasIndex(e => e.MissionKey)
+                .IsUnique()
+                .HasFilter("[MissionKey] IS NOT NULL");
+            entity.HasIndex(e => e.RuntimeMode);
+            entity.HasIndex(e => e.StartTime);
+            entity.HasIndex(e => e.EndTime);
+            entity.HasIndex(e => e.Completed);
+        });
+
+        modelBuilder.Entity<MissionMarginSample>(entity =>
+        {
+            entity.ToTable("MissionMarginSamples");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.TotalMargin).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.VmCurrent).HasColumnType("decimal(18,2)");
+            entity.Property(e => e.RuntimeMode).HasMaxLength(32);
+            entity.HasIndex(e => e.SessionId);
+            entity.HasIndex(e => e.Timestamp);
+            entity.HasIndex(e => e.RuntimeMode);
+            entity.HasOne(e => e.Session)
+                .WithMany(e => e.Samples)
+                .HasForeignKey(e => e.SessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserNotificationSetting>(entity =>
+        {
+            entity.ToTable("UserNotificationSettings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.NotificationEmail).HasMaxLength(256);
+            entity.HasIndex(e => e.UserId).IsUnique();
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserAccessEvent>(entity =>
+        {
+            entity.ToTable("UserAccessEvents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.Username).HasMaxLength(256);
+            entity.Property(e => e.EventType).HasMaxLength(32);
+            entity.Property(e => e.IpAddress).HasMaxLength(128);
+            entity.Property(e => e.Page).HasMaxLength(512);
+            entity.Property(e => e.UserAgent).HasMaxLength(1024);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Username);
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.OccurredAtUtc);
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // Configure Device entity (mapped to PC table)
