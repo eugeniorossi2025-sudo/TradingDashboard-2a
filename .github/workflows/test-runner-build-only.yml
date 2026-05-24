@@ -1,0 +1,41 @@
+name: DASH2A Runner Test (Build Only)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-runner-build:
+    name: Test Runner - Checkout + Build Only (NO DEPLOY)
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 15
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      DOTNET_NOLOGO: "1"
+
+    steps:
+      - name: Confirm test scope
+        shell: powershell
+        run: |
+          Write-Host "TEST ONLY - No IIS changes, no deploy, no DB changes."
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore
+        shell: powershell
+        run: dotnet restore backend\WebApi\WebApi.csproj
+
+      - name: Build Release
+        shell: powershell
+        run: dotnet build backend\WebApi\WebApi.csproj --configuration Release --no-restore
+
+      - name: Runner OK
+        shell: powershell
+        run: Write-Host "Runner OK - Build completata. Nessun deploy eseguito."
