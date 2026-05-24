@@ -58,6 +58,55 @@ Complete every item before deploy.
 
 These commands are for identification only and require explicit server access approval. Do not run restart, deploy, migration, backup, restore, or config-edit commands in this phase.
 
+## 1B. GitHub Actions Self-Hosted Runner Setup
+
+Use this only when the user explicitly authorizes installing the runner service on the DASH2A VPS.
+
+Purpose:
+- Install GitHub Actions self-hosted runner as a Windows Service.
+- Enable future read-only inventory workflows.
+- Do not deploy.
+- Do not restart IIS.
+- Do not restart the server.
+- Do not change firewall rules.
+- Do not modify `C:\inetpub\wwwroot\publish`.
+- Do not change IIS bindings or App Pools.
+
+Required values:
+- Repo: `https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a`
+- Runner name: `dash2a-windows-runner-01`
+- Runner root: `C:\actions-runner`
+- Runner directory: `C:\actions-runner\dash2a-windows-runner-01`
+- Custom label: `DASH2A`
+- Automatic labels expected from GitHub: `self-hosted`, `Windows`, `X64`
+
+Token handling:
+- Generate a new registration token from GitHub immediately before installation.
+- Treat any earlier token as exposed.
+- Do not hardcode the token in scripts.
+- Do not pass the token through chat.
+- Do not print the token.
+- Do not save the token to files.
+- Paste it only into the interactive prompt on the VPS.
+
+Run on the VPS:
+- Open PowerShell as Administrator.
+- Run `ops\dash2a-readiness\install-dash2a-runner.ps1` or paste its contents into the elevated PowerShell session.
+- When prompted, paste a fresh GitHub runner registration token.
+
+Post-setup verification from local machine:
+
+```powershell
+gh api repos/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runners `
+  --jq '.runners[]? | [.name,.os,.status,.busy,(.labels|map(.name)|join(","))] | @tsv'
+```
+
+Expected:
+- `dash2a-windows-runner-01`
+- `online`
+- `busy=false`
+- labels include `self-hosted`, `Windows`, `DASH2A`
+
 Windows/IIS discovery:
 
 ```powershell
