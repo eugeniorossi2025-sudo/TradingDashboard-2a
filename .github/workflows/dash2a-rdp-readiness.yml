@@ -1,0 +1,60 @@
+name: DASH2A RDP Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_no_deploy:
+        description: "Type I_UNDERSTAND_NO_DEPLOY to run readiness check only"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  rdp-readiness:
+    name: Manual RDP readiness check only
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Guardrail - manual confirmation required
+        run: |
+          if [ "${{ github.event.inputs.confirm_no_deploy }}" != "I_UNDERSTAND_NO_DEPLOY" ]; then
+            echo "This workflow is readiness-only and requires explicit manual confirmation."
+            exit 1
+          fi
+
+      - name: Guardrail - no deploy / no restart / no server edit
+        run: |
+          echo "DASH2A readiness check only."
+          echo "No deploy will be executed."
+          echo "No server restart will be executed."
+          echo "No server files will be edited."
+          echo "No RDP password will be printed."
+
+      - name: Check RDP secret availability without printing it
+        env:
+          DASH2A_RDP_PASSWORD_PRESENT: ${{ secrets.DASH2A_RDP_PASSWORD != '' }}
+        run: |
+          if [ "$DASH2A_RDP_PASSWORD_PRESENT" != "true" ]; then
+            echo "Required GitHub Secret DASH2A_RDP_PASSWORD is not available."
+            exit 1
+          fi
+          echo "GitHub Secret DASH2A_RDP_PASSWORD is available. Value not printed."
+
+      - name: Readiness result
+        run: |
+          cat <<'EOF'
+          DASH2A RDP readiness status:
+          - Secret available: yes
+          - Secret printed in logs: no
+          - Automatic deploy enabled: no
+          - Server restart executed: no
+          - Server edit executed: no
+          - Intended use: controlled future remote access workflow only
+          EOF
