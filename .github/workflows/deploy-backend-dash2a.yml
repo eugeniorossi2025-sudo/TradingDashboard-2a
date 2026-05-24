@@ -1,0 +1,88 @@
+name: DASH2A Backend Deploy Safe
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_safe_backend_deploy:
+        description: "Type I_UNDERSTAND_BACKEND_DEPLOY_ONLY to deploy backend only"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dash2a-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy-backend:
+    name: Build, Publish, Backup, Swap IIS
+    if: ${{ github.event.inputs.confirm_safe_backend_deploy == 'I_UNDERSTAND_BACKEND_DEPLOY_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 30
+    env:
+      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
+      DOTNET_NOLOGO: "1"
+      CONFIGURATION: Release
+      PUBLISH_DIR: ${{ github.workspace }}\artifacts\backend-publish
+      DASH2A_SITE_NAME: demoapp
+      DASH2A_APP_POOL: demoapp
+      DASH2A_CURRENT_PATH: C:\inetpub\wwwroot\publish
+      DASH2A_RELEASE_ROOT: C:\inetpub\wwwroot\releases
+      DASH2A_BACKUP_ROOT: C:\inetpub\wwwroot\backups
+      DASH2A_SMOKE_TEST_URL: http://localhost/api/Auth/test
+
+    steps:
+      - name: Guard deployment scope
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ('${{ github.event.inputs.confirm_safe_backend_deploy }}' -ne 'I_UNDERSTAND_BACKEND_DEPLOY_ONLY') {
+            throw 'Manual confirmation input is invalid.'
+          }
+          Write-Host 'Backend-only deploy confirmed.'
+          Write-Host 'No DB migrations will be executed.'
+          Write-Host 'No frontend Firebase deploy will be executed.'
+          Write-Host 'No Decisore operation will be executed.'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore backend
+        shell: pwsh
+        run: dotnet restore backend\WebApi\WebApi.csproj
+
+      - name: Build backend Release
+        shell: pwsh
+        run: dotnet build backend\WebApi\WebApi.csproj --configuration $env:CONFIGURATION --no-restore
+
+      - name: Publish backend Release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (Test-Path -LiteralPath $env:PUBLISH_DIR) {
+            Remove-Item -LiteralPath $env:PUBLISH_DIR -Recurse -Force
+          }
+          dotnet publish backend\WebApi\WebApi.csproj `
+            --configuration $env:CONFIGURATION `
+            --output $env:PUBLISH_DIR `
+            --no-build `
+            --no-self-contained
+
+      - name: Deploy backend to IIS safely
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          .\ops\dash2a-readiness\deploy-backend-safe.ps1 `
+            -ArtifactPath $env:PUBLISH_DIR `
+            -SiteName $env:DASH2A_SITE_NAME `
+            -AppPoolName $env:DASH2A_APP_POOL `
+            -CurrentPath $env:DASH2A_CURRENT_PATH `
+            -ReleaseRoot $env:DASH2A_RELEASE_ROOT `
+            -BackupRoot $env:DASH2A_BACKUP_ROOT `
+            -SmokeTestUrl $env:DASH2A_SMOKE_TEST_URL
