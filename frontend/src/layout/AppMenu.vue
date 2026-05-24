@@ -39,10 +39,6 @@ const managementMenuItems = computed(() => {
             adminItems.push({ label: 'PC Managment', icon: 'pi pi-fw pi-mobile', to: '/pages/pc-configuration', class: 'rotated-icon' });
         }
 
-        if (isAdmin.value) {
-            adminItems.push({ label: 'Admin Mobile Live', icon: 'pi pi-fw pi-bolt', to: '/admin/mobile-live' });
-        }
-
         if (adminItems.length > 0) {
             items.push({
                 label: 'Admin',
