@@ -108,6 +108,7 @@ declare module 'vue' {
     Tree: typeof import('primevue/tree')['default']
     TreeSelect: typeof import('primevue/treeselect')['default']
     TreeTable: typeof import('primevue/treetable')['default']
+    UserAccessTable: typeof import('./src/components/admin/UserAccessTable.vue')['default']
   }
   export interface ComponentCustomProperties {
     StyleClass: typeof import('primevue/styleclass')['default']

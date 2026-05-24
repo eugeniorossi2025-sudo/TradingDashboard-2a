@@ -5,6 +5,7 @@ import type { LoginRequest, LoginResponse } from '@/api/client/models';
 import { AuthConstants } from '@/constants/AuthConstants';
 import { computed, ref } from 'vue';
 import { TokenService } from './TokenService';
+import { UserService } from './UserService';
 
 export interface CurrentUser {
     id: string;
@@ -143,6 +144,7 @@ export const AuthService = {
      */
     async logout(): Promise<void> {
         try {
+            await UserService.trackAccessEvent('LOGOUT', window.location.pathname + window.location.search).catch(() => {});
             const authApi = new AuthApi(getApiConfiguration());
             await authApi.apiAuthLogoutPost();
         } catch (error) {

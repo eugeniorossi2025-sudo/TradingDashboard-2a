@@ -59,6 +59,10 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
     /// </summary>
     public DbSet<MissionMarginSample> MissionMarginSamples { get; set; }
 
+    public DbSet<UserNotificationSetting> UserNotificationSettings { get; set; }
+
+    public DbSet<UserAccessEvent> UserAccessEvents { get; set; }
+
     /// <summary>
     /// Configures the entity model.
     /// </summary>
@@ -155,6 +159,43 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .WithMany(e => e.Samples)
                 .HasForeignKey(e => e.SessionId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserNotificationSetting>(entity =>
+        {
+            entity.ToTable("UserNotificationSettings");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.NotificationEmail).HasMaxLength(256);
+            entity.HasIndex(e => e.UserId).IsUnique();
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserAccessEvent>(entity =>
+        {
+            entity.ToTable("UserAccessEvents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.Username).HasMaxLength(256);
+            entity.Property(e => e.EventType).HasMaxLength(32);
+            entity.Property(e => e.IpAddress).HasMaxLength(128);
+            entity.Property(e => e.Page).HasMaxLength(512);
+            entity.Property(e => e.UserAgent).HasMaxLength(1024);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Username);
+            entity.HasIndex(e => e.EventType);
+            entity.HasIndex(e => e.OccurredAtUtc);
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         // Configure Device entity (mapped to PC table)

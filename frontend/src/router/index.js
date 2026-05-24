@@ -1,4 +1,6 @@
 import AppLayout from '@/layout/AppLayout.vue';
+import { TokenService } from '@/service/TokenService';
+import { UserService } from '@/service/UserService';
 import { createRouter, createWebHistory } from 'vue-router';
 import { adminGuard, authGuard, guestGuard } from './middleware';
 
@@ -218,6 +220,21 @@ const router = createRouter({
             component: () => import('@/views/pages/auth/AccessDenied.vue')
         }
     ]
+});
+
+let lastTrackedPath = '';
+let lastTrackedAt = 0;
+
+router.afterEach((to) => {
+    const path = to.fullPath;
+    const now = Date.now();
+    if (!TokenService.getToken() || path.includes('/auth/') || (path === lastTrackedPath && now - lastTrackedAt < 30000)) {
+        return;
+    }
+
+    lastTrackedPath = path;
+    lastTrackedAt = now;
+    UserService.trackAccessEvent('PAGE_VIEW', path).catch(() => {});
 });
 
 export default router;

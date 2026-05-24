@@ -36,11 +36,17 @@ apiClient.interceptors.response.use(
         if (error.response?.status === 401) {
             // 401 Unauthorized: Token scaduto o non valido
             console.warn('Token scaduto o non valido - Redirect al login');
+            const currentPath = window.location.pathname + window.location.search;
+            if (TokenService.getToken() && !String(error.config?.url || '').includes('/api/admin/access-events')) {
+                apiClient.post('/api/admin/access-events', {
+                    eventType: 'SESSION_TIMEOUT',
+                    page: currentPath
+                }).catch(() => {});
+            }
             
             TokenService.clearAll();
             
             // Salva l'URL corrente per il redirect post-login
-            const currentPath = window.location.pathname + window.location.search;
             if (currentPath !== '/auth/login' && !currentPath.includes('/auth/')) {
                 TokenService.setRedirectPath(currentPath);
             }
