@@ -28,7 +28,17 @@ Reasons:
 | Decisore SQL host | `51.210.181.37:1433` | Known, access not fully validated |
 | Local frontend | `http://localhost:5001` | Known |
 | Local WebApi | `http://localhost:5299` | Known |
-| OVH server OS | Unknown | Must identify |
+| OVH service name | `Back-end Dashboard` | Known from OVH panel |
+| OVH VPS hostname | `vps-4ca306e8.vps.ovh.net` | Known from OVH panel |
+| OVH server status | `Active`, boot `LOCAL` | Known from OVH panel |
+| OVH server OS | `Windows Server 2025 Standard (Desktop)` | Known from OVH panel |
+| OVH region/location | `os-waw2`, Warsaw (WAW), Poland | Known from OVH panel |
+| OVH plan | `VPS-2`, 6 vCore, 12 GB RAM, 100 GB storage | Known from OVH panel |
+| OVH IPv4 | `51.83.159.175` | Known from OVH panel |
+| OVH IPv6 | `2001:41d0:601:1100::80ee` | Known from OVH panel |
+| OVH snapshot | Disabled | Known from OVH panel |
+| OVH automatic backup | Standard, last backup `2026-05-23 21:17` | Known from OVH panel; restore not tested |
+| RDP credential secret | GitHub Actions secret `DASH2A_RDP_PASSWORD` | Available as prerequisite; do not print or use automatically |
 | IIS site/App Pool or service | Unknown | Must identify |
 | Backend deploy folder | Unknown | Must identify |
 | Active app backup folder | Unknown | Must identify |
@@ -55,9 +65,9 @@ Run only after the user explicitly authorizes server access.
 The first server pass must be read-only. Do not restart services, edit files, run migrations, deploy artifacts, or change firewall/IIS settings during this pass.
 
 Record these fields before any change:
-- Server provider/account: `TODO`
-- Host/IP: `TODO`
-- OS/version: `TODO`
+- Server provider/account: `OVHcloud VPS / Back-end Dashboard`
+- Host/IP: `vps-4ca306e8.vps.ovh.net` / `51.83.159.175`
+- OS/version: `Windows Server 2025 Standard (Desktop)`
 - Web server: `TODO`
 - Process model: `IIS App Pool` / `Windows Service` / `systemd` / other
 - Site name: `TODO`
@@ -69,6 +79,20 @@ Record these fields before any change:
 - DB name for WebApi: `TODO`
 - DB user used by app: `TODO`
 - Healthcheck endpoint: `TODO`
+
+OVH panel backup status:
+- Snapshot: disabled.
+- Automatic backup: Standard, last reported backup `2026-05-23 21:17`.
+- Restore procedure: not tested.
+- App-level and DB-level backups: still required before deploy.
+
+Remote access prerequisite:
+- RDP target: `51.83.159.175`.
+- RDP user: `administrator`.
+- RDP password is stored as GitHub Actions secret `DASH2A_RDP_PASSWORD`.
+- Do not print, echo, export, or write the secret to logs.
+- Do not use the secret for automated deploys until a protected workflow/runbook is explicitly approved.
+- Manual/read-only discovery remains the only approved server access mode at this stage.
 
 ## Read-Only Server Access Checklist
 

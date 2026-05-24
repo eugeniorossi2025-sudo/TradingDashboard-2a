@@ -4,6 +4,19 @@ This runbook is mandatory before any DASH2A backend deploy.
 
 Current state: backend deploy is blocked until all TODO placeholders are resolved and backups are verified.
 
+Known OVH target from panel:
+- Service name: `Back-end Dashboard`
+- Hostname: `vps-4ca306e8.vps.ovh.net`
+- IPv4: `51.83.159.175`
+- OS: `Windows Server 2025 Standard (Desktop)`
+- Region: `os-waw2`, Warsaw (WAW), Poland
+- Backup: automatic backup Standard, last reported `2026-05-23 21:17`; snapshot disabled.
+- RDP prerequisite: user `administrator`, password stored as GitHub Actions secret `DASH2A_RDP_PASSWORD`.
+
+The OVH automatic backup does not replace app-level and DB-level backups for deploy.
+
+The RDP secret is for controlled remote access readiness only. Do not print it, pass it on a command line, write it to logs, or use it for unprotected automatic deploys.
+
 ## 0. Scope
 
 Allowed only after explicit user approval:
