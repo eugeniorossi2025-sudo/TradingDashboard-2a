@@ -101,6 +101,11 @@ export const FinancialReportService = {
         }
     },
 
+    async setRuntimeMode(runtimeMode: 'Production' | 'Demo'): Promise<RuntimeModeInfo> {
+        const response = await apiClient.put('/api/runtime-mode', { runtimeMode });
+        return unwrap<RuntimeModeInfo>(response);
+    },
+
     async getRangeReport(runtimeMode: 'Production' | 'Demo', from: string, to: string): Promise<MissionRangeReport> {
         const response = await apiClient.get('/api/mission/report/range', {
             params: {
@@ -180,7 +185,7 @@ export const FinancialReportService = {
         URL.revokeObjectURL(link.href);
     },
 
-    async getReportsIndex(runtimeMode: 'Production' | 'Demo', from: string, to: string, skip = 0, limit = 100): Promise<MissionReportsIndex> {
+    async getReportsIndex(runtimeMode: 'Production' | 'Demo' | 'All', from: string, to: string, skip = 0, limit = 100, sessionId?: number): Promise<MissionReportsIndex> {
         const response = await apiClient.get('/api/mission/reports/index', {
             params: {
                 runtimeMode,
@@ -188,6 +193,7 @@ export const FinancialReportService = {
                 toUtc: to,
                 skip,
                 limit,
+                sessionId,
                 completedOnly: true
             }
         });
@@ -195,10 +201,42 @@ export const FinancialReportService = {
         return unwrap<MissionReportsIndex>(response);
     },
 
-    openSessionReport(sessionId: number, format: 'html' | 'json' | 'csv' = 'html'): void {
-        const baseURL = apiClient.defaults.baseURL || '';
-        const url = `${baseURL}/api/mission/report/${encodeURIComponent(String(sessionId))}?format=${encodeURIComponent(format)}`;
-        window.open(url, '_blank', 'noopener,noreferrer');
+    async openSessionReport(sessionId: number, format: 'html' | 'json' | 'csv' = 'html'): Promise<void> {
+        const response = await apiClient.get(`/api/mission/report/${encodeURIComponent(String(sessionId))}`, {
+            params: { format },
+            responseType: format === 'json' ? 'json' : 'blob'
+        });
+
+        if (format === 'json') {
+            const report = unwrap<MissionRangeReport>(response);
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.setAttribute('download', `mission_session_${sessionId}.json`);
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(link.href);
+            return;
+        }
+
+        const contentType = format === 'csv' ? 'text/csv;charset=utf-8;' : 'text/html;charset=utf-8;';
+        const blob = new Blob([response.data], { type: contentType });
+        const url = URL.createObjectURL(blob);
+
+        if (format === 'html') {
+            window.open(url, '_blank', 'noopener,noreferrer');
+            window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+            return;
+        }
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.setAttribute('download', `mission_session_${sessionId}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
     },
 
     async importHistoricalDemo(file: File, replace = false): Promise<HistoricalMissionImportResponse> {

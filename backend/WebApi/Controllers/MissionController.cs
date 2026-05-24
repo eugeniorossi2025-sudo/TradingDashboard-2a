@@ -88,6 +88,7 @@ public class MissionController : ControllerBase
         [FromQuery] bool completedOnly = true)
     {
         var mode = NormalizeMode(runtimeMode);
+        var includeAllModes = string.Equals(runtimeMode, "All", StringComparison.OrdinalIgnoreCase);
         var fromDate = (fromUtc ?? DateTime.UtcNow.AddYears(-10)).Date;
         var toExclusive = (toUtc ?? DateTime.UtcNow).Date.AddDays(1);
         await EnsureMissionReportSchemaAsync();
@@ -97,9 +98,11 @@ public class MissionController : ControllerBase
 
         var query = _context.MissionSessions
             .AsNoTracking()
-            .Where(session => session.RuntimeMode == mode
-                              && (session.EndTime ?? session.StartTime) >= fromDate
+            .Where(session => (session.EndTime ?? session.StartTime) >= fromDate
                               && session.StartTime < toExclusive);
+
+        if (!includeAllModes)
+            query = query.Where(session => session.RuntimeMode == mode);
 
         if (completedOnly)
             query = query.Where(session => session.Completed);

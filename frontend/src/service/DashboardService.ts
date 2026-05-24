@@ -15,26 +15,15 @@ function unwrap<T>(response: { data: T | { data?: T } }): T {
 
 export const DashboardService = {
     async getDashboardData(): Promise<any[] | null> {
-        try {
-            const response = await apiClient.get('/api/Dashboard/pc-current-status');
-            const data = unwrap<any>(response);
-            return data?.tables || data?.rows || data || null;
-        } catch (error) {
-            const response = await apiClient.get('/api/Dashboard/data');
-            const data = unwrap<any>(response);
-            return data?.tables || data?.rows || data || null;
-        }
+        const response = await apiClient.get('/api/Dashboard/data');
+        const data = unwrap<any>(response);
+        return data?.tables || data?.rows || data || null;
     },
 
     // 🔹 GET CHART DATA
     async getChartData(): Promise<any[] | null> {
-        try {
-            const response = await apiClient.get('/api/Dashboard/margini-chart');
-            return unwrap<any[]>(response);
-        } catch (error) {
-            const response = await apiClient.get('/api/Dashboard/chart');
-            return unwrap<any[]>(response);
-        }
+        const response = await apiClient.get('/api/Dashboard/chart');
+        return unwrap<any[]>(response);
     },
 
     // 🔹 RESET DASHBOARD

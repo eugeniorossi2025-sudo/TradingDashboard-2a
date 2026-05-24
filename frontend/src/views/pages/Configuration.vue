@@ -36,17 +36,7 @@ async function loadRuntimeMode() {
 async function setRuntimeMode(mode) {
     runtimeModeLoading.value = true;
     try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5299'}/api/runtime-mode`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${localStorage.getItem('authToken') || sessionStorage.getItem('authToken') || ''}`
-            },
-            body: JSON.stringify({ runtimeMode: mode })
-        });
-
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        await loadRuntimeMode();
+        runtimeMode.value = await FinancialReportService.setRuntimeMode(mode);
         toast.add({
             severity: 'success',
             summary: 'Modalità aggiornata',

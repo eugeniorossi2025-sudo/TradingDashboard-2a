@@ -1,7 +1,10 @@
 param(
     [switch]$Run,
+    [switch]$SmokeOnly,
     [switch]$SkipBuild,
-    [string]$ApiBaseUrl = "http://51.83.159.175"
+    [string]$ApiBaseUrl = "http://localhost:5299",
+    [bool]$UseLocalDb = $true,
+    [string]$LocalDbName = "Dash2A_LocalImportTest"
 )
 
 $ErrorActionPreference = "Stop"
@@ -94,14 +97,77 @@ function Test-RealLogin {
             throw "Login response senza token"
         }
         Write-Host "Login reale: OK token ricevuto"
+        return $response.token
     } catch {
         throw "Login reale fallito su $BaseUrl/api/Auth/login. Stack NON funzionante: $($_.Exception.Message)"
     }
 }
 
+function Wait-HttpReady {
+    param(
+        [string]$Url,
+        [int]$TimeoutSeconds = 60
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        try {
+            Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5 | Out-Null
+            Write-Host "HTTP ready: $Url"
+            return
+        } catch {
+            Start-Sleep -Seconds 2
+        }
+    } while ((Get-Date) -lt $deadline)
+
+    throw "Timeout avvio HTTP: $Url"
+}
+
+function Test-MissionReports {
+    param(
+        [string]$BaseUrl,
+        [string]$Token
+    )
+
+    Write-Step "Verifica missioni Demo API"
+    try {
+        $headers = @{ Authorization = "Bearer $Token" }
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/mission/reports/index?runtimeMode=Demo&fromUtc=2016-01-01&toUtc=2026-12-31&skip=0&limit=5" -Headers $headers -TimeoutSec 20
+        $total = $response.data.total
+        Write-Host "Missioni Demo API: OK total=$total"
+
+        $firstSessionId = @($response.data.items)[0].sessionId
+        if ($firstSessionId) {
+            $html = Invoke-WebRequest -Uri "$BaseUrl/api/mission/report/${firstSessionId}?format=html" -Headers $headers -UseBasicParsing -TimeoutSec 20
+            if ($html.StatusCode -ne 200 -or $html.Content -notmatch "<html|<!doctype html") {
+                throw "HTML missione non valido per sessionId=$firstSessionId"
+            }
+            Write-Host "Missione HTML: OK sessionId=$firstSessionId bytes=$($html.Content.Length)"
+        }
+    } catch {
+        throw "Verifica missioni Demo fallita su $BaseUrl/api/mission/reports/index: $($_.Exception.Message)"
+    }
+}
+
+function Invoke-Smoke {
+    param([string]$BaseUrl)
+
+    Write-Step "Smoke finale app locale"
+    Wait-HttpReady -Url "http://localhost:5001" -TimeoutSeconds 30
+    Wait-HttpReady -Url "$BaseUrl/api/Auth/test" -TimeoutSeconds 30
+    $token = Test-RealLogin -BaseUrl $BaseUrl
+    Test-MissionReports -BaseUrl $BaseUrl -Token $token
+    Write-Host "Smoke finale: OK"
+}
+
 Push-Location $PSScriptRoot
 try {
     Assert-Dash2Safety
+
+    if ($SmokeOnly) {
+        Invoke-Smoke -BaseUrl $ApiBaseUrl
+        return
+    }
 
     Write-Step "Stop pulito processi locali DASH2"
     @(5001, 5173, 5299, 7203, 5286, 7084) | ForEach-Object { Stop-Port $_ }
@@ -122,10 +188,22 @@ try {
 
     if ($Run) {
         Assert-LocalFrontendApi
-        Test-RealLogin -BaseUrl $ApiBaseUrl
         Write-Step "Avvio WebApi e frontend locali"
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\backend\WebApi`"; dotnet run --launch-profile http"
+
+        $backendCommand = "cd `"$PSScriptRoot\backend\WebApi`"; "
+        if ($UseLocalDb -and $ApiBaseUrl -match "localhost:5299|127\.0\.0\.1:5299") {
+            $connectionString = "Server=(localdb)\MSSQLLocalDB;Database=$LocalDbName;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;"
+            $backendCommand += "`$env:ConnectionStrings__DefaultConnection='$connectionString'; `$env:Database__EnsureCreated='true'; "
+            Write-Host "Backend DB locale: $LocalDbName"
+        }
+        $backendCommand += "dotnet run --launch-profile http"
+
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCommand
+        Wait-HttpReady -Url "$ApiBaseUrl/api/Auth/test" -TimeoutSeconds 90
+
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\frontend`"; `$env:VITE_API_BASE_URL='$ApiBaseUrl'; npm run dev -- --host 0.0.0.0 --port 5001 --strictPort"
+        Wait-HttpReady -Url "http://localhost:5001" -TimeoutSeconds 90
+        Invoke-Smoke -BaseUrl $ApiBaseUrl
         Write-Host "WebApi: http://localhost:5299"
         Write-Host "Frontend: http://localhost:5001"
         Write-Host "Frontend API: $ApiBaseUrl"

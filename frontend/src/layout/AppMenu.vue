@@ -10,9 +10,7 @@ const baseMenuItems = [
     {
         label: 'Home',
         items: [
-            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' },
-            { label: 'Client Desktop', icon: 'pi pi-fw pi-desktop', to: '/client/desktop' },
-            { label: 'Mobile Cliente', icon: 'pi pi-fw pi-mobile', to: '/client/mobile' }
+            { label: 'Dashboard', icon: 'pi pi-fw pi-home', to: '/' }
         ]
     }
 ];
@@ -35,10 +33,6 @@ const managementMenuItems = computed(() => {
 
         if (canViewConfigurations.value) {
             adminItems.push({ label: 'Configurations', icon: 'pi pi-fw pi-check-square', to: '/pages/configurations' });
-        }
-
-        if (isAdmin.value) {
-            adminItems.push({ label: 'Mobile Admin', icon: 'pi pi-fw pi-tablet', to: '/admin/mobile-live' });
         }
 
         if (canManageDevices.value) {

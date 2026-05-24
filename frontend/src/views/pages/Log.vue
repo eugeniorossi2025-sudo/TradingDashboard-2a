@@ -32,6 +32,10 @@ const reportLoading = ref(false);
 const missionReports = ref([]);
 const missionReportsTotal = ref(0);
 const missionReportsLoading = ref(false);
+const missionFrom = ref(new Date(new Date().getFullYear() - 10, 0, 1));
+const missionTo = ref(new Date());
+const missionRuntimeMode = ref('All');
+const missionSessionId = ref('');
 const missionReportSkip = ref(0);
 const missionReportLimit = ref(100);
 const historicalImportFile = ref(null);
@@ -41,6 +45,10 @@ const historicalImportResult = ref(null);
 const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
+];
+const missionModeOptions = [
+    { label: 'Tutte', value: 'All' },
+    ...reportModeOptions
 ];
 
 onMounted(() => {
@@ -129,8 +137,14 @@ async function downloadFinancialCsv() {
 async function loadMissionReports() {
     missionReportsLoading.value = true;
     try {
-        const range = getReportRange();
-        const response = await FinancialReportService.getReportsIndex(range.mode, range.from, range.to, missionReportSkip.value, missionReportLimit.value);
+        const response = await FinancialReportService.getReportsIndex(
+            missionRuntimeMode.value,
+            formatDateParam(missionFrom.value),
+            formatDateParam(missionTo.value),
+            missionReportSkip.value,
+            missionReportLimit.value,
+            missionSessionId.value ? Number(missionSessionId.value) : undefined
+        );
         missionReports.value = response.items || [];
         missionReportsTotal.value = response.total || 0;
     } finally {
@@ -138,8 +152,14 @@ async function loadMissionReports() {
     }
 }
 
-function openMissionSession(sessionId, format) {
-    FinancialReportService.openSessionReport(sessionId, format);
+function loadMissionReportsRelative(direction) {
+    const limit = Math.max(1, Number(missionReportLimit.value) || 100);
+    missionReportSkip.value = Math.max(0, Number(missionReportSkip.value || 0) + (direction < 0 ? -limit : limit));
+    loadMissionReports();
+}
+
+async function openMissionSession(sessionId, format) {
+    await FinancialReportService.openSessionReport(sessionId, format);
 }
 
 function onHistoricalImportFileChange(event) {
@@ -226,12 +246,106 @@ function formatLocalDate(date) {
                         <label class="font-semibold">Modalità</label>
                         <Select v-model="reportRuntimeMode" :options="reportModeOptions" optionLabel="label" optionValue="value" fluid />
                     </div>
-                    <Button label="Carica archivio" icon="pi pi-refresh" severity="secondary" outlined :loading="missionReportsLoading" @click="loadMissionReports" />
                     <Button label="Apri report" icon="pi pi-external-link" :loading="reportLoading" @click="openFinancialReport" />
                     <div class="flex gap-2">
                         <Button label="JSON" icon="pi pi-download" severity="secondary" outlined class="flex-1" :disabled="reportLoading" @click="downloadFinancialJson" />
                         <Button label="CSV" icon="pi pi-download" severity="secondary" outlined class="flex-1" :disabled="reportLoading" @click="downloadFinancialCsv" />
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-4">
+            <div class="flex flex-col gap-4">
+                <div class="flex flex-col md:flex-row md:items-center gap-2">
+                    <div>
+                        <h4 class="m-0 text-lg">Missioni</h4>
+                        <p class="text-muted-color mt-2 mb-0">Seleziona le missioni contabili e apri il report singolo, come nella pagina log originale.</p>
+                    </div>
+                    <div class="md:ml-auto text-sm text-muted-color">Totale: {{ missionReportsTotal }}</div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">From</label>
+                        <DatePicker v-model="missionFrom" dateFormat="yy-mm-dd" showIcon fluid />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">To</label>
+                        <DatePicker v-model="missionTo" dateFormat="yy-mm-dd" showIcon fluid />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">Mode</label>
+                        <Select v-model="missionRuntimeMode" :options="missionModeOptions" optionLabel="label" optionValue="value" fluid />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">SessionId</label>
+                        <InputText v-model="missionSessionId" placeholder="es. 142" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">Limit</label>
+                        <InputNumber v-model="missionReportLimit" :min="1" :max="500" />
+                    </div>
+                    <div class="flex flex-col gap-2">
+                        <label class="font-semibold">Skip</label>
+                        <InputNumber v-model="missionReportSkip" :min="0" />
+                    </div>
+                    <Button label="Carica" icon="pi pi-refresh" severity="secondary" outlined :loading="missionReportsLoading" @click="loadMissionReports" />
+                </div>
+
+                <div class="flex flex-wrap gap-2">
+                    <Button label="Più nuovi" icon="pi pi-arrow-left" severity="secondary" outlined :disabled="missionReportsLoading || missionReportSkip <= 0" @click="loadMissionReportsRelative(-1)" />
+                    <Button label="Più vecchi" icon="pi pi-arrow-right" severity="secondary" outlined :disabled="missionReportsLoading" @click="loadMissionReportsRelative(1)" />
+                </div>
+
+                <div class="rounded border border-surface-200 dark:border-surface-700 overflow-hidden">
+                    <div class="flex flex-col md:flex-row md:items-center gap-2 p-3 bg-surface-50 dark:bg-surface-800">
+                        <div>
+                            <h5 class="m-0 text-base">Lista missioni</h5>
+                            <p class="text-muted-color mt-1 mb-0">Filtri missione, paginazione e apertura report singolo.</p>
+                        </div>
+                        <div class="md:ml-auto text-sm text-muted-color">skip={{ missionReportSkip }} · limit={{ missionReportLimit }}</div>
+                    </div>
+
+                    <DataTable :value="missionReports" :loading="missionReportsLoading" dataKey="sessionId" responsiveLayout="scroll" breakpoint="960px">
+                        <Column field="sessionId" header="Sessione" :style="{ width: '110px' }">
+                            <template #body="{ data }">
+                                <strong>#{{ data.sessionId }}</strong>
+                            </template>
+                        </Column>
+                        <Column field="startUtc" header="Start">
+                            <template #body="{ data }">
+                                {{ formatLocalDate(data.startUtc) }}
+                            </template>
+                        </Column>
+                        <Column field="endUtc" header="End">
+                            <template #body="{ data }">
+                                {{ data.endUtc ? formatLocalDate(data.endUtc) : '-' }}
+                            </template>
+                        </Column>
+                        <Column field="kFactor" header="K" />
+                        <Column field="activeTables" header="Tavoli" />
+                        <Column field="totalMarginEuro" header="Margin €">
+                            <template #body="{ data }">
+                                <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro) }}</span>
+                            </template>
+                        </Column>
+                        <Column field="globalTargetEuro" header="Target" />
+                        <Column field="realHandsCount" header="Mani reali" />
+                        <Column field="samplesCount" header="Samples" />
+                        <Column header="Apri">
+                            <template #body="{ data }">
+                                <div class="flex gap-2">
+                                    <Button label="HTML" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'html')" />
+                                    <Button label="JSON" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'json')" />
+                                    <Button label="CSV" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'csv')" />
+                                </div>
+                            </template>
+                        </Column>
+                        <template #empty>
+                            <div class="text-center py-6 text-muted-color">Nessuna missione trovata per i filtri.</div>
+                        </template>
+                    </DataTable>
                 </div>
             </div>
         </div>
@@ -262,57 +376,6 @@ function formatLocalDate(date) {
                     <div><strong>Giorni saltati:</strong> {{ historicalImportResult.skipped }}</div>
                     <div v-if="historicalImportResult.skippedDays?.length" class="text-muted-color mt-2">Saltati: {{ historicalImportResult.skippedDays.join(', ') }}</div>
                 </div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="flex flex-col gap-4">
-                <div class="flex flex-col md:flex-row md:items-center gap-2">
-                    <div>
-                        <h4 class="m-0 text-lg">Archivio Rapporti Missione</h4>
-                        <p class="text-muted-color mt-2 mb-0">Dataset contabile separato dai log runtime: sessioni, margini, mani reali e tavoli.</p>
-                    </div>
-                    <div class="md:ml-auto text-sm text-muted-color">Totale: {{ missionReportsTotal }}</div>
-                </div>
-
-                <DataTable :value="missionReports" :loading="missionReportsLoading" dataKey="sessionId" responsiveLayout="scroll" breakpoint="960px">
-                    <Column field="sessionId" header="Sessione" :style="{ width: '110px' }">
-                        <template #body="{ data }">
-                            <strong>#{{ data.sessionId }}</strong>
-                        </template>
-                    </Column>
-                    <Column field="startUtc" header="Start">
-                        <template #body="{ data }">
-                            {{ formatLocalDate(data.startUtc) }}
-                        </template>
-                    </Column>
-                    <Column field="endUtc" header="End">
-                        <template #body="{ data }">
-                            {{ data.endUtc ? formatLocalDate(data.endUtc) : '-' }}
-                        </template>
-                    </Column>
-                    <Column field="runtimeMode" header="Mode" />
-                    <Column field="totalMarginEuro" header="Margin €">
-                        <template #body="{ data }">
-                            <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro) }}</span>
-                        </template>
-                    </Column>
-                    <Column field="realHandsCount" header="Mani reali" />
-                    <Column field="activeTables" header="Tavoli" />
-                    <Column field="samplesCount" header="Samples" />
-                    <Column header="Apri">
-                        <template #body="{ data }">
-                            <div class="flex gap-2">
-                                <Button label="HTML" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'html')" />
-                                <Button label="JSON" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'json')" />
-                                <Button label="CSV" size="small" severity="secondary" outlined @click="openMissionSession(data.sessionId, 'csv')" />
-                            </div>
-                        </template>
-                    </Column>
-                    <template #empty>
-                        <div class="text-center py-6 text-muted-color">Nessuna missione contabile trovata per il periodo selezionato.</div>
-                    </template>
-                </DataTable>
             </div>
         </div>
 
