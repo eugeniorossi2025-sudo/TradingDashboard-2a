@@ -7,7 +7,8 @@ Regole fisse:
 - Non usare `firebase deploy` senza ordine esplicito.
 - Non usare `firebase use`.
 - Non toccare Dashboard 1.
-- Se un audit trova `eugenio-dashboard-1`, `dashboard-1` o `eugenio-dashboard-2a`, fermarsi.
+- Se un audit trova riferimenti Dashboard 1, backend rimossi, endpoint vecchi o fallback sporchi, fermarsi.
+- Il frontend pubblico corretto e `https://eugenio-dashboard-2a.web.app/auth/login?redirect=/pages/user`.
 
 ## Restart APP
 
@@ -32,10 +33,46 @@ Come `Restart APP`, ma alla fine avvia anche WebApi e frontend locali.
 URL attesi:
 - WebApi: `http://localhost:5299`
 - Frontend: `http://localhost:5001`
+- Frontend API effettiva default: `http://51.83.159.175`
+- Frontend pubblico DASH2A: `https://eugenio-dashboard-2a.web.app/auth/login?redirect=/pages/user`
+- Dashboard.Url operativo Gamebot: `http://51.178.16.37`
+- Dashboard.UrlDev operativo Gamebot: `http://192.168.1.41:5286`
+- Dashboard.Username operativo Gamebot: `eugenio`
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run
 ```
+
+Per forzare un backend diverso:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run -ApiBaseUrl "http://51.83.159.175"
+```
+
+## Validazione reale obbligatoria
+
+Non dire mai "funziona" solo perche la pagina apre o risponde `200`.
+
+Prima di dichiarare lo stack locale funzionante verificare sempre:
+- DevTools Network aperto;
+- login reale eseguito da UI;
+- chiamata `POST /api/Auth/login` verso API corretta;
+- response auth `200` con token JWT reale;
+- token salvato in storage client;
+- chiamate API successive con `Authorization: Bearer ...`;
+- SignalR verso `/dashboardHub` sulla URL corretta;
+- websocket/SSE/long polling realmente connesso;
+- `VITE_API_BASE_URL` effettivo coerente con ambiente locale/dev;
+- `Dashboard.Url` / `Dashboard.UrlDev` coerenti con app.config Gamebot;
+- nessuna chiamata nascosta a backend remoto o vecchi endpoint.
+
+Stato minimo per dire "funziona":
+- frontend `http://localhost:5001`;
+- API effettiva controllata in Network;
+- login admin reale OK;
+- token reale presente;
+- SignalR reale OK;
+- Network senza chiamate a backend sbagliato.
 
 ## Restart APP rapido senza build
 
@@ -63,7 +100,7 @@ Controlla che Firebase sia Dashboard 2 e che non ci siano riferimenti pericolosi
 ```powershell
 Get-Content .\frontend\.firebaserc
 Get-Content .\frontend\firebase.json
-Select-String -Path .\frontend\**\* -Pattern "eugenio-dashboard-1|dashboard-1|eugenio-dashboard-2a|firebase\s+deploy|firebase\s+use" -CaseSensitive:$false
+Select-String -Path .\frontend\**\* -Pattern "dashboard-1|firebase\s+deploy|firebase\s+use|old endpoint|dirty fallback" -CaseSensitive:$false
 ```
 
 ## Build backend

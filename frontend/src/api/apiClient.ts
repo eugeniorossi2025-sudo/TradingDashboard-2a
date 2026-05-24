@@ -3,7 +3,7 @@ import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import { Configuration } from './client/configuration';
 
 // Base URL del backend
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://localhost:7203';
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5299';
 
 // Istanza axios configurata
 export const apiClient: AxiosInstance = axios.create({

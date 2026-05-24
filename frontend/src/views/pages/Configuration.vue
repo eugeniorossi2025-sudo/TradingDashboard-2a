@@ -36,7 +36,7 @@ async function loadRuntimeMode() {
 async function setRuntimeMode(mode) {
     runtimeModeLoading.value = true;
     try {
-        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'https://localhost:7203'}/api/runtime-mode`, {
+        const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5299'}/api/runtime-mode`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',

@@ -1,6 +1,7 @@
 param(
     [switch]$Run,
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [string]$ApiBaseUrl = "http://51.83.159.175"
 )
 
 $ErrorActionPreference = "Stop"
@@ -29,7 +30,7 @@ function Assert-Dash2Safety {
         throw "Firebase non sicuro: project default=$firebaseProject"
     }
 
-    $dangerPattern = "eugenio-dashboard-1|dashboard-1|eugenio-dashboard-2a|firebase\s+deploy|firebase\s+use"
+    $dangerPattern = "dashboard-1|firebase\s+deploy|firebase\s+use|old endpoint|dirty fallback"
     $allowedExtensions = @(".json", ".yml", ".yaml", ".env", ".js", ".cjs", ".mjs", ".ts", ".vue", ".md")
     $excludedDirs = @("\node_modules\", "\dist\", "\.git\", "\coverage\", "\.cache\")
     $dangerous = Get-ChildItem "frontend" -Recurse -File |
@@ -64,6 +65,40 @@ function Stop-Port {
     }
 }
 
+function Assert-LocalFrontendApi {
+    Write-Step "Verifica API frontend locale"
+
+    $envFile = "frontend/.env"
+    if (Test-Path $envFile) {
+        $remoteApi = Select-String -Path $envFile -Pattern "VITE_API_BASE_URL\s*=\s*https?://(?!localhost|127\.0\.0\.1)" -CaseSensitive:$false
+        if ($remoteApi) {
+            Write-Host "Frontend .env punta remoto, ma Restart APP -Run forza VITE_API_BASE_URL=$ApiBaseUrl" -ForegroundColor Yellow
+        }
+    }
+
+    Write-Host "Frontend API effettiva: $ApiBaseUrl"
+}
+
+function Test-RealLogin {
+    param([string]$BaseUrl)
+
+    Write-Step "Verifica login reale API"
+    $body = @{
+        username = "admin"
+        password = "Admin@123456"
+    } | ConvertTo-Json
+
+    try {
+        $response = Invoke-RestMethod -Uri "$BaseUrl/api/Auth/login" -Method Post -ContentType "application/json" -Body $body -TimeoutSec 15
+        if (-not $response.token) {
+            throw "Login response senza token"
+        }
+        Write-Host "Login reale: OK token ricevuto"
+    } catch {
+        throw "Login reale fallito su $BaseUrl/api/Auth/login. Stack NON funzionante: $($_.Exception.Message)"
+    }
+}
+
 Push-Location $PSScriptRoot
 try {
     Assert-Dash2Safety
@@ -86,11 +121,14 @@ try {
     }
 
     if ($Run) {
+        Assert-LocalFrontendApi
+        Test-RealLogin -BaseUrl $ApiBaseUrl
         Write-Step "Avvio WebApi e frontend locali"
         Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\backend\WebApi`"; dotnet run --launch-profile http"
-        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\frontend`"; npm run dev -- --host 0.0.0.0 --port 5001 --strictPort"
+        Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd `"$PSScriptRoot\frontend`"; `$env:VITE_API_BASE_URL='$ApiBaseUrl'; npm run dev -- --host 0.0.0.0 --port 5001 --strictPort"
         Write-Host "WebApi: http://localhost:5299"
         Write-Host "Frontend: http://localhost:5001"
+        Write-Host "Frontend API: $ApiBaseUrl"
     } else {
         Write-Host ""
         Write-Host "Restart safe completato. Usa -Run per avviare WebApi e frontend locali." -ForegroundColor Green
