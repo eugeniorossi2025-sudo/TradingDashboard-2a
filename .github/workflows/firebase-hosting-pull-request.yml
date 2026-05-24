@@ -1,11 +1,11 @@
-name: Firebase Hosting Preview
+name: Frontend Build
 on: pull_request
 permissions:
   checks: write
   contents: read
   pull-requests: write
 jobs:
-  build_and_preview:
+  build:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
     env:
@@ -14,13 +14,3 @@ jobs:
       - uses: actions/checkout@v4
       - run: npm ci && npm run build
         working-directory: frontend
-      - uses: FirebaseExtended/action-hosting-deploy@v0
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2 != '' }}
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2 }}
-          projectId: eugenio-dashboard-2
-          entryPoint: ./frontend
-      - name: Firebase preview skipped
-        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2 == '' }}
-        run: echo "Firebase preview skipped because FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2 is not configured."
