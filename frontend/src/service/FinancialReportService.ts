@@ -56,25 +56,6 @@ export interface MissionReportsIndex {
     items: MissionReportIndexItem[];
 }
 
-export interface HistoricalMissionImportResponse {
-    fileName: string;
-    runtimeMode: string;
-    replace: boolean;
-    totalRows: number;
-    imported: number;
-    skipped: number;
-    importedDays: Array<{
-        date: string;
-        startUtc: string;
-        endUtc: string;
-        totalMargin: number;
-        samples: number;
-        realHandsCount: number;
-        activeTables: number;
-    }>;
-    skippedDays: string[];
-}
-
 export interface RuntimeModeInfo {
     runtimeMode: string;
     isDemoMode: boolean;
@@ -237,19 +218,5 @@ export const FinancialReportService = {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-    },
-
-    async importHistoricalDemo(file: File, replace = false): Promise<HistoricalMissionImportResponse> {
-        const form = new FormData();
-        form.append('file', file);
-
-        const response = await apiClient.post('/api/mission/historical-import', form, {
-            params: { replace },
-            headers: {
-                'Content-Type': 'multipart/form-data'
-            }
-        });
-
-        return unwrap<HistoricalMissionImportResponse>(response);
     }
 };

@@ -38,10 +38,6 @@ const missionRuntimeMode = ref('All');
 const missionSessionId = ref('');
 const missionReportSkip = ref(0);
 const missionReportLimit = ref(100);
-const historicalImportFile = ref(null);
-const historicalImportReplace = ref(false);
-const historicalImportLoading = ref(false);
-const historicalImportResult = ref(null);
 const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
@@ -160,23 +156,6 @@ function loadMissionReportsRelative(direction) {
 
 async function openMissionSession(sessionId, format) {
     await FinancialReportService.openSessionReport(sessionId, format);
-}
-
-function onHistoricalImportFileChange(event) {
-    historicalImportFile.value = event.target.files?.[0] || null;
-    historicalImportResult.value = null;
-}
-
-async function importHistoricalDemo() {
-    if (!historicalImportFile.value) return;
-    historicalImportLoading.value = true;
-    try {
-        historicalImportResult.value = await FinancialReportService.importHistoricalDemo(historicalImportFile.value, historicalImportReplace.value);
-        reportRuntimeMode.value = 'Demo';
-        await loadMissionReports();
-    } finally {
-        historicalImportLoading.value = false;
-    }
 }
 
 function formatMoney(value) {
@@ -346,35 +325,6 @@ function formatLocalDate(date) {
                             <div class="text-center py-6 text-muted-color">Nessuna missione trovata per i filtri.</div>
                         </template>
                     </DataTable>
-                </div>
-            </div>
-        </div>
-
-        <div class="card mb-4">
-            <div class="flex flex-col gap-4">
-                <div>
-                    <h4 class="m-0 text-lg">Import storico Demo</h4>
-                    <p class="text-muted-color mt-2 mb-0">Importa CSV/Excel storico come backup Demo: una missione per giorno, senza toccare Production.</p>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-                    <div class="flex flex-col gap-2 md:col-span-2">
-                        <label class="font-semibold">File CSV/Excel log storico</label>
-                        <input type="file" accept=".csv,.txt,.xlsx,.xls" class="p-inputtext p-component" @change="onHistoricalImportFileChange" />
-                    </div>
-                    <label class="flex items-center gap-2">
-                        <input v-model="historicalImportReplace" type="checkbox" />
-                        <span>Replace esplicito giorni già importati</span>
-                    </label>
-                    <Button label="Importa Demo" icon="pi pi-upload" severity="secondary" :loading="historicalImportLoading" :disabled="!historicalImportFile" @click="importHistoricalDemo" />
-                </div>
-
-                <div v-if="historicalImportResult" class="rounded border border-surface-200 dark:border-surface-700 p-3 text-sm">
-                    <div><strong>Runtime:</strong> {{ historicalImportResult.runtimeMode }}</div>
-                    <div><strong>Righe lette:</strong> {{ historicalImportResult.totalRows }}</div>
-                    <div><strong>Giorni importati:</strong> {{ historicalImportResult.imported }}</div>
-                    <div><strong>Giorni saltati:</strong> {{ historicalImportResult.skipped }}</div>
-                    <div v-if="historicalImportResult.skippedDays?.length" class="text-muted-color mt-2">Saltati: {{ historicalImportResult.skippedDays.join(', ') }}</div>
                 </div>
             </div>
         </div>
