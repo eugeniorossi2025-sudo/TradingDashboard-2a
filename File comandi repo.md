@@ -16,7 +16,7 @@ Comando standard da usare quando viene richiesto "Restart APP".
 
 Fa:
 - verifica repo DASH2A;
-- verifica Firebase `eugenio-dashboard-2`;
+- verifica Firebase `eugenio-dashboard-2a`;
 - blocca riferimenti Dashboard 1 / project errato;
 - stop pulito porte locali;
 - clean e build backend;
@@ -110,12 +110,43 @@ git status --short
 
 ## Audit Firebase sicuro
 
-Controlla che Firebase sia Dashboard 2 e che non ci siano riferimenti pericolosi.
+Controlla che Firebase sia Dashboard 2A e che non ci siano riferimenti pericolosi.
 
 ```powershell
 Get-Content .\frontend\.firebaserc
 Get-Content .\frontend\firebase.json
-Select-String -Path .\frontend\**\* -Pattern "dashboard-1|firebase\s+deploy|firebase\s+use|old endpoint|dirty fallback" -CaseSensitive:$false
+Select-String -Path .\frontend\**\* -Pattern "dashboard-1|eugenio-dashboard-2[^a]|firebase\s+deploy|firebase\s+use|old endpoint|dirty fallback" -CaseSensitive:$false
+```
+
+## Deploy frontend Firebase (produzione)
+
+Solo via GitHub Actions (branch `main`). Secret richiesto: `FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2`.
+
+```powershell
+# Verifica secrets
+gh secret list --repo eugeniorossi2025-sudo/TradingDashboard-2a
+
+# Deploy live
+gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm_frontend_deploy=DEPLOY_FRONTEND
+
+# Stato run
+gh run list --repo eugeniorossi2025-sudo/TradingDashboard-2a --workflow "Firebase Hosting Live" --limit 3
+```
+
+Apri console Firebase:
+
+```powershell
+start "https://console.firebase.google.com/project/eugenio-dashboard-2a/hosting"
+start "https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/settings/secrets/actions"
+```
+
+Deploy locale da PC (solo se autorizzato esplicitamente):
+
+```powershell
+cd .\frontend
+$env:VITE_API_BASE_URL="https://vps-b0942869.vps.ovh.net"
+npm run build
+firebase deploy --only hosting --project eugenio-dashboard-2a
 ```
 
 ## Build backend
