@@ -1,0 +1,37 @@
+name: DASH2A Test sa3 Login Quick
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test-sa3:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+
+    steps:
+      - name: Check sa3 exists on SQL Server
+        shell: powershell
+        run: |
+          $result = sqlcmd -S "." -E -Q "SELECT name, is_disabled FROM sys.sql_logins WHERE name='sa3';" -W 2>&1
+          Write-Host "SA3_CHECK: $result"
+
+      - name: Test sa3 TCP connection
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.Data
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection("Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;")
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT DB_NAME()"
+            $db = [string]$cmd.ExecuteScalar()
+            $conn.Close()
+            Write-Host "SA3_TCP_LOGIN=OK"
+            Write-Host "SA3_DB=$db"
+          } catch {
+            Write-Host "SA3_TCP_LOGIN=FAIL"
+            Write-Host "SA3_ERROR=$($_.Exception.Message)"
+          }
