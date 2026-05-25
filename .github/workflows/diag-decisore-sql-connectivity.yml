@@ -1,0 +1,124 @@
+name: DIAG — Decisore SQL Connectivity
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY to confirm read-only network test"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  test-connectivity:
+    name: Test TCP 1433 from runner to Decisore
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Guard — read-only diagnostic only
+        shell: powershell
+        run: |
+          Write-Host "=== DIAG: Decisore SQL Connectivity Test ==="
+          Write-Host "No code change. No deploy. No DB write. Network probe only."
+
+      - name: Get runner source IP
+        shell: powershell
+        run: |
+          $ip = (Invoke-RestMethod -Uri "https://api.ipify.org" -TimeoutSec 10 -ErrorAction SilentlyContinue)
+          if ($ip) {
+            Write-Host "RUNNER_PUBLIC_IP=$ip"
+          } else {
+            $local = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.IPAddress -notmatch '^(127|169)' } | Select-Object -First 1).IPAddress
+            Write-Host "RUNNER_LOCAL_IP=$local"
+          }
+
+      - name: Test TCP 1433 to Decisore DB (51.178.16.37)
+        shell: powershell
+        run: |
+          $target = "51.178.16.37"
+          $port   = 1433
+          Write-Host "=== TCP probe: $target`:$port ==="
+          $result = Test-NetConnection -ComputerName $target -Port $port -InformationLevel Detailed -WarningAction SilentlyContinue
+          Write-Host "TcpTestSucceeded  : $($result.TcpTestSucceeded)"
+          Write-Host "RemoteAddress     : $($result.RemoteAddress)"
+          Write-Host "RemotePort        : $($result.RemotePort)"
+          Write-Host "SourceAddress     : $($result.SourceAddress.IPAddress)"
+          Write-Host "PingSucceeded     : $($result.PingSucceeded)"
+          Write-Host "PingReplyDetails  : $($result.PingReplyDetails.RoundtripTime) ms"
+          if ($result.TcpTestSucceeded) {
+            Write-Host ""
+            Write-Host "RESULT: TcpTestSucceeded=True -> Opzione A fattibile"
+          } else {
+            Write-Host ""
+            Write-Host "RESULT: TcpTestSucceeded=False -> firewall SQL bloccato sul Decisore"
+            Write-Host "AZIONE: aprire porta 1433 in ingresso su 51.178.16.37 per sorgente 51.83.159.175"
+          }
+
+      - name: Test SQL login read-only (solo se porta aperta)
+        shell: powershell
+        run: |
+          $target = "51.178.16.37"
+          $port   = 1433
+          $tcpOk  = (Test-NetConnection -ComputerName $target -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue)
+          if (-not $tcpOk) {
+            Write-Host "SKIP: porta 1433 non raggiungibile, skip SQL login test"
+            exit 0
+          }
+          Write-Host "=== SQL login probe (SELECT 1) ==="
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=$target,$port;Database=Eugenio-Demo10;User Id=sa;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT 1 AS probe, @@VERSION AS version"
+            $reader = $cmd.ExecuteReader()
+            if ($reader.Read()) {
+              Write-Host "SQL_PROBE         : $($reader['probe'])"
+              Write-Host "SQL_VERSION       : $($reader['version'])"
+            }
+            $reader.Close()
+            $conn.Close()
+            Write-Host "SQL_LOGIN_OK      : True"
+          } catch {
+            Write-Host "SQL_LOGIN_OK      : False"
+            Write-Host "SQL_ERROR         : $($_.Exception.Message)"
+          }
+
+      - name: Count rows in Pc_CurrentStatus / Statistiche / Margini
+        shell: powershell
+        run: |
+          $target = "51.178.16.37"
+          $port   = 1433
+          $tcpOk  = (Test-NetConnection -ComputerName $target -Port $port -InformationLevel Quiet -WarningAction SilentlyContinue)
+          if (-not $tcpOk) {
+            Write-Host "SKIP: porta chiusa"
+            exit 0
+          }
+          Write-Host "=== Row counts Decisore DB ==="
+          $tables = @("Pc_CurrentStatus","Statistiche","Margini")
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=$target,$port;Database=Eugenio-Demo10;User Id=sa;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+            $conn.Open()
+            foreach ($t in $tables) {
+              $cmd = $conn.CreateCommand()
+              $cmd.CommandText = "SELECT COUNT(*) FROM dbo.$t"
+              try {
+                $count = $cmd.ExecuteScalar()
+                Write-Host "dbo.$t : $count rows"
+              } catch {
+                Write-Host "dbo.$t : ERROR - $($_.Exception.Message)"
+              }
+            }
+            $conn.Close()
+          } catch {
+            Write-Host "CONNECTION_ERROR: $($_.Exception.Message)"
+          }
