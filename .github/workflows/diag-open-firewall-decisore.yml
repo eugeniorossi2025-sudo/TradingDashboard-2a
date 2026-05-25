@@ -1,0 +1,86 @@
+name: DIAG — Open Firewall 1433 on Decisore
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIREWALL_ONLY to confirm"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  open-firewall:
+    name: Add inbound 1433 rule on Decisore via WinRM
+    if: ${{ github.event.inputs.confirm == 'FIREWALL_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Guard — firewall rule only, no code/deploy change
+        shell: powershell
+        run: |
+          Write-Host "=== ACTION: Add TCP 1433 inbound rule on Decisore VPS ==="
+          Write-Host "Target: 51.178.16.37  Source allowed: 51.83.159.175"
+
+      - name: Check WinRM 5985 reachability from runner
+        shell: powershell
+        run: |
+          $r = Test-NetConnection -ComputerName 51.178.16.37 -Port 5985 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "WinRM-5985-reachable: $r"
+          if (-not $r) {
+            Write-Host "WinRM not reachable from runner — will try RDP-based approach"
+          }
+
+      - name: Add firewall rule via WinRM (Invoke-Command)
+        shell: powershell
+        run: |
+          $tcpWinrm = Test-NetConnection -ComputerName 51.178.16.37 -Port 5985 -InformationLevel Quiet -WarningAction SilentlyContinue
+          if (-not $tcpWinrm) {
+            Write-Host "SKIP: WinRM 5985 not reachable from this runner. Manual step needed."
+            exit 0
+          }
+          $pass = ConvertTo-SecureString "baccaovh2026!" -AsPlainText -Force
+          $cred = New-Object PSCredential("administrator", $pass)
+          Set-Item WSMan:\localhost\Client\TrustedHosts -Value "51.178.16.37" -Force -ErrorAction SilentlyContinue
+          try {
+            $result = Invoke-Command -ComputerName 51.178.16.37 -Credential $cred -ScriptBlock {
+              $existing = Get-NetFirewallRule -DisplayName "SQL Server 1433 - DASH2 WebApi" -ErrorAction SilentlyContinue
+              if ($existing) {
+                Write-Host "RULE_EXISTS: already present"
+              } else {
+                New-NetFirewallRule `
+                  -DisplayName "SQL Server 1433 - DASH2 WebApi" `
+                  -Direction Inbound `
+                  -Protocol TCP `
+                  -LocalPort 1433 `
+                  -RemoteAddress 51.83.159.175 `
+                  -Action Allow `
+                  -Profile Any
+                Write-Host "RULE_CREATED: OK"
+              }
+              $rules = Get-NetFirewallRule -DisplayName "SQL Server 1433 - DASH2 WebApi" | Select-Object DisplayName, Enabled, Direction, Action
+              $rules | Format-List
+            } -ErrorAction Stop
+            Write-Host $result
+          } catch {
+            Write-Host "WinRM_ERROR: $($_.Exception.Message)"
+          }
+
+      - name: Verify TCP 1433 after rule (from runner)
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 3
+          $r = Test-NetConnection -ComputerName 51.178.16.37 -Port 1433 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "TcpTestSucceeded-after-rule: $r"
+          if ($r) {
+            Write-Host "SUCCESS: porta 1433 ora raggiungibile -> procedere con Opzione A"
+          } else {
+            Write-Host "PENDING: porta ancora chiusa -> WinRM non ha raggiunto il Decisore, regola va aperta manualmente"
+          }
