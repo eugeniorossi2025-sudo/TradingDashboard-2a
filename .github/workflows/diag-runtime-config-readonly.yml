@@ -1,0 +1,92 @@
+name: DASH2A Runtime Config Readonly Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RUNTIME_CONFIG_READONLY to run read-only runtime checks"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Read-only IIS runtime config and SQL login diagnostic
+    if: ${{ github.event.inputs.confirm == 'RUNTIME_CONFIG_READONLY' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Check IIS site path, app pool env, and SQL connection
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Import-Module WebAdministration
+
+          $siteName = 'demoapp'
+          $appPoolName = 'demoapp'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+
+          $site = Get-Website -Name $siteName -ErrorAction Stop
+          $physicalPath = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+          $releaseConfig = Join-Path $physicalPath 'appsettings.Production.json'
+
+          Write-Host "IIS_SITE=$siteName"
+          Write-Host "IIS_PHYSICAL_PATH=$physicalPath"
+          Write-Host "SHARED_CONFIG_EXISTS=$(Test-Path -LiteralPath $sharedConfig)"
+          Write-Host "RELEASE_CONFIG_EXISTS=$(Test-Path -LiteralPath $releaseConfig)"
+
+          if ((Test-Path -LiteralPath $sharedConfig) -and (Test-Path -LiteralPath $releaseConfig)) {
+            $sharedHash = (Get-FileHash -LiteralPath $sharedConfig -Algorithm SHA256).Hash
+            $releaseHash = (Get-FileHash -LiteralPath $releaseConfig -Algorithm SHA256).Hash
+            Write-Host "SHARED_RELEASE_CONFIG_MATCH=$($sharedHash -eq $releaseHash)"
+          }
+
+          $envFilter = "system.applicationHost/applicationPools/add[@name='$appPoolName']/environmentVariables/add[@name='ASPNETCORE_ENVIRONMENT']"
+          $envValue = Get-WebConfigurationProperty -Filter $envFilter -Name "value" -ErrorAction SilentlyContinue
+          if ($null -eq $envValue) {
+            Write-Host "APP_POOL_ENV_ASPNETCORE_ENVIRONMENT=<missing>"
+          } else {
+            Write-Host "APP_POOL_ENV_ASPNETCORE_ENVIRONMENT=$($envValue.Value)"
+          }
+
+          if (-not (Test-Path -LiteralPath $releaseConfig)) {
+            Write-Host "SQL_TEST=SKIPPED_NO_RELEASE_CONFIG"
+            exit 0
+          }
+
+          $config = Get-Content -LiteralPath $releaseConfig -Raw | ConvertFrom-Json
+          $connString = $config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            Write-Host "SQL_TEST=FAILED_NO_CONNECTION_STRING"
+            exit 0
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          Write-Host "SQL_CONFIG_USER=$($parts['User Id'])"
+          Write-Host "SQL_CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
+
+          try {
+            Add-Type -AssemblyName System.Data
+            $connection = New-Object System.Data.SqlClient.SqlConnection($connString)
+            $connection.Open()
+            $command = $connection.CreateCommand()
+            $command.CommandText = "SELECT DB_NAME()"
+            $dbName = [string]$command.ExecuteScalar()
+            $connection.Close()
+            Write-Host "SQL_TEST=OK"
+            Write-Host "SQL_TEST_DB=$dbName"
+          }
+          catch {
+            Write-Host "SQL_TEST=FAILED"
+            Write-Host "SQL_ERROR_TYPE=$($_.Exception.GetType().FullName)"
+            Write-Host "SQL_ERROR_MESSAGE=$($_.Exception.Message)"
+          }
