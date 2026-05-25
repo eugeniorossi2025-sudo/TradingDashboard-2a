@@ -1,0 +1,122 @@
+name: DASH2A Fix SQLEXPRESS01 Connection
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fix-instance:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 15
+
+    steps:
+      - name: 1 - Start MSSQL SQLEXPRESS01 service
+        shell: powershell
+        run: |
+          $svc = Get-Service -Name 'MSSQL$SQLEXPRESS01' -ErrorAction SilentlyContinue
+          if ($null -eq $svc) { Write-Error "Service MSSQL`$SQLEXPRESS01 not found"; exit 1 }
+          Write-Host "Service status: $($svc.Status)"
+          if ($svc.Status -ne 'Running') {
+            Start-Service 'MSSQL$SQLEXPRESS01'
+            Start-Sleep -Seconds 8
+          }
+          $svc.Refresh()
+          Write-Host "SQLEXPRESS01_STATUS=$($svc.Status)"
+
+      - name: 2 - Verify tables on SQLEXPRESS01 via Windows Auth
+        shell: powershell
+        run: |
+          $result = sqlcmd -S ".\SQLEXPRESS01" -E -Q "SELECT COUNT(*) AS TableCount FROM [Eugenio-Demo10].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" -W 2>&1
+          Write-Host "TABLE_CHECK: $result"
+
+          $tables = sqlcmd -S ".\SQLEXPRESS01" -E -d "Eugenio-Demo10" -Q "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;" -W 2>&1
+          Write-Host "TABLES: $tables"
+
+      - name: 3 - Get SQLEXPRESS01 TCP port
+        shell: powershell
+        run: |
+          $port = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQLServer\SuperSocketNetLib\Tcp\IPAll" -ErrorAction SilentlyContinue).TcpDynamicPorts
+          if (-not $port) {
+            $port = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQLServer\SuperSocketNetLib\Tcp\IPAll" -ErrorAction SilentlyContinue).TcpPort
+          }
+          Write-Host "SQLEXPRESS01_PORT=$port"
+          Add-Content $env:GITHUB_ENV "SQLEXPRESS01_PORT=$port"
+
+      - name: 4 - Grant sa3 access on SQLEXPRESS01
+        shell: powershell
+        run: |
+          sqlcmd -S ".\SQLEXPRESS01" -E -Q "
+            IF NOT EXISTS (SELECT * FROM sys.sql_logins WHERE name='sa3')
+              CREATE LOGIN sa3 WITH PASSWORD='LionGest123@', CHECK_POLICY=OFF;
+            ELSE
+              ALTER LOGIN sa3 WITH PASSWORD='LionGest123@', CHECK_POLICY=OFF;
+            ALTER LOGIN sa3 ENABLE;
+            PRINT 'sa3 login OK';
+          " -W
+
+          sqlcmd -S ".\SQLEXPRESS01" -E -d "Eugenio-Demo10" -Q "
+            IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name='sa3')
+              CREATE USER sa3 FOR LOGIN sa3;
+            ELSE
+              ALTER USER sa3 WITH LOGIN = sa3;
+            IF IS_ROLEMEMBER('db_owner','sa3') = 0
+              ALTER ROLE db_owner ADD MEMBER sa3;
+            PRINT 'sa3 db_owner OK';
+          " -W
+
+      - name: 5 - Update shared appsettings.Production.json
+        shell: powershell
+        run: |
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          $releaseConfig = (Get-WebConfigurationProperty -Filter "system.applicationHost/sites/site[@name='Dash2A']/application[@path='/']/virtualDirectory[@path='/']" -Name physicalPath -ErrorAction SilentlyContinue)?.Value
+          if (-not $releaseConfig) {
+            $releaseConfig = (Get-WebConfigurationProperty -Filter "system.applicationHost/sites/site/application[@path='/']/virtualDirectory[@path='/']" -Name physicalPath -ErrorAction SilentlyContinue)?.Value
+          }
+
+          $config = Get-Content $sharedConfig -Raw | ConvertFrom-Json
+          $oldConn = $config.ConnectionStrings.DefaultConnection
+          Write-Host "OLD_CONN: $oldConn"
+
+          $port = $env:SQLEXPRESS01_PORT
+          if ($port) {
+            $newConn = "Server=51.83.159.175,$port;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;"
+          } else {
+            $newConn = "Server=51.83.159.175\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;"
+          }
+          Write-Host "NEW_CONN (no password shown): Server updated to SQLEXPRESS01"
+
+          $config.ConnectionStrings.DefaultConnection = $newConn
+          $config | ConvertTo-Json -Depth 10 | Set-Content $sharedConfig -Encoding UTF8
+          Write-Host "SHARED_CONFIG_UPDATED=YES"
+
+          $releaseAppsettings = Join-Path ($releaseConfig) 'appsettings.Production.json'
+          if (Test-Path $releaseAppsettings) {
+            $config | ConvertTo-Json -Depth 10 | Set-Content $releaseAppsettings -Encoding UTF8
+            Write-Host "RELEASE_CONFIG_UPDATED=YES at $releaseAppsettings"
+          }
+
+      - name: 6 - Recycle demoapp pool
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          Restart-WebAppPool -Name "demoapp"
+          Start-Sleep -Seconds 12
+          $state = (Get-WebAppPoolState -Name "demoapp").Value
+          Write-Host "APP_POOL_STATE=$state"
+
+      - name: 7 - Test login
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 5
+          $body = '{"username":"admin","password":"Admin@123456"}'
+          try {
+            $r = Invoke-WebRequest -Uri "http://51.83.159.175/api/Auth/login" -Method POST -Body $body -ContentType "application/json" -UseBasicParsing
+            Write-Host "LOGIN_STATUS=$($r.StatusCode)"
+            $token = ($r.Content | ConvertFrom-Json).token
+            if ($token) { Write-Host "JWT_TOKEN=PRESENT" } else { Write-Host "JWT_TOKEN=MISSING"; Write-Host "BODY=$($r.Content)" }
+          } catch {
+            Write-Host "LOGIN_STATUS=$($_.Exception.Response.StatusCode.value__)"
+            Write-Host "LOGIN_FAIL=$($_.Exception.Message)"
+          }
