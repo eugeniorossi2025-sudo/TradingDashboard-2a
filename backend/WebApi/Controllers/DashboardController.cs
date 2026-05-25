@@ -139,6 +139,8 @@ public class DashboardTableRow
     public string? ColpoMartingala { get; set; }
     public string? Valutazione { get; set; }
     public string? Reason { get; set; }
+    public string? LastAdvice { get; set; }
+    public string? LastInfo { get; set; }
     public string? Prediction { get; set; }
     public string? FutureL5Pred { get; set; }
     public string? StopAtL5 { get; set; }

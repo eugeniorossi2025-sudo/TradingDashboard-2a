@@ -106,8 +106,42 @@ async function getDecide(base, params) {
   return { status: res.status, ok: res.ok, body: text.slice(0, 200), command: cmd };
 }
 
+function buildLastAdviceJson(state) {
+  const elapsedMin = state.ore ?? 0;
+  const margine = state.margine ?? 0;
+  const tooltip = {
+    STATO_GENERALE: `📊 Margine globale: +${margine}€ | Tempo trascorso: ${Math.round(elapsedMin * 60)} minuti`,
+    ESPOSIZIONE_ATTUALE: `💥 Esposizione reale: +${margine}€ | Valore totale puntate attive: 0€`,
+    SISTEMA_L6: `🔐 Autorizzazioni L6 disponibili: 0 | Perdite consecutive in L5: 0 su 1`,
+    MANI_GIOCATE_PB: `🎴 Mani Player/Banker giocate: 0 su 200 (reset automatico)`,
+    STATISTICHE_OPERATIVE: `📈 Livello 5: 0 vinte su 0 (0,0% di successo) | Livello 8: 0 vinte su 0 (0,0% di successo)`,
+    VALUTAZIONE_SISTEMA: margine >= 0 ? '✅ Il sistema mantiene un margine positivo e controllato' : '⚠️ Margine negativo',
+  };
+  return JSON.stringify({
+    TableId: 1,
+    State: state.stato || 'ATTESA',
+    Martingala: state.martingala ?? 0,
+    LocalMargin: margine,
+    GlobalMargin: margine,
+    Elapsed: elapsedMin,
+    HotZone: true,
+    HotZoneLabel: '🔥 [0 - 10]',
+    StopL6: false,
+    GlobalAuthL6Counter: 0,
+    GlobalL5Loss: 0,
+    GlobalPBHandsPlayed: 0,
+    GlobalPauseScalping: false,
+    GlobalPauseScalpingDuration: 0,
+    Reason: 'Default',
+    ToolTipJson: JSON.stringify(tooltip),
+    StopMission: false,
+    ActionCode: 0,
+  });
+}
+
 function buildMirrorPayload(cfg, { margine, martingala, mazzo, stato, pbt, saldoIniziale = 1000, ore = 0.033 }) {
   const saldoIstantaneo = saldoIniziale + margine;
+  const state = { margine, martingala, mazzo, stato, pbt, ore };
   return {
     computer: cfg.computer,
     account: cfg.account,
@@ -122,6 +156,7 @@ function buildMirrorPayload(cfg, { margine, martingala, mazzo, stato, pbt, saldo
     pbt: pbt || ' ',
     ore,
     colore: '',
+    lastAdviceJson: buildLastAdviceJson(state),
   };
 }
 

@@ -6,7 +6,7 @@ param(
     [string]$AppPoolName  = 'demoapp',
     [string]$ReleaseRoot  = 'C:\inetpub\wwwroot\releases',
     [string]$SharedConfigPath = 'C:\inetpub\wwwroot\shared\appsettings.Production.json',
-    [string]$SmokeTestUrl = 'http://localhost/api/Auth/test',
+    [string]$SmokeTestUrl = 'http://127.0.0.1/api/Auth/test',
     [string]$CollaudoMirrorSecret = ''
 )
 
@@ -101,7 +101,20 @@ try {
     Start-Sleep -Seconds 10
 
     Write-Step "Smoke test: $SmokeTestUrl"
-    $response = Invoke-WebRequest -Uri $SmokeTestUrl -UseBasicParsing -TimeoutSec 30
+    try {
+        $response = Invoke-WebRequest -Uri $SmokeTestUrl -UseBasicParsing -TimeoutSec 30
+    }
+    catch {
+        # localhost may redirect to HTTPS with untrusted cert on IIS; retry plain HTTP on loopback
+        $fallback = $SmokeTestUrl -replace 'localhost', '127.0.0.1'
+        if ($fallback -ne $SmokeTestUrl) {
+            Write-Host "Smoke retry: $fallback"
+            $response = Invoke-WebRequest -Uri $fallback -UseBasicParsing -TimeoutSec 30
+        }
+        else {
+            throw
+        }
+    }
     if ($response.StatusCode -ne 200) {
         throw "Smoke test failed: HTTP $($response.StatusCode)"
     }

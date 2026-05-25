@@ -34,7 +34,7 @@ jobs:
       DASH2A_APP_POOL: demoapp
       DASH2A_RELEASE_ROOT: C:\inetpub\wwwroot\releases
       DASH2A_SHARED_CONFIG: C:\inetpub\wwwroot\shared\appsettings.Production.json
-      DASH2A_SMOKE_TEST_URL: http://localhost/api/Auth/test
+      DASH2A_SMOKE_TEST_URL: http://127.0.0.1/api/Auth/test
       COLLAUDO_MIRROR_SECRET: ${{ secrets.COLLAUDO_MIRROR_SECRET }}
 
     steps:

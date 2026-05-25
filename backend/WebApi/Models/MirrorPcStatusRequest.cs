@@ -40,4 +40,7 @@ public class MirrorPcStatusRequest
 
     [MaxLength(20)]
     public string? Colore { get; set; }
+
+    /// <summary>JSON Advice payload (ProactiveEngine) for expanded dashboard row.</summary>
+    public string? LastAdviceJson { get; set; }
 }

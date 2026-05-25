@@ -59,7 +59,9 @@ public class DashboardService : IDashboardService
             ColpoMartingala = v.ColpoMartingala.ToString(),
             ValoreGiocato = v.ValoreGiocato.ToString(),
             Valutazione = v.ValutazioneRisultato,
-            Reason = v.LastAdvice,
+            Reason = ExtractAdviceReason(v.LastAdvice),
+            LastAdvice = v.LastAdvice,
+            LastInfo = v.LastInfo,
             Prediction = v.LastInfo,
             Ore = v.Ore.ToString(),
             SaldoIniziale = v.SaldoIniziale,
@@ -98,5 +100,24 @@ public class DashboardService : IDashboardService
             .AsNoTracking()
             .OrderBy(v => v.Computer)
             .ToListAsync();
+    }
+
+    private static string? ExtractAdviceReason(string? lastAdvice)
+    {
+        if (string.IsNullOrWhiteSpace(lastAdvice))
+            return null;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(lastAdvice);
+            if (doc.RootElement.TryGetProperty("Reason", out var reason))
+                return reason.GetString();
+        }
+        catch
+        {
+            /* legacy plain-text reason */
+        }
+
+        return lastAdvice.Length <= 64 ? lastAdvice : "Default";
     }
 }
