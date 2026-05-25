@@ -39,7 +39,7 @@ jobs:
             Write-Host "Git installato."
           }
           $env:PATH = "C:\Program Files\Git\cmd;$env:PATH"
-          [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Machine")
+          [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
           git --version
 
       - name: Checkout
