@@ -6,7 +6,7 @@ namespace Entities;
 /// <summary>
 /// Represents a user in the system.
 /// </summary>
-[Table("Users")]
+[Table("Users_v2")]
 public class User : IdentityUser<int>
 {
     /// <summary>

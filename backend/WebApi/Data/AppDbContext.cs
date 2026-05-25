@@ -63,6 +63,8 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
 
     public DbSet<UserAccessEvent> UserAccessEvents { get; set; }
 
+    public DbSet<PcCurrentStatus> PcCurrentStatuses { get; set; }
+
     /// <summary>
     /// Configures the entity model.
     /// </summary>
@@ -74,7 +76,7 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
         // Configure User entity
         modelBuilder.Entity<User>(entity =>
         {
-            entity.ToTable("Users");
+            entity.ToTable("Users_v2");
             entity.Property(e => e.Description).HasColumnName("Description");
             entity.Property(e => e.Admin).HasColumnName("Admin");
             entity.Property(e => e.LastLogin).HasColumnName("LastLogin");
@@ -85,22 +87,17 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
         modelBuilder.Entity<IdentityUserRole<int>>().ToTable("AspNetUserRoles");
         modelBuilder.Entity<IdentityUserClaim<int>>().ToTable("AspNetUserClaims");
         modelBuilder.Entity<IdentityUserLogin<int>>().ToTable("AspNetUserLogins");
-        modelBuilder.Entity<IdentityUserToken<int>>().ToTable("AspNetUserTokens");
         modelBuilder.Entity<IdentityRoleClaim<int>>().ToTable("AspNetRoleClaims");
+        modelBuilder.Ignore<IdentityUserToken<int>>();
 
-        // Configure Configuration entity
+        // Configure Configuration entity (legacy: K is PK)
         modelBuilder.Entity<Configuration>(entity =>
         {
             entity.ToTable("Configurations");
-            entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .HasColumnName("ID")
-                .ValueGeneratedOnAdd(); // EF gestirà, ma non creerà IDENTITY
-            entity.Property(e => e.Key).IsRequired().HasMaxLength(100).HasColumnName("Key");
-            entity.Property(e => e.Description).HasMaxLength(500).HasColumnName("Description");
-            entity.Property(e => e.Pos).HasColumnName("Pos");
-            entity.Property(e => e.Value).HasColumnName("Value");
-            entity.HasIndex(e => e.Key).IsUnique();
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).HasColumnName("K").HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(500);
+            entity.Property(e => e.Value).HasMaxLength(4000);
         });
 
         // Configure Log entity
@@ -198,47 +195,27 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
-        // Configure Device entity (mapped to PC table)
+        // Configure Device entity (production dbo.Pc)
         modelBuilder.Entity<Device>(entity =>
         {
-            entity.ToTable("PC");
+            entity.ToTable("Pc");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id).HasMaxLength(100).HasColumnName("PC");
-            entity.Property(e => e.Title).HasMaxLength(255).HasColumnName("Title");
-            entity.Property(e => e.Stato).HasColumnName("STATO");
-            entity.Property(e => e.LastUpdate).HasColumnName("LAST_UPDATE");
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.Name).HasMaxLength(50).HasColumnName("NAME");
+            entity.Property(e => e.Total).HasColumnType("decimal(19,0)").HasColumnName("TOTAL");
         });
 
-        // Configure Value entity (telemetry)
+        // Configure Value entity (production legacy Values)
         modelBuilder.Entity<Values>(entity =>
         {
             entity.ToTable("Values");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .HasColumnName("ID")
-                .ValueGeneratedOnAdd();
-            entity.Property(e => e.Key).HasColumnName("Key");
-            entity.Property(e => e.Description).HasMaxLength(255).HasColumnName("Description");
-            entity.Property(e => e.Value).HasColumnName("Value");
-            entity.Property(e => e.IdUser).HasColumnName("Id_User");
-            entity.Property(e => e.DateTime).HasColumnName("DateTime");
-            entity.Property(e => e.Account).HasMaxLength(100).HasColumnName("ACCOUNT");
-            entity.Property(e => e.Tavolo).HasColumnName("TAVOLO");
-            entity.Property(e => e.Mazzo).HasColumnName("MAZZO");
-            entity.Property(e => e.Margine).HasColumnType("decimal(18,2)").HasColumnName("MARGINE");
-            entity.Property(e => e.MediaOra).HasColumnType("decimal(18,2)").HasColumnName("MEDIA_ORA");
-            entity.Property(e => e.Stato).HasMaxLength(50).HasColumnName("STATO");
-            entity.Property(e => e.Colore).HasMaxLength(50).HasColumnName("COLORE");
-            entity.Property(e => e.ColpoMartingala).HasColumnName("COLPO_MARTINGALA");
-            entity.Property(e => e.Valutazione).HasColumnName("VALUTAZIONE");
-            entity.Property(e => e.Reason).HasColumnName("REASON");
-            entity.Property(e => e.Prediction).HasMaxLength(100).HasColumnName("PREDICTION");
-            entity.Property(e => e.Pbt).HasMaxLength(1).HasColumnName("PBT");
-            entity.Property(e => e.Tempo).HasMaxLength(10).HasColumnName("TEMPO");
-
-            entity.HasIndex(e => e.Key);
-            entity.HasIndex(e => e.DateTime);
-            entity.HasIndex(e => new { e.Account, e.Tavolo });
+            entity.Property(e => e.Id).HasColumnName("ID").HasColumnType("decimal(18,0)");
+            entity.Property(e => e.Key).HasColumnName("Key").HasColumnType("decimal(18,0)");
+            entity.Property(e => e.Description).HasMaxLength(50);
+            entity.Property(e => e.Value).HasMaxLength(50);
+            entity.Property(e => e.IdUser).HasColumnName("ID_User");
+            entity.Property(e => e.DateTime).HasColumnName("Datetime");
 
             entity.HasOne(e => e.User)
                 .WithMany()
@@ -246,18 +223,17 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .OnDelete(DeleteBehavior.Restrict);
         });
 
-        // Configure Command entity
+        // Configure Command entity (production legacy Commands)
         modelBuilder.Entity<Command>(entity =>
         {
             entity.ToTable("Commands");
             entity.HasKey(e => e.Id);
-            entity.Property(e => e.Id)
-                .HasColumnName("ID")
-                .ValueGeneratedOnAdd();
-            entity.Property(e => e.IdCommand).HasColumnName("ID_Command");
-            entity.Property(e => e.Pc).HasMaxLength(100).HasColumnName("PC");
+            entity.Property(e => e.Id).HasColumnName("ID").HasColumnType("decimal(18,0)");
+            entity.Property(e => e.IdCommand).HasColumnName("ID_Command").HasColumnType("decimal(18,0)");
+            entity.Property(e => e.Pc).HasMaxLength(50).HasColumnName("PC");
             entity.Property(e => e.IdUser).HasColumnName("ID_User");
-            entity.Property(e => e.DateTime).HasColumnName("DateTime");
+            entity.Property(e => e.DateTime).HasColumnName("Datetime");
+            entity.Property(e => e.BitSent).HasColumnName("Bit_Sent");
 
             entity.HasIndex(e => e.DateTime);
             entity.HasIndex(e => e.Pc);

@@ -16,6 +16,8 @@
   - No FK to legacy Users table because production Users schema differs from local.
 */
 
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
 SET XACT_ABORT ON;
 GO
 

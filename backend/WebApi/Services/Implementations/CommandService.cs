@@ -38,7 +38,7 @@ public class CommandService : ICommandService
     {
         _logger.LogDebug("Getting command by ID: {Id}", id);
 
-        var command = await _context.Commands.FindAsync(id);
+        var command = await _context.Commands.FindAsync((decimal)id);
 
         if (command == null)
         {
@@ -156,7 +156,7 @@ public class CommandService : ICommandService
     {
         _logger.LogDebug("Deleting command ID: {Id}", id);
 
-        var command = await _context.Commands.FindAsync(id);
+        var command = await _context.Commands.FindAsync((decimal)id);
         if (command == null)
         {
             _logger.LogWarning("Command not found for deletion - ID: {Id}", id);

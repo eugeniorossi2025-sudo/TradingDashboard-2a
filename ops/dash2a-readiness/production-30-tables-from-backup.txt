@@ -1,0 +1,239 @@
+﻿# DASH2A schema for 30 pre-mission tables
+# Source: Eugenio-Demo10 on .\SQLEXPRESS01
+# Backup reference: C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak
+# Excluded mission tables: MissionSessions, MissionMarginSamples, UserNotificationSettings, UserAccessEvents
+# Generated: 2026-05-25 11:37:20
+# TableCount: 30
+#
+# TABLE LIST:
+#   __EFMigrationsHistory
+#   ApiConfigurations
+#   ApiLogs
+#   AspNetRoleClaims
+#   AspNetRoles
+#   AspNetUserClaims
+#   AspNetUserLogins
+#   AspNetUserRoles
+#   BOMenu
+#   Commands
+#   Commands_Audit
+#   CommandType
+#   Configurations
+#   Margini
+#   Pc
+#   Pc_CurrentStatus
+#   Pc_CurrentStatus_PBT_History
+#   Pc_Hours
+#   PC_Start
+#   SafeGuardJson
+#   SettingsJson
+#   Statistiche
+#   Stats
+#   Stats_Margine
+#   sysdiagrams
+#   User_Grid_Configurations
+#   Users
+#   Users_v2
+#   Values
+#   Values_Audit
+#   
+#   (30 rows affected)
+#
+# Format: TABLE|ORD|COLUMN|TYPE|SIZE|NULLABLE|KEY
+
+__EFMigrationsHistory|1|MigrationId|nvarchar|150|NO|PK
+__EFMigrationsHistory|2|ProductVersion|nvarchar|32|NO|
+ApiConfigurations|1|id|int|10|NO|PK
+ApiConfigurations|2|data|datetime2||NO|
+ApiConfigurations|3|pc|nvarchar|10|YES|
+ApiConfigurations|4|config|nvarchar|4000|NO|
+ApiLogs|1|ID|int|10|NO|PK
+ApiLogs|2|Description|nvarchar|-1|NO|
+ApiLogs|3|Category|nvarchar|100|NO|
+ApiLogs|4|Action|int|10|NO|
+ApiLogs|5|CreatedAt|datetime2||NO|
+AspNetRoleClaims|1|Id|int|10|NO|PK
+AspNetRoleClaims|2|RoleId|int|10|NO|
+AspNetRoleClaims|3|ClaimType|nvarchar|-1|YES|
+AspNetRoleClaims|4|ClaimValue|nvarchar|-1|YES|
+AspNetRoles|1|Id|int|10|NO|PK
+AspNetRoles|2|Name|nvarchar|256|YES|
+AspNetRoles|3|NormalizedName|nvarchar|256|YES|
+AspNetRoles|4|ConcurrencyStamp|nvarchar|-1|YES|
+AspNetUserClaims|1|Id|int|10|NO|PK
+AspNetUserClaims|2|UserId|int|10|NO|
+AspNetUserClaims|3|ClaimType|nvarchar|-1|YES|
+AspNetUserClaims|4|ClaimValue|nvarchar|-1|YES|
+AspNetUserLogins|1|LoginProvider|nvarchar|450|NO|PK
+AspNetUserLogins|2|ProviderKey|nvarchar|450|NO|PK
+AspNetUserLogins|3|ProviderDisplayName|nvarchar|-1|YES|
+AspNetUserLogins|4|UserId|int|10|NO|
+AspNetUserRoles|1|UserId|int|10|NO|PK
+AspNetUserRoles|2|RoleId|int|10|NO|PK
+BOMenu|1|id|numeric|18|NO|PK
+BOMenu|2|page_name|varchar|500|NO|
+BOMenu|3|page_title|varchar|1000|NO|
+BOMenu|4|folder|varchar|1000|YES|
+BOMenu|5|id_menu|numeric|18|YES|
+BOMenu|6|pos_order|numeric|18|YES|
+BOMenu|7|bit_visible|bit||YES|
+BOMenu|8|IsAdmin|bit||YES|
+BOMenu|9|Css|varchar|50|YES|
+Commands|1|ID|numeric|18|NO|PK
+Commands|2|ID_Command|numeric|18|YES|
+Commands|3|PC|varchar|50|YES|
+Commands|4|ID_User|int|10|YES|
+Commands|5|Datetime|datetime||YES|
+Commands|6|Bit_Sent|bit||YES|
+Commands_Audit|1|ID|numeric|18|NO|PK
+Commands_Audit|2|ID_Command|numeric|18|YES|
+Commands_Audit|3|PC|varchar|50|YES|
+Commands_Audit|4|ID_User|int|10|YES|
+Commands_Audit|5|Datetime|datetime||YES|
+Commands_Audit|6|Bit_Sent|bit||YES|
+Commands_Audit|7|Tipo|varchar|1|YES|
+CommandType|1|ID|numeric|18|NO|PK
+CommandType|2|Description|varchar|50|YES|
+Configurations|1|K|nvarchar|50|NO|PK
+Configurations|2|Description|varchar|500|YES|
+Configurations|3|Value|nvarchar|4000|YES|
+Configurations|4|Pos|int|10|YES|
+Margini|1|Id|int|10|NO|PK
+Margini|2|Margine|decimal|18|YES|
+Margini|3|Data|datetime2||YES|
+Pc|1|ID|int|10|NO|PK
+Pc|2|NAME|varchar|50|YES|
+Pc|3|TOTAL|decimal|19|YES|
+Pc_CurrentStatus|1|COMPUTER|nvarchar|50|NO|PK
+Pc_CurrentStatus|2|KEY_ULTIMO|numeric|18|NO|
+Pc_CurrentStatus|3|DT_ULTIMO|datetime2||NO|
+Pc_CurrentStatus|4|ACCOUNT|nvarchar|500|YES|
+Pc_CurrentStatus|5|TAVOLO|nvarchar|500|YES|
+Pc_CurrentStatus|6|SALDO_INIZIALE|decimal|19|NO|
+Pc_CurrentStatus|7|SALDO_ISTANTANEO|decimal|19|NO|
+Pc_CurrentStatus|8|MARGINE|decimal|19|NO|
+Pc_CurrentStatus|9|MEDIA_ORA|decimal|19|NO|
+Pc_CurrentStatus|10|VALORE_GIOCATO|decimal|19|NO|
+Pc_CurrentStatus|11|COLPO_MARTINGALA|int|10|NO|
+Pc_CurrentStatus|12|STATO|nvarchar|100|YES|
+Pc_CurrentStatus|13|COLORE|nvarchar|20|YES|
+Pc_CurrentStatus|14|ALLARME|bit||NO|
+Pc_CurrentStatus|15|MAZZO|nvarchar|50|YES|
+Pc_CurrentStatus|16|PBT|nvarchar|1|YES|
+Pc_CurrentStatus|17|CHOSEN_COLOR|nvarchar|1|YES|
+Pc_CurrentStatus|18|ORE|decimal|10|NO|
+Pc_CurrentStatus|19|LAST_UPDATE|datetime2||NO|
+Pc_CurrentStatus|20|LAST_ADVICE|nvarchar|4000|YES|
+Pc_CurrentStatus|21|LAST_INFO|nvarchar|4000|YES|
+Pc_CurrentStatus|22|MISSION_SNAPSHOT|nvarchar|4000|YES|
+Pc_CurrentStatus|23|VALUTAZIONE_RISULTATO|nvarchar|4000|YES|
+Pc_CurrentStatus|24|CREATED_DATE|datetime2||NO|
+Pc_CurrentStatus|25|MARGINE_MIN|decimal|19|YES|
+Pc_CurrentStatus|26|MARGINE_MAX|decimal|19|YES|
+Pc_CurrentStatus|27|MAZZO_CALCOLATO|nvarchar|50|YES|
+Pc_CurrentStatus|28|LAST_ACTION|int|10|NO|
+Pc_CurrentStatus_PBT_History|1|ID|bigint|19|NO|PK
+Pc_CurrentStatus_PBT_History|2|COMPUTER|nvarchar|50|NO|
+Pc_CurrentStatus_PBT_History|3|PBT|nvarchar|1|NO|
+Pc_CurrentStatus_PBT_History|4|numero_mazzo|nvarchar|50|NO|
+Pc_CurrentStatus_PBT_History|5|DT_INSERT|datetime2||NO|
+Pc_Hours|1|ID|int|10|NO|PK
+Pc_Hours|2|PC|varchar|50|YES|
+Pc_Hours|3|FROMHOUR|datetime2||YES|
+Pc_Hours|4|TOHOUR|datetime2||YES|
+Pc_Hours|5|TOT_HOURS|decimal|19|YES|
+PC_Start|1|ID|int|10|NO|PK
+PC_Start|2|PC|varchar|50|YES|
+PC_Start|3|Key|numeric|18|YES|
+SafeGuardJson|1|ID|numeric|18|NO|PK
+SafeGuardJson|2|JSON|nvarchar|-1|YES|
+SafeGuardJson|3|DATETIME|datetime||YES|
+SafeGuardJson|4|NOTES|varchar|-1|YES|
+SafeGuardJson|5|MARGINE|varchar|50|YES|
+SettingsJson|1|ID|numeric|18|NO|PK
+SettingsJson|2|JSON|nvarchar|-1|YES|
+SettingsJson|3|DATETIME|datetime||YES|
+SettingsJson|4|NOTES|varchar|-1|YES|
+Statistiche|1|ID|bigint|19|NO|PK
+Statistiche|2|DATA_INIZIO|datetime2||NO|
+Statistiche|3|DATA_FINE|datetime2||YES|
+Statistiche|4|MARGINE_TOT|decimal|19|NO|
+Statistiche|5|MARGINE_MIN|decimal|19|NO|
+Statistiche|6|MARGINE_MAX|decimal|19|NO|
+Statistiche|7|CREATED_AT|datetime2||NO|
+Statistiche|8|ELAPSED|decimal|10|NO|
+Statistiche|9|TELEMETRY|nvarchar|4000|YES|
+Stats|1|Id|int|10|NO|PK
+Stats|2|DATETIME|datetime||YES|
+Stats|3|KEY|numeric|18|YES|
+Stats|4|KEY_ZERO|numeric|18|YES|
+Stats|5|KEY_INIZIO_TRANSAZIONE|numeric|18|YES|
+Stats|6|KEY_FINE_TRANSAZIONE|numeric|18|YES|
+Stats|7|ORE|decimal|19|YES|
+Stats|8|ACCOUNT|nvarchar|500|YES|
+Stats|9|COMPUTER|nvarchar|500|YES|
+Stats|10|TAVOLO|nvarchar|500|YES|
+Stats|11|SALDO_INIZIALE|decimal|19|YES|
+Stats|12|SALDO_ISTANTANEO|decimal|19|YES|
+Stats|13|MARGINE|decimal|19|YES|
+Stats|14|MEDIA_ORA|decimal|19|YES|
+Stats|15|STATO|nvarchar|500|YES|
+Stats|16|COLORE|nvarchar|500|YES|
+Stats|17|COLPO_MARTINGALA|nvarchar|500|YES|
+Stats|18|VALORE_GIOCATO|decimal|19|YES|
+Stats|19|ALLARME|nvarchar|500|YES|
+Stats|20|MAZZO|nvarchar|500|YES|
+Stats|21|VINCITA|nvarchar|500|YES|
+Stats_Margine|1|ID|numeric|18|NO|PK
+Stats_Margine|2|MARGINE|decimal|19|YES|
+Stats_Margine|3|DATETIME|datetime||YES|
+sysdiagrams|1|name|nvarchar|128|NO|
+sysdiagrams|2|principal_id|int|10|NO|
+sysdiagrams|3|diagram_id|int|10|NO|PK
+sysdiagrams|4|version|int|10|YES|
+sysdiagrams|5|definition|varbinary|-1|YES|
+User_Grid_Configurations|1|ID|int|10|NO|PK
+User_Grid_Configurations|2|ID_user|int|10|YES|
+User_Grid_Configurations|3|page_name|varchar|100|YES|
+User_Grid_Configurations|4|grid_name|varchar|100|YES|
+User_Grid_Configurations|5|column_name|varchar|100|YES|
+User_Grid_Configurations|6|display|bit||YES|
+Users|1|ID|numeric|18|NO|PK
+Users|2|Description|varchar|50|YES|
+Users|3|Username|varchar|50|YES|
+Users|4|Password|varchar|50|YES|
+Users|5|Administrator|bit||YES|
+Users|6|LastLoginDate|datetime||YES|
+Users_v2|1|Id|int|10|NO|PK
+Users_v2|2|Description|nvarchar|-1|YES|
+Users_v2|3|Admin|bit||NO|
+Users_v2|4|LastLogin|datetime2||YES|
+Users_v2|5|UserName|nvarchar|256|YES|
+Users_v2|6|NormalizedUserName|nvarchar|256|YES|
+Users_v2|7|Email|nvarchar|256|YES|
+Users_v2|8|NormalizedEmail|nvarchar|256|YES|
+Users_v2|9|EmailConfirmed|bit||NO|
+Users_v2|10|PasswordHash|nvarchar|-1|YES|
+Users_v2|11|SecurityStamp|nvarchar|-1|YES|
+Users_v2|12|ConcurrencyStamp|nvarchar|-1|YES|
+Users_v2|13|PhoneNumber|nvarchar|-1|YES|
+Users_v2|14|PhoneNumberConfirmed|bit||NO|
+Users_v2|15|TwoFactorEnabled|bit||NO|
+Users_v2|16|LockoutEnd|datetimeoffset||YES|
+Users_v2|17|LockoutEnabled|bit||NO|
+Users_v2|18|AccessFailedCount|int|10|NO|
+Values|1|ID|numeric|18|NO|PK
+Values|2|Key|numeric|18|YES|
+Values|3|Description|nvarchar|50|YES|
+Values|4|Value|nvarchar|50|YES|
+Values|5|ID_User|numeric|18|YES|
+Values|6|Datetime|datetime||YES|
+Values_Audit|1|ID|numeric|18|NO|PK
+Values_Audit|2|Key|numeric|18|YES|
+Values_Audit|3|Description|nvarchar|50|YES|
+Values_Audit|4|Value|nvarchar|50|YES|
+Values_Audit|5|ID_User|numeric|18|YES|
+Values_Audit|6|Datetime|datetime||YES|
+Values_Audit|7|Tipo|varchar|1|YES|
+
+(194 rows affected)

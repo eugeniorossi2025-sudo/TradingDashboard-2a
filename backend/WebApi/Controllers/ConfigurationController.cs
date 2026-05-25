@@ -8,9 +8,6 @@ using WebApi.Services;
 
 namespace WebApi.Controllers;
 
-/// <summary>
-/// Controller for managing configuration settings.
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -19,20 +16,12 @@ public class ConfigurationController : ControllerBase
     private readonly IConfigurationService _configurationService;
     private readonly AppDbContext _context;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="ConfigurationController"/> class.
-    /// </summary>
-    /// <param name="configurationService">The configuration service.</param>
     public ConfigurationController(IConfigurationService configurationService, AppDbContext context)
     {
         _configurationService = configurationService;
         _context = context;
     }
 
-    /// <summary>
-    /// Gets all configurations.
-    /// </summary>
-    /// <returns>A collection of all configurations.</returns>
     [HttpGet]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -42,18 +31,13 @@ public class ConfigurationController : ControllerBase
         return Ok(configurations);
     }
 
-    /// <summary>
-    /// Gets a configuration by its identifier.
-    /// </summary>
-    /// <param name="id">The configuration identifier.</param>
-    /// <returns>The configuration if found; otherwise, a not found result.</returns>
-    [HttpGet("{id}")]
+    [HttpGet("{key}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Configuration>> GetById(int id)
+    public async Task<ActionResult<Configuration>> GetByKey(string key)
     {
-        var configuration = await _configurationService.GetByIdAsync(id);
+        var configuration = await _configurationService.GetByKeyAsync(key);
         if (configuration == null) return NotFound();
         return Ok(configuration);
     }
@@ -62,20 +46,8 @@ public class ConfigurationController : ControllerBase
     [Authorize]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<Configuration>> GetByKey(string key)
-    {
-        var configuration = await _context.Configurations
-            .AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Key == key);
-        if (configuration == null) return NotFound();
-        return Ok(configuration);
-    }
+    public Task<ActionResult<Configuration>> GetByKeyAlias(string key) => GetByKey(key);
 
-    /// <summary>
-    /// Creates a new configuration.
-    /// </summary>
-    /// <param name="request">The create configuration request.</param>
-    /// <returns>The created configuration.</returns>
     [HttpPost]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status201Created)]
@@ -83,38 +55,27 @@ public class ConfigurationController : ControllerBase
     public async Task<ActionResult<Configuration>> Create(CreateConfigurationRequest request)
     {
         var configuration = await _configurationService.CreateAsync(request);
-        return CreatedAtAction(nameof(GetById), new { id = configuration.Id }, configuration);
+        return CreatedAtAction(nameof(GetByKey), new { key = configuration.Key }, configuration);
     }
 
-    /// <summary>
-    /// Updates an existing configuration.
-    /// </summary>
-    /// <param name="id">The configuration identifier.</param>
-    /// <param name="request">The update configuration request.</param>
-    /// <returns>A no content result if successful; otherwise, a not found result.</returns>
-    [HttpPut("{id}")]
+    [HttpPut("{key}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> Update(int id, UpdateConfigurationRequest request)
+    public async Task<ActionResult> Update(string key, UpdateConfigurationRequest request)
     {
-        var result = await _configurationService.UpdateAsync(id, request);
+        var result = await _configurationService.UpdateAsync(key, request);
         if (!result) return NotFound();
         return NoContent();
     }
 
-    /// <summary>
-    /// Deletes a configuration.
-    /// </summary>
-    /// <param name="id">The configuration identifier.</param>
-    /// <returns>A no content result if successful; otherwise, a not found result.</returns>
-    [HttpDelete("{id}")]
+    [HttpDelete("{key}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult> Delete(int id)
+    public async Task<ActionResult> Delete(string key)
     {
-        var result = await _configurationService.DeleteAsync(id);
+        var result = await _configurationService.DeleteAsync(key);
         if (!result) return NotFound();
         return NoContent();
     }
