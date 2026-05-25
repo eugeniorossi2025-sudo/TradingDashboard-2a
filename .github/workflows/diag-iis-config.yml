@@ -1,0 +1,78 @@
+name: DIAG — Read deployed appsettings from IIS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Read actual deployed appsettings.json
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: Find deployed appsettings.json
+        shell: powershell
+        run: |
+          $candidates = @(
+            "C:\inetpub\wwwroot\appsettings.json",
+            "C:\inetpub\wwwroot\appsettings.Production.json",
+            "C:\WebApi\appsettings.json",
+            "C:\WebApi\appsettings.Production.json",
+            "C:\apps\WebApi\appsettings.json",
+            "C:\apps\WebApi\appsettings.Production.json"
+          )
+          $found = $false
+          foreach ($p in $candidates) {
+            if (Test-Path $p) {
+              Write-Host "FOUND: $p"
+              $content = Get-Content $p -Raw
+              $safe = $content -replace '"Password"\s*:\s*"[^"]*"', '"Password": "***"'
+              Write-Host $safe
+              $found = $true
+            }
+          }
+          if (-not $found) {
+            Write-Host "Searching IIS sites..."
+            Import-Module WebAdministration -ErrorAction SilentlyContinue
+            $sites = Get-WebSite -ErrorAction SilentlyContinue
+            foreach ($site in $sites) {
+              $path = $site.physicalPath
+              Write-Host "IIS Site: $($site.name) -> $path"
+              $ap = Join-Path $path "appsettings.json"
+              $app = Join-Path $path "appsettings.Production.json"
+              if (Test-Path $ap) {
+                Write-Host "=== $ap ==="
+                $content = Get-Content $ap -Raw
+                $safe = $content -replace '"Password"\s*:\s*"[^"]*"', '"Password": "***"'
+                Write-Host $safe
+              }
+              if (Test-Path $app) {
+                Write-Host "=== $app ==="
+                $content = Get-Content $app -Raw
+                $safe = $content -replace '"Password"\s*:\s*"[^"]*"', '"Password": "***"'
+                Write-Host $safe
+              }
+            }
+          }
+
+      - name: Check environment variables for connection strings
+        shell: powershell
+        run: |
+          Write-Host "=== ENV ConnectionStrings ==="
+          Get-ChildItem Env: | Where-Object { $_.Name -match "ConnectionString|Database|SQL" } | ForEach-Object {
+            $val = $_.Value -replace 'Password=[^;]*', 'Password=***'
+            Write-Host "$($_.Name) = $val"
+          }
