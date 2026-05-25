@@ -267,7 +267,7 @@ const parseTooltipJson = (tooltipJson) => {
                             'border border-surface-300 dark:border-surface-700'
                         ]"
                     >
-                        {{ slotProps.data.chosenColor }}
+                        {{ slotProps.data.colore }}
                     </span>
                 </template>
             </Column>
@@ -346,7 +346,7 @@ const parseTooltipJson = (tooltipJson) => {
                                     </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Media/Ora:</span>
-                                        <span class="font-semibold">{{ formatCurrency(parseFloat(slotProps.data.margine) / 60) }}/ ora</span>
+                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.mediaOra) }}/ ora</span>
                                     </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Valore Giocato:</span>
@@ -379,7 +379,7 @@ const parseTooltipJson = (tooltipJson) => {
 
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Stop L6:</span>
-                                        <Tag :value="slotProps.data.StopL6 ? 'Sì' : 'No'" :severity="slotProps.data.StopL6 ? 'danger' : 'success'" />
+                                        <Tag :value="getLastAdviceField(slotProps.data.lastAdvice, 'StopL6') ? 'Sì' : 'No'" :severity="getLastAdviceField(slotProps.data.lastAdvice, 'StopL6') ? 'danger' : 'success'" />
                                     </div>
                                     <!-- Nuovi campi da lastAdvice -->
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
@@ -405,6 +405,10 @@ const parseTooltipJson = (tooltipJson) => {
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">HotZone:</span>
                                         <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'HotZone') ? 'Sì' : 'No' }}</span>
+                                    </div>
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                        <span class="text-muted-color">HotZone Label:</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'HotZoneLabel') || '-' }}</span>
                                     </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">GlobalAuthL6Counter:</span>

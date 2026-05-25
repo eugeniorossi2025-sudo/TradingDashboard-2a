@@ -93,6 +93,7 @@ const fetchDashboardData = async () => {
                         signalW10: lastAdvice.SignalW10 || row.signalW10,
                         tableScore: lastAdvice.TableScore || row.tableScore,
                         levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
+                        lastAction: lastAdvice.ActionCode ?? row.lastAction,
                         _lastAdvice: lastAdvice,
                         _lastInfo: parsedLastInfo
                     };
@@ -222,7 +223,8 @@ const onDashboardUpdate = (jsonPayload) => {
                         authorizedHeavy: lastAdvice.AuthorizedHeavy ?? row.authorizedHeavy,
                         signalW10: lastAdvice.SignalW10 || row.signalW10,
                         tableScore: lastAdvice.TableScore || row.tableScore,
-                        levelIndex: lastAdvice.LevelIndex ?? row.levelIndex
+                        levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
+                        lastAction: lastAdvice.ActionCode ?? row.lastAction
                     };
                 }
                 return row;
@@ -264,7 +266,8 @@ const onDashboardUpdate = (jsonPayload) => {
                             authorizedHeavy: lastAdvice.AuthorizedHeavy ?? row.authorizedHeavy,
                             signalW10: lastAdvice.SignalW10 || row.signalW10,
                             tableScore: lastAdvice.TableScore || row.tableScore,
-                            levelIndex: lastAdvice.LevelIndex ?? row.levelIndex
+                            levelIndex: lastAdvice.LevelIndex ?? row.levelIndex,
+                            lastAction: lastAdvice.ActionCode ?? row.lastAction
                         };
                     }
                     return row;
