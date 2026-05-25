@@ -54,11 +54,17 @@ jobs:
       - name: Ensure .NET 9 SDK is installed
         shell: powershell
         run: |
-          Write-Host "Installo .NET 9 SDK..."
-          Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1" -UseBasicParsing
-          & "$env:TEMP\dotnet-install.ps1" -Channel 9.0 -InstallDir "C:\Program Files\dotnet"
-          Add-Content $env:GITHUB_PATH "C:\Program Files\dotnet"
-          & "C:\Program Files\dotnet\dotnet.exe" --version
+          $dotnetDir = "C:\actions-runner\dotnet"
+          $dotnetExe = "$dotnetDir\dotnet.exe"
+          if (-not (Test-Path $dotnetExe)) {
+            Write-Host "Installo .NET 9 SDK in $dotnetDir..."
+            Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1" -UseBasicParsing
+            & "$env:TEMP\dotnet-install.ps1" -Channel 9.0 -InstallDir $dotnetDir
+          } else {
+            Write-Host ".NET gia installato."
+          }
+          Add-Content $env:GITHUB_PATH $dotnetDir
+          & $dotnetExe --version
 
       - name: Restore
         shell: powershell
