@@ -28,19 +28,25 @@ jobs:
       - name: Ensure Git is installed and in GITHUB_PATH
         shell: powershell
         run: |
-          $gitCmd = "C:\Program Files\Git\cmd\git.exe"
-          if (-not (Test-Path $gitCmd)) {
-            Write-Host "Git non trovato - scarico e installo..."
-            $installer = "$env:TEMP\git-installer.exe"
-            Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.45.2.windows.1/Git-2.45.2-64-bit.exe" -OutFile $installer -UseBasicParsing
-            Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP-" -Wait
-            Write-Host "Git installato."
-          } else {
-            Write-Host "Git gia presente."
+          # Cerca git.exe ovunque
+          $gitExe = Get-Command git -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+          if (-not $gitExe) {
+            $gitExe = Get-ChildItem "C:\", "C:\Program Files", "C:\Program Files (x86)" -Recurse -Filter "git.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
           }
-          # Aggiungo al GITHUB_PATH per tutti i passi successivi
-          Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
-          & "C:\Program Files\Git\cmd\git.exe" --version
+
+          if (-not $gitExe) {
+            Write-Host "Git non trovato - installo via Chocolatey..."
+            Set-ExecutionPolicy Bypass -Scope Process -Force
+            [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072
+            iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
+            choco install git -y --no-progress
+            $gitExe = "C:\Program Files\Git\cmd\git.exe"
+          }
+
+          $gitDir = Split-Path $gitExe -Parent
+          Write-Host "Git trovato in: $gitDir"
+          Add-Content $env:GITHUB_PATH $gitDir
+          & $gitExe --version
 
       - name: Checkout
         uses: actions/checkout@v4
