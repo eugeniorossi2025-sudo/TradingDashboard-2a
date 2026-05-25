@@ -1,0 +1,58 @@
+name: DASH2A Apply SQLEXPRESS01 Config
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  apply-config:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Verify SQLEXPRESS01 and table count
+        shell: powershell
+        run: |
+          $svc = Get-Service 'MSSQL$SQLEXPRESS01'
+          Write-Host "SQLEXPRESS01=$($svc.Status)"
+          sqlcmd -S ".\SQLEXPRESS01" -E -Q "SELECT COUNT(*) AS TableCount FROM [Eugenio-Demo10].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" -W
+          sqlcmd -S ".\SQLEXPRESS01" -E -d "Eugenio-Demo10" -Q "IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users_v2; ELSE IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users; ELSE PRINT 'no users table';" -W
+
+      - name: Update shared and release appsettings.Production.json
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          $conn = 'Server=51.83.159.175\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;'
+          $shared = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path $shared)) { throw "Missing $shared" }
+          $cfg = Get-Content $shared -Raw | ConvertFrom-Json
+          $cfg.ConnectionStrings.DefaultConnection = $conn
+          $json = $cfg | ConvertTo-Json -Depth 10
+          Set-Content -Path $shared -Value $json -Encoding UTF8
+          Write-Host "SHARED_CONFIG=UPDATED"
+
+          $site = Get-Website | Where-Object { $_.applicationPool -eq 'demoapp' } | Select-Object -First 1
+          if (-not $site) { $site = Get-Website | Select-Object -First 1 }
+          $physical = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+          $releaseCfg = Join-Path $physical 'appsettings.Production.json'
+          Set-Content -Path $releaseCfg -Value $json -Encoding UTF8
+          Write-Host "RELEASE_CONFIG=UPDATED path=$releaseCfg"
+
+      - name: Recycle demoapp and test login
+        shell: powershell
+        run: |
+          Import-Module WebAdministration
+          Restart-WebAppPool -Name 'demoapp'
+          Start-Sleep -Seconds 15
+          Write-Host "APP_POOL=$((Get-WebAppPoolState -Name 'demoapp').Value)"
+          $body = '{"username":"admin","password":"Admin@123456"}'
+          try {
+            $r = Invoke-WebRequest -Uri 'http://51.83.159.175/api/Auth/login' -Method POST -Body $body -ContentType 'application/json' -UseBasicParsing
+            Write-Host "LOGIN_STATUS=$($r.StatusCode)"
+            if ($r.Content -match 'token') { Write-Host "LOGIN=OK" } else { Write-Host "BODY=$($r.Content)" }
+          } catch {
+            Write-Host "LOGIN_STATUS=$($_.Exception.Response.StatusCode.value__)"
+            Write-Host "LOGIN=FAIL"
+          }
