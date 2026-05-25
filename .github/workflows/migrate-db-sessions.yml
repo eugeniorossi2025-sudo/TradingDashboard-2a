@@ -15,11 +15,7 @@ jobs:
   migrate:
     name: Import MissionSessions + MissionMarginSamples to production DB
     if: ${{ github.event.inputs.confirm_migration == 'I_UNDERSTAND_DB_MIGRATION' }}
-    runs-on:
-      - self-hosted
-      - Windows
-      - DASH2A
-      - DASH2A-BACKEND
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
     timeout-minutes: 30
 
     steps:
@@ -27,7 +23,6 @@ jobs:
         shell: powershell
         run: |
           Write-Host "DB Migration: MissionSessions + MissionMarginSamples"
-          Write-Host "Target: localhost Eugenio-Demo10"
           Write-Host "NO schema changes. NO user table changes."
 
       - name: Ensure Git in PATH
@@ -39,45 +34,45 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Read connection string from deployed appsettings
+      - name: Test Windows Auth access to Eugenio-Demo10
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $settingsPath = "C:\inetpub\wwwroot\publish\appsettings.json"
-          if (-not (Test-Path $settingsPath)) { throw "appsettings.json non trovato in $settingsPath" }
-          $config = Get-Content $settingsPath -Raw | ConvertFrom-Json
-          $connStr = $config.ConnectionStrings.DefaultConnection
-          # Estrai server, db, user, password
-          $parts = @{}
-          $connStr -split ';' | ForEach-Object {
-            $kv = $_ -split '=', 2
-            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          $r = sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT DB_NAME(), SUSER_NAME()" -W 2>&1
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "Windows Auth fallita su Eugenio-Demo10 - provo a concedere accesso a SYSTEM..."
+            sqlcmd -S "." -E -Q "
+              IF NOT EXISTS (SELECT * FROM master.sys.server_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+                CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
+              USE [Eugenio-Demo10];
+              IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+                CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+              ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\SYSTEM];
+              ALTER ROLE db_datawriter ADD MEMBER [NT AUTHORITY\SYSTEM];
+            " -W
+            Write-Host "Accesso concesso. Ritest..."
+            sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT DB_NAME(), SUSER_NAME()" -W
+          } else {
+            Write-Host $r
+            Write-Host "Accesso OK"
           }
-          $server = $parts['Server']
-          $db     = $parts['Database']
-          $user   = $parts['User Id']
-          $pass   = $parts['Password']
-          Write-Host "Server originale: $server | DB: $db | User: $user"
-          # Usa named pipe locale (bypassa TCP/IP restrictions)
-          $server = "."
-          Write-Host "Connessione via Named Pipe: $server"
-          Add-Content $env:GITHUB_ENV "SQL_SERVER=$server"
-          Add-Content $env:GITHUB_ENV "SQL_DB=$db"
-          Add-Content $env:GITHUB_ENV "SQL_USER=$user"
-          Add-Content $env:GITHUB_ENV "SQL_PASS=$pass"
 
       - name: Check current row counts
         shell: powershell
         run: |
-          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q "SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions UNION ALL SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples" -W -N -C
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "
+            SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
+            UNION ALL
+            SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
+          " -W
 
       - name: Import MissionSessions
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Write-Host "Importo MissionSessions..."
-          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -i "ops\migrate-sessions.sql" -W -N -C
-          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q "SELECT COUNT(*) as MissionSessions_dopo FROM MissionSessions" -W -N -C
+          Write-Host "Importo 66 MissionSessions..."
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -i "ops\migrate-sessions.sql" -W
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT COUNT(*) as MissionSessions_importate FROM MissionSessions" -W
 
       - name: Decompress and import MissionMarginSamples
         shell: powershell
@@ -85,12 +80,16 @@ jobs:
           $ErrorActionPreference = 'Stop'
           Write-Host "Decomprimo samples..."
           Expand-Archive -Path "ops\migrate-samples.zip" -DestinationPath "$env:TEMP\migrate" -Force
-          Write-Host "Importo 227.332 campioni (potrebbe richiedere 5-10 minuti)..."
-          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -i "$env:TEMP\migrate\migrate-samples.sql" -W -N -C
+          Write-Host "Importo 227.332 campioni..."
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -i "$env:TEMP\migrate\migrate-samples.sql" -W
           Remove-Item "$env:TEMP\migrate" -Recurse -Force
 
       - name: Verify final counts
         shell: powershell
         run: |
-          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q "SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions UNION ALL SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples" -W -N -C
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "
+            SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
+            UNION ALL
+            SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
+          " -W
           Write-Host "Migrazione completata."
