@@ -33,7 +33,7 @@ jobs:
           $base = "http://localhost"
           Write-Host "Testing base: $base"
 
-          $loginBody = @{ username = "eugenio"; password = "123456" } | ConvertTo-Json
+          $loginBody = @{ username = "test"; password = "test" } | ConvertTo-Json
           try {
             $resp = Invoke-WebRequest -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json" -UseBasicParsing
             Write-Host "LOGIN HTTP: $($resp.StatusCode)"
