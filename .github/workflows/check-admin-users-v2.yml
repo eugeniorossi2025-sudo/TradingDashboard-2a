@@ -1,0 +1,20 @@
+name: DASH2A Check admin in Users_v2
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    steps:
+      - name: Admin user in Users_v2
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175\SQLEXPRESS01" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT UserName, EmailConfirmed, LockoutEnabled, AccessFailedCount,
+              CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS Pwd
+            FROM dbo.Users_v2 WHERE UserName='admin';
+          " -W
