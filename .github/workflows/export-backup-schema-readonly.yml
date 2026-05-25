@@ -1,0 +1,43 @@
+name: DASH2A Export Backup Schema ReadOnly
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type EXPORT_BACKUP_SCHEMA to export schema from pre-mission .bak'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  export-schema:
+    name: Export 30-table schema from pre-mission backup
+    if: github.event.inputs.confirm == 'EXPORT_BACKUP_SCHEMA'
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Export schema to side database (read-only for production)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & 'ops/dash2a-readiness/export-schema-from-backup.ps1' `
+            -OutputPath 'artifacts/production-30-tables-from-backup.txt'
+
+      - name: Show summary
+        shell: powershell
+        run: |
+          Get-Content 'artifacts/production-30-tables-from-backup.txt' -TotalCount 40
+          Write-Output '---'
+          Write-Output ('TOTAL_LINES=' + (Get-Content 'artifacts/production-30-tables-from-backup.txt').Count)
+
+      - name: Upload schema artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-30-tables-from-backup
+          path: artifacts/production-30-tables-from-backup.txt
+          retention-days: 30
