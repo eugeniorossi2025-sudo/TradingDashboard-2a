@@ -40,7 +40,7 @@ function Invoke-LocalSmokeTest {
         if ($webEx -and $webEx.Response) {
             $st = [int]$webEx.Response.StatusCode
             if ($st -in @(301, 302, 307, 308)) {
-                Write-Host "Smoke: HTTP $st redirect to HTTPS — IIS app pool is running"
+                Write-Host "Smoke: HTTP $st redirect to HTTPS - IIS app pool is running"
                 return [PSCustomObject]@{ StatusCode = 200 }
             }
         }
