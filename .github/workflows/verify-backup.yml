@@ -1,0 +1,36 @@
+name: DASH2A Verify Backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-backup:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Check backup file exists
+        shell: powershell
+        run: |
+          $bak = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+          if (Test-Path $bak) {
+            $size = (Get-Item $bak).Length
+            Write-Host "BACKUP_EXISTS=YES"
+            Write-Host "BACKUP_SIZE_MB=$([math]::Round($size/1MB,2))"
+          } else {
+            Write-Host "BACKUP_EXISTS=NO"
+            Write-Host "Searching for any .bak files..."
+            $found = Get-ChildItem 'C:\Program Files\Microsoft SQL Server' -Recurse -Filter '*.bak' -ErrorAction SilentlyContinue | Select-Object FullName, Length
+            if ($found) { $found | Format-Table -AutoSize } else { Write-Host "No .bak files found" }
+          }
+
+      - name: RESTORE VERIFYONLY
+        shell: powershell
+        run: |
+          $bak = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -Q "
+            RESTORE VERIFYONLY FROM DISK = '$bak';
+          " -W
