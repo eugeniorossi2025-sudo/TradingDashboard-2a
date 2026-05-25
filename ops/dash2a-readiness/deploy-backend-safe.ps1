@@ -42,7 +42,7 @@ function Invoke-LocalSmokeTest {
             if ($Url -notmatch '^https://') {
                 $httpsUrl = $Url -replace '^http://', 'https://'
                 Write-Host "Smoke HTTPS fallback: $httpsUrl"
-                return Invoke-WebRequest -Uri $httpsUrl -UseBasicParsing -TimeoutSec 30
+                return Invoke-WebRequest -Uri $httpsUrl -UseBasicParsing -TimeoutSec 30 -SkipCertificateCheck
             }
             throw
         }
