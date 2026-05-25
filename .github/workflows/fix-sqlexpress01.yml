@@ -17,13 +17,25 @@ jobs:
         run: |
           $svc = Get-Service -Name 'MSSQL$SQLEXPRESS01' -ErrorAction SilentlyContinue
           if ($null -eq $svc) { Write-Error "Service MSSQL`$SQLEXPRESS01 not found"; exit 1 }
-          Write-Host "Service status: $($svc.Status)"
+          Write-Host "SERVICE_STATUS_BEFORE=$($svc.Status)"
+          Write-Host "SERVICE_STARTTYPE=$($svc.StartType)"
+
           if ($svc.Status -ne 'Running') {
-            Start-Service 'MSSQL$SQLEXPRESS01'
-            Start-Sleep -Seconds 8
+            Write-Host "Attempting sc.exe start..."
+            sc.exe start "MSSQL`$SQLEXPRESS01"
+            Start-Sleep -Seconds 10
+            $svc.Refresh()
+            Write-Host "SERVICE_STATUS_AFTER=$($svc.Status)"
           }
-          $svc.Refresh()
-          Write-Host "SQLEXPRESS01_STATUS=$($svc.Status)"
+
+          if ($svc.Status -ne 'Running') {
+            Write-Host "Checking Windows Event Log for SQL startup errors..."
+            Get-EventLog -LogName Application -Source "MSSQL*" -Newest 5 -EntryType Error,Warning -ErrorAction SilentlyContinue |
+              Select-Object TimeGenerated, EntryType, Message | Format-List
+            Write-Error "SQLEXPRESS01 failed to start"
+          } else {
+            Write-Host "SQLEXPRESS01_STATUS=Running"
+          }
 
       - name: 2 - Verify tables on SQLEXPRESS01 via Windows Auth
         shell: powershell
