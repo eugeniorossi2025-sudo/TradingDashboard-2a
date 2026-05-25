@@ -1,0 +1,32 @@
+name: DASH2A Diag Users Table
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+
+    steps:
+      - name: Compare Users vs Users_v2 on SQLEXPRESS01
+        shell: powershell
+        run: |
+          $s = '51.83.159.175\SQLEXPRESS01'
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT 'Users' AS T, COUNT(*) AS C FROM sys.tables WHERE name='Users';
+            SELECT 'Users_v2' AS T, COUNT(*) AS C FROM sys.tables WHERE name='Users_v2';
+          " -W
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT 'Users' AS Src, COUNT(*) AS RowCount FROM dbo.Users;
+            IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT 'Users_v2' AS Src, COUNT(*) AS RowCount FROM dbo.Users_v2;
+          " -W
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            IF OBJECT_ID('dbo.Users') IS NOT NULL
+              SELECT TOP 5 UserName, CASE WHEN PasswordHash IS NULL THEN 'NO' ELSE 'YES' END AS HasPwd FROM dbo.Users;
+            IF OBJECT_ID('dbo.Users_v2') IS NOT NULL
+              SELECT TOP 5 * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Users_v2' ORDER BY ORDINAL_POSITION;
+          " -W
