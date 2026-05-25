@@ -1,0 +1,41 @@
+name: DIAG — Verify Margini and Statistiche schema
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Check column names on Margini and Statistiche
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: Schema check
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection
+          $conn.ConnectionString = $cs
+          $conn.Open()
+          foreach ($t in @("Margini","Statistiche","Pc_CurrentStatus")) {
+            Write-Host "=== $t ==="
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COLUMN_NAME, DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='$t' ORDER BY ORDINAL_POSITION"
+            $r = $cmd.ExecuteReader()
+            while ($r.Read()) { Write-Host "  $($r['COLUMN_NAME']) : $($r['DATA_TYPE'])" }
+            $r.Close()
+          }
+          $conn.Close()
