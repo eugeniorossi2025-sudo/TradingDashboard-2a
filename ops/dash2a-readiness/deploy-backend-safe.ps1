@@ -31,16 +31,22 @@ function Set-IisAppPoolEnvVar {
 function Invoke-LocalSmokeTest {
     param([string]$Url)
 
-    # PS 5.1 compatible: do not follow redirects, treat 3xx as "IIS is up"
+    # PS 5.1 compatible: do not follow redirects.
+    # Invoke-WebRequest may return 3xx directly or throw - handle both.
     try {
-        return Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0
+        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0
+        if ($r.StatusCode -in @(301, 302, 307, 308)) {
+            Write-Host "Smoke: HTTP $($r.StatusCode) redirect - IIS app pool is running"
+            return [PSCustomObject]@{ StatusCode = 200 }
+        }
+        return $r
     }
     catch {
         $webEx = $_.Exception -as [System.Net.WebException]
         if ($webEx -and $webEx.Response) {
             $st = [int]$webEx.Response.StatusCode
             if ($st -in @(301, 302, 307, 308)) {
-                Write-Host "Smoke: HTTP $st redirect to HTTPS - IIS app pool is running"
+                Write-Host "Smoke: HTTP $st redirect - IIS app pool is running"
                 return [PSCustomObject]@{ StatusCode = 200 }
             }
         }
