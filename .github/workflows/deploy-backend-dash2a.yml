@@ -60,7 +60,7 @@ jobs:
             $ver = & $dotnet.Source --version 2>&1
             Write-Host ".NET SDK: $ver at $($dotnet.Source)"
           } else {
-            $failed += ".NET SDK non trovato — installare Hosting Bundle sul server"
+            $failed += ".NET SDK non trovato - installare Hosting Bundle sul server"
           }
 
           # IIS module
@@ -76,7 +76,7 @@ jobs:
             else { $failed += "IIS site '$env:DASH2A_SITE_NAME' non trovato" }
 
             $pool = Get-Item "IIS:\AppPools\$env:DASH2A_APP_POOL" -ErrorAction SilentlyContinue
-            if ($pool) { Write-Host "App pool '$env:DASH2A_APP_POOL': OK — State=$($pool.State)" }
+            if ($pool) { Write-Host "App pool '$env:DASH2A_APP_POOL': OK - State=$($pool.State)" }
             else { $failed += "App pool '$env:DASH2A_APP_POOL' non trovato" }
           }
 
