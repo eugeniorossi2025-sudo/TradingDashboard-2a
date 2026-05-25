@@ -41,39 +41,6 @@ if (-not (Test-Path -LiteralPath $SharedConfigPath)) {
 }
 Copy-Item -LiteralPath $SharedConfigPath -Destination (Join-Path $releasePath 'appsettings.Production.json') -Force
 
-Write-Step "Setting ASPNETCORE_ENVIRONMENT=Production in release web.config"
-$webConfigPath = Join-Path $releasePath 'web.config'
-if (-not (Test-Path -LiteralPath $webConfigPath)) {
-    throw "web.config not found in release path: $webConfigPath"
-}
-
-[xml]$webConfig = Get-Content -LiteralPath $webConfigPath -Raw
-$systemWebServer = $webConfig.configuration.'system.webServer'
-if ($null -eq $systemWebServer) {
-    $systemWebServer = $webConfig.CreateElement('system.webServer')
-    [void]$webConfig.configuration.AppendChild($systemWebServer)
-}
-
-$aspNetCore = $systemWebServer.aspNetCore
-if ($null -eq $aspNetCore) {
-    throw "aspNetCore element not found in web.config: $webConfigPath"
-}
-
-$environmentVariables = $aspNetCore.environmentVariables
-if ($null -eq $environmentVariables) {
-    $environmentVariables = $webConfig.CreateElement('environmentVariables')
-    [void]$aspNetCore.AppendChild($environmentVariables)
-}
-
-$envVar = $environmentVariables.environmentVariable | Where-Object { $_.name -eq 'ASPNETCORE_ENVIRONMENT' } | Select-Object -First 1
-if ($null -eq $envVar) {
-    $envVar = $webConfig.CreateElement('environmentVariable')
-    $envVar.SetAttribute('name', 'ASPNETCORE_ENVIRONMENT')
-    [void]$environmentVariables.AppendChild($envVar)
-}
-$envVar.SetAttribute('value', 'Production')
-$webConfig.Save($webConfigPath)
-
 Write-Step "Stopping app pool: $AppPoolName"
 Stop-WebAppPool -Name $AppPoolName
 $waited = 0
@@ -90,6 +57,22 @@ try {
         -Filter "system.applicationHost/sites/site[@name='$SiteName']/application[@path='/']/virtualDirectory[@path='/']" `
         -Name "physicalPath" `
         -Value $releasePath
+
+    Write-Step "Setting app pool environment: ASPNETCORE_ENVIRONMENT=Production"
+    $envVarFilter = "system.applicationHost/applicationPools/add[@name='$AppPoolName']/environmentVariables/add[@name='ASPNETCORE_ENVIRONMENT']"
+    $existingEnvVar = Get-WebConfigurationProperty -Filter $envVarFilter -Name "value" -ErrorAction SilentlyContinue
+    if ($null -eq $existingEnvVar) {
+        Add-WebConfigurationProperty `
+            -Filter "system.applicationHost/applicationPools/add[@name='$AppPoolName']/environmentVariables" `
+            -Name "." `
+            -Value @{ name = "ASPNETCORE_ENVIRONMENT"; value = "Production" }
+    }
+    else {
+        Set-WebConfigurationProperty `
+            -Filter $envVarFilter `
+            -Name "value" `
+            -Value "Production"
+    }
 
     Write-Step "Starting app pool: $AppPoolName"
     Start-WebAppPool -Name $AppPoolName
