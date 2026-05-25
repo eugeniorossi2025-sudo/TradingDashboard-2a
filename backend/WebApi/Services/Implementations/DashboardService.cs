@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WebApi.Controllers;
 using WebApi.Data;
@@ -92,6 +93,72 @@ public class DashboardService : IDashboardService
                 TotaleRighe = tableRows.Count
             }
         };
+    }
+
+    public async Task<List<ChartDataPoint>> GetMarginiChartAsync(int limit = 200)
+    {
+        return await _context.Margini
+            .AsNoTracking()
+            .Where(m => m.Data != null)
+            .OrderBy(m => m.Data)
+            .TakeLast(limit)
+            .Select(m => new ChartDataPoint
+            {
+                DateTime = m.Data!.Value,
+                Margine = m.MargineValue ?? 0m
+            })
+            .ToListAsync();
+    }
+
+    public async Task<DashboardTelemetry> GetLatestTelemetryAsync()
+    {
+        var row = await _context.Statistiche
+            .AsNoTracking()
+            .OrderByDescending(s => s.DataInizio)
+            .FirstOrDefaultAsync();
+
+        if (row == null)
+            return new DashboardTelemetry();
+
+        var result = new DashboardTelemetry
+        {
+            SessionStart = row.DataInizio,
+            SessionEnd = row.DataFine,
+            MargineTot = row.MargineTot
+        };
+
+        if (!string.IsNullOrWhiteSpace(row.Telemetry))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(row.Telemetry);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("GlobalPauseScalping", out var gps))
+                    result.GlobalPauseScalping = gps.GetBoolean();
+                if (root.TryGetProperty("GlobalPauseScalpingDetails", out var gpsd))
+                    result.GlobalPauseScalpingDetails = gpsd.GetString() ?? "Pausa non attiva";
+                if (root.TryGetProperty("GlobalPauseScalpingDuration", out var gpsdur))
+                    result.GlobalPauseScalpingDuration = gpsdur.GetString() ?? "0";
+                if (root.TryGetProperty("INC", out var inc))
+                    result.Inc = inc.GetDouble();
+                if (root.TryGetProperty("EWMA", out var ewma))
+                    result.Ewma = ewma.GetDouble();
+                if (root.TryGetProperty("TotalPBHandsPlayed", out var pbh))
+                    result.TotalPbHandsPlayed = pbh.GetInt32();
+                if (root.TryGetProperty("TotalL5Played", out var l5p))
+                    result.TotalL5Played = l5p.GetInt32();
+                if (root.TryGetProperty("TotalL5Won", out var l5w))
+                    result.TotalL5Won = l5w.GetInt32();
+                if (root.TryGetProperty("TotalL5Lost", out var l5l))
+                    result.TotalL5Lost = l5l.GetInt32();
+                if (root.TryGetProperty("SpotID", out var sid))
+                    result.SpotId = sid.GetInt32();
+            }
+            catch { /* telemetry JSON malformed — return partial result */ }
+        }
+
+        return result;
     }
 
     private Task<List<Entities.PcCurrentStatus>> GetCurrentStatusRowsAsync()

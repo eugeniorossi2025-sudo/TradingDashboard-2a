@@ -66,6 +66,16 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
     public DbSet<PcCurrentStatus> PcCurrentStatuses { get; set; }
 
     /// <summary>
+    /// Session statistics written by the Decisore (dbo.Statistiche). Read-only.
+    /// </summary>
+    public DbSet<Statistica> Statistiche { get; set; }
+
+    /// <summary>
+    /// Margin time-series written by the Decisore (dbo.Margini). Read-only.
+    /// </summary>
+    public DbSet<Margine> Margini { get; set; }
+
+    /// <summary>
     /// Configures the entity model.
     /// </summary>
     /// <param name="modelBuilder">The model builder.</param>
@@ -243,6 +253,27 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .WithMany()
                 .HasForeignKey(e => e.IdUser)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // Statistiche — read-only, written by Decisore
+        modelBuilder.Entity<Statistica>(entity =>
+        {
+            entity.ToTable("Statistiche");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("ID");
+            entity.Property(e => e.MargineTot).HasColumnType("decimal(19,0)");
+            entity.Property(e => e.MargineMin).HasColumnType("decimal(19,0)");
+            entity.Property(e => e.MargineMax).HasColumnType("decimal(19,0)");
+            entity.Property(e => e.Telemetry).HasMaxLength(4000);
+        });
+
+        // Margini — read-only, written by Decisore via InsertMargine SP
+        modelBuilder.Entity<Margine>(entity =>
+        {
+            entity.ToTable("Margini");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.MargineValue).HasColumnName("Margine").HasColumnType("decimal(18,0)");
+            entity.Property(e => e.Data).HasColumnName("Data");
         });
 
         // Configure UserGridConfiguration entity

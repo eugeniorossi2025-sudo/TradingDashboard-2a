@@ -18,4 +18,14 @@ public interface IDashboardService
     /// </summary>
     /// <returns>Complete dashboard response with tables, chart data, and statistics.</returns>
     Task<DashboardResponse> GetDashboardDataAsync();
+
+    /// <summary>
+    /// Gets the margin time-series from dbo.Margini (last <paramref name="limit"/> rows).
+    /// </summary>
+    Task<List<ChartDataPoint>> GetMarginiChartAsync(int limit = 200);
+
+    /// <summary>
+    /// Gets the latest session telemetry from dbo.Statistiche.
+    /// </summary>
+    Task<DashboardTelemetry> GetLatestTelemetryAsync();
 }

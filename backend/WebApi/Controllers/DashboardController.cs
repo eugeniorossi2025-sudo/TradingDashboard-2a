@@ -89,7 +89,7 @@ public class DashboardController : ControllerBase
     }
 
     /// <summary>
-    /// Gets only the chart data for dashboard graph.
+    /// Gets only the chart data for dashboard graph (snapshot from current bot statuses).
     /// </summary>
     /// <returns>List of chart data points.</returns>
     [HttpGet("chart")]
@@ -106,6 +106,47 @@ public class DashboardController : ControllerBase
         {
             return StatusCode(500,
                 ApiResponse<object>.ErrorResponse($"Error retrieving dashboard chart: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Gets the margin time-series from dbo.Margini (written by Decisore).
+    /// Returns the last <paramref name="limit"/> points ordered by timestamp.
+    /// </summary>
+    [HttpGet("margini-chart")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<List<ChartDataPoint>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMarginiChart([FromQuery] int limit = 200)
+    {
+        try
+        {
+            var points = await _dashboardService.GetMarginiChartAsync(limit);
+            return Ok(ApiResponse<List<ChartDataPoint>>.SuccessResponse(points));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500,
+                ApiResponse<object>.ErrorResponse($"Error retrieving margini chart: {ex.Message}"));
+        }
+    }
+
+    /// <summary>
+    /// Gets the latest session telemetry from dbo.Statistiche (written by Decisore).
+    /// </summary>
+    [HttpGet("telemetry")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<DashboardTelemetry>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTelemetry()
+    {
+        try
+        {
+            var telemetry = await _dashboardService.GetLatestTelemetryAsync();
+            return Ok(ApiResponse<DashboardTelemetry>.SuccessResponse(telemetry));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500,
+                ApiResponse<object>.ErrorResponse($"Error retrieving telemetry: {ex.Message}"));
         }
     }
 }
@@ -179,4 +220,24 @@ public class DashboardStatistics
     public decimal MargineMax { get; set; }
     public decimal MargineAttuale { get; set; }
     public int TotaleRighe { get; set; }
+}
+
+/// <summary>
+/// Telemetry from the latest Decisore session (dbo.Statistiche.TELEMETRY deserialized).
+/// </summary>
+public class DashboardTelemetry
+{
+    public bool GlobalPauseScalping { get; set; }
+    public string GlobalPauseScalpingDetails { get; set; } = "Pausa non attiva";
+    public string GlobalPauseScalpingDuration { get; set; } = "0";
+    public double Inc { get; set; }
+    public double Ewma { get; set; }
+    public int TotalPbHandsPlayed { get; set; }
+    public int TotalL5Played { get; set; }
+    public int TotalL5Won { get; set; }
+    public int TotalL5Lost { get; set; }
+    public int SpotId { get; set; }
+    public DateTime? SessionStart { get; set; }
+    public DateTime? SessionEnd { get; set; }
+    public decimal MargineTot { get; set; }
 }
