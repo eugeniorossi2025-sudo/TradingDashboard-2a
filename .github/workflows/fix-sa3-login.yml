@@ -1,0 +1,65 @@
+name: DASH2A Fix sa3 SQL Login
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIX_SA3_LOGIN to create/reset sa3 login"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix-sa3:
+    name: Create or reset sa3 SQL login
+    if: ${{ github.event.inputs.confirm == 'FIX_SA3_LOGIN' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Create or reset sa3 via Windows Auth
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sql = @"
+          IF NOT EXISTS (SELECT * FROM sys.sql_logins WHERE name='sa3')
+            CREATE LOGIN sa3 WITH PASSWORD='LionGest123@', CHECK_POLICY=OFF;
+          ELSE
+            ALTER LOGIN sa3 WITH PASSWORD='LionGest123@', CHECK_POLICY=OFF;
+          ALTER LOGIN sa3 ENABLE;
+          SELECT name, is_disabled FROM sys.sql_logins WHERE name='sa3';
+          PRINT 'sa3 OK';
+          "@
+          sqlcmd -S "." -E -Q $sql -W
+          if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed with exit code $LASTEXITCODE" }
+
+      - name: Grant sa3 access to Eugenio-Demo10
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $dbName = 'Eugenio-Demo10'
+          $sql = @"
+          IF NOT EXISTS (SELECT * FROM [$dbName].sys.database_principals WHERE name='sa3')
+            USE [$dbName]; CREATE USER sa3 FOR LOGIN sa3;
+          USE [$dbName];
+          IF IS_ROLEMEMBER('db_owner','sa3') = 0
+            ALTER ROLE db_owner ADD MEMBER sa3;
+          SELECT 'sa3 has db_owner in $dbName' AS result;
+          "@
+          sqlcmd -S "." -E -Q $sql -W
+
+      - name: Verify sa3 TCP login
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $conn = New-Object System.Data.SqlClient.SqlConnection("Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;")
+          $conn.Open()
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = "SELECT DB_NAME()"
+          $db = [string]$cmd.ExecuteScalar()
+          $conn.Close()
+          Write-Host "SA3_LOGIN_TEST=OK"
+          Write-Host "SA3_DB=$db"
