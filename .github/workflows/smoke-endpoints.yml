@@ -35,12 +35,13 @@ jobs:
           try {
             $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
             $token = $login.token
-            Write-Host "LOGIN: OK"
+            Write-Host "LOGIN: OK - token length=$($token.Length) - fields=$($login.PSObject.Properties.Name -join ',')"
           } catch {
             Write-Host "LOGIN FAILED: $($_.Exception.Message)"
             $token = $null
           }
 
+          if (-not $token) { Write-Host "WARNING: no token, requests will be unauthenticated" }
           $h = if ($token) { @{ Authorization = "Bearer $token" } } else { @{} }
 
           try {
