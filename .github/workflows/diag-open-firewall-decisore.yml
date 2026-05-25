@@ -35,7 +35,7 @@ jobs:
           $r = Test-NetConnection -ComputerName 51.178.16.37 -Port 5985 -InformationLevel Quiet -WarningAction SilentlyContinue
           Write-Host "WinRM-5985-reachable: $r"
           if (-not $r) {
-            Write-Host "WinRM not reachable from runner — will try RDP-based approach"
+            Write-Host "WinRM not reachable from runner - will try manual step"
           }
 
       - name: Add firewall rule via WinRM (Invoke-Command)
