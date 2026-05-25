@@ -1,0 +1,48 @@
+name: DASH2A Bootstrap Shared Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type BOOTSTRAP_SHARED_CONFIG to copy live config outside repo"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  bootstrap:
+    name: Copy live appsettings to shared config
+    if: ${{ github.event.inputs.confirm == 'BOOTSTRAP_SHARED_CONFIG' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Create shared production config from current live config
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $source = 'C:\inetpub\wwwroot\publish\appsettings.json'
+          $sharedDir = 'C:\inetpub\wwwroot\shared'
+          $target = Join-Path $sharedDir 'appsettings.Production.json'
+
+          if (-not (Test-Path -LiteralPath $source)) {
+            throw "Live appsettings.json not found: $source"
+          }
+
+          New-Item -ItemType Directory -Force -Path $sharedDir | Out-Null
+          Copy-Item -LiteralPath $source -Destination $target -Force
+
+          $config = Get-Content -LiteralPath $target -Raw | ConvertFrom-Json
+          $conn = $config.ConnectionStrings.DefaultConnection
+          $parts = @{}
+          $conn -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SHARED_CONFIG_CREATED=$target"
+          Write-Host "CONFIG_DB=$($parts['Database'])"
+          Write-Host "CONFIG_USER=$($parts['User Id'])"
+          Write-Host "CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
