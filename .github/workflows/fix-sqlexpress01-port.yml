@@ -1,0 +1,78 @@
+name: FIX — Set SQLEXPRESS01 to port 1434 and start
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIX_PORT to confirm"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Set SQLEXPRESS01 port to 1434 and start service
+    if: ${{ github.event.inputs.confirm == 'FIX_PORT' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Set SQLEXPRESS01 static port to 1434 in registry
+        shell: powershell
+        run: |
+          $key = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+          if (Test-Path $key) {
+            Set-ItemProperty -Path $key -Name "TcpDynamicPorts" -Value ""
+            Set-ItemProperty -Path $key -Name "TcpPort" -Value "1434"
+            Write-Host "Registry updated: SQLEXPRESS01 -> port 1434"
+          } else {
+            Write-Host "ERROR: registry key not found"
+            exit 1
+          }
+
+      - name: Start SQLEXPRESS01 service
+        shell: powershell
+        run: |
+          Start-Service -Name "MSSQL`$SQLEXPRESS01" -ErrorAction SilentlyContinue
+          Start-Sleep -Seconds 10
+          $svc = Get-Service -Name "MSSQL`$SQLEXPRESS01"
+          Write-Host "MSSQL-SQLEXPRESS01 status: $($svc.Status)"
+
+      - name: Verify connection on port 1434 and list Decisore tables
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 3
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            Write-Host "CONNECTION 1434: OK"
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            Write-Host "=== Tables ==="
+            while ($r.Read()) { Write-Host "  $($r[0])" }
+            $r.Close()
+
+            Write-Host "=== Row counts ==="
+            foreach ($t in @("Pc_CurrentStatus","Statistiche","Margini")) {
+              $cmd2 = $conn.CreateCommand()
+              $cmd2.CommandText = "SELECT COUNT(*) FROM dbo.$t"
+              try {
+                $c = $cmd2.ExecuteScalar()
+                Write-Host "  dbo.$t : $c rows"
+              } catch {
+                Write-Host "  dbo.$t : $($_.Exception.Message)"
+              }
+            }
+            $conn.Close()
+          } catch {
+            Write-Host "CONNECTION ERROR: $($_.Exception.Message)"
+          }
