@@ -1,0 +1,31 @@
+name: DASH2A Diag Users ReadOnly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag-users:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+
+    steps:
+      - name: Query dbo.Users read-only
+        shell: powershell
+        run: |
+          $sql = @"
+          USE [Eugenio-Demo10];
+          SELECT
+            UserName,
+            Email,
+            EmailConfirmed,
+            LockoutEnabled,
+            LockoutEnd,
+            AccessFailedCount,
+            CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PasswordHashStatus
+          FROM dbo.AspNetUsers
+          WHERE UserName = 'admin' OR Email LIKE '%admin%';
+          "@
+          sqlcmd -S "." -U sa3 -P "LionGest123@" -Q $sql -W
