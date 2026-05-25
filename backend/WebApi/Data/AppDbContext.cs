@@ -100,19 +100,20 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Value).HasMaxLength(4000);
         });
 
-        // Configure Log entity
+        // Configure ApiLogs entity (production dbo.ApiLogs)
         modelBuilder.Entity<Log>(entity =>
         {
-            entity.ToTable("Logs");
+            entity.ToTable("ApiLogs");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id)
                 .HasColumnName("ID")
                 .ValueGeneratedOnAdd();
-            entity.Property(e => e.DateTime).IsRequired().HasColumnName("DateTime");
-            entity.Property(e => e.Margine).HasColumnType("decimal(18,2)").HasColumnName("Margine");
-            entity.Property(e => e.Notes).HasColumnName("Notes");
-            entity.Property(e => e.Json).HasColumnName("Json");
-            entity.HasIndex(e => e.DateTime);
+            entity.Property(e => e.Description).IsRequired();
+            entity.Property(e => e.Category).HasMaxLength(100).IsRequired();
+            entity.Property(e => e.Action).IsRequired();
+            entity.Property(e => e.CreatedAt).IsRequired();
+            entity.HasIndex(e => e.CreatedAt);
+            entity.HasIndex(e => e.Category);
         });
 
         // Configure mission report entities. These are intentionally separate from runtime Logs/Values.

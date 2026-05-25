@@ -6,46 +6,81 @@ using WebApi.Extensions.Mapping;
 
 namespace WebApi.Services.Implementations;
 
-/// <summary>
-/// Service for managing log operations.
-/// </summary>
 public class LogService : ILogService
 {
     private readonly AppDbContext _context;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LogService"/> class.
-    /// </summary>
-    /// <param name="context">The application database context.</param>
     public LogService(AppDbContext context)
     {
         _context = context;
     }
 
-    /// <summary>
-    /// Gets all log entries asynchronously.
-    /// </summary>
-    /// <returns>A collection of all log entries.</returns>
+    public async Task<PagedApiLogResult> GetPagedAsync(
+        DateTime? from,
+        DateTime? to,
+        string? category,
+        int? action,
+        string? description,
+        int page,
+        int pageSize)
+    {
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 200);
+
+        var query = _context.Logs.AsNoTracking().AsQueryable();
+
+        if (from.HasValue)
+        {
+            query = query.Where(l => l.CreatedAt >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(l => l.CreatedAt <= to.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            query = query.Where(l => l.Category.Contains(category));
+        }
+
+        if (action.HasValue)
+        {
+            query = query.Where(l => l.Action == action.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            query = query.Where(l => l.Description.Contains(description));
+        }
+
+        var totalCount = await query.CountAsync();
+        var items = await query
+            .OrderByDescending(l => l.CreatedAt)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync();
+
+        return new PagedApiLogResult
+        {
+            Items = items.Select(l => l.ToDto()).ToList(),
+            TotalCount = totalCount,
+            Page = page,
+            PageSize = pageSize,
+            TotalPages = totalCount == 0 ? 0 : (int)Math.Ceiling(totalCount / (double)pageSize),
+        };
+    }
+
     public async Task<IEnumerable<Log>> GetAllAsync()
     {
-        return await _context.Logs.ToListAsync();
+        return await _context.Logs.AsNoTracking().OrderByDescending(l => l.CreatedAt).ToListAsync();
     }
 
-    /// <summary>
-    /// Gets a log entry by its identifier asynchronously.
-    /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <returns>The log entry if found; otherwise, null.</returns>
-    public async Task<Log> GetByIdAsync(int id)
+    public async Task<Log?> GetByIdAsync(int id)
     {
-        return (await _context.Logs.FindAsync(id))!;
+        return await _context.Logs.FindAsync(id);
     }
 
-    /// <summary>
-    /// Creates a new log entry asynchronously.
-    /// </summary>
-    /// <param name="request">The create log request.</param>
-    /// <returns>The created log entry.</returns>
     public async Task<Log> CreateAsync(CreateLogRequest request)
     {
         var log = request.ToEntity();
@@ -54,12 +89,6 @@ public class LogService : ILogService
         return log;
     }
 
-    /// <summary>
-    /// Updates an existing log entry asynchronously.
-    /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <param name="request">The update log request.</param>
-    /// <returns>True if the log entry was updated; otherwise, false.</returns>
     public async Task<bool> UpdateAsync(int id, UpdateLogRequest request)
     {
         var log = await _context.Logs.FindAsync(id);
@@ -71,11 +100,6 @@ public class LogService : ILogService
         return true;
     }
 
-    /// <summary>
-    /// Deletes a log entry asynchronously.
-    /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <returns>True if the log entry was deleted; otherwise, false.</returns>
     public async Task<bool> DeleteAsync(int id)
     {
         var log = await _context.Logs.FindAsync(id);
@@ -84,5 +108,40 @@ public class LogService : ILogService
         _context.Logs.Remove(log);
         await _context.SaveChangesAsync();
         return true;
+    }
+
+    public async Task<int> DeleteFilteredAsync(DateTime? from, DateTime? to, string? category, int? action)
+    {
+        var query = _context.Logs.AsQueryable();
+
+        if (from.HasValue)
+        {
+            query = query.Where(l => l.CreatedAt >= from.Value);
+        }
+
+        if (to.HasValue)
+        {
+            query = query.Where(l => l.CreatedAt <= to.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(category))
+        {
+            query = query.Where(l => l.Category.Contains(category));
+        }
+
+        if (action.HasValue)
+        {
+            query = query.Where(l => l.Action == action.Value);
+        }
+
+        var logs = await query.ToListAsync();
+        if (logs.Count == 0)
+        {
+            return 0;
+        }
+
+        _context.Logs.RemoveRange(logs);
+        await _context.SaveChangesAsync();
+        return logs.Count;
     }
 }

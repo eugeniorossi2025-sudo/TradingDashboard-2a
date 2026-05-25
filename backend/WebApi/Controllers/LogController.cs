@@ -6,9 +6,6 @@ using WebApi.Services;
 
 namespace WebApi.Controllers;
 
-/// <summary>
-/// Controller for managing log entries.
-/// </summary>
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
@@ -16,36 +13,33 @@ public class LogController : ControllerBase
 {
     private readonly ILogService _logService;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="LogController"/> class.
-    /// </summary>
-    /// <param name="logService">The log service.</param>
     public LogController(ILogService logService)
     {
         _logService = logService;
     }
 
     /// <summary>
-    /// Gets all log entries.
+    /// Gets ApiLogs with optional filters for CreatedAt (range), Category, and Action.
     /// </summary>
-    /// <returns>A collection of all log entries.</returns>
     [HttpGet]
     [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<ActionResult<IEnumerable<Log>>> GetAll()
+    [ProducesResponseType(typeof(PagedApiLogResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PagedApiLogResult>> GetAll(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] string? category,
+        [FromQuery] int? action,
+        [FromQuery] string? description,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 10)
     {
-        var logs = await _logService.GetAllAsync();
-        return Ok(logs);
+        var result = await _logService.GetPagedAsync(from, to, category, action, description, page, pageSize);
+        return Ok(result);
     }
 
-    /// <summary>
-    /// Gets a log entry by its identifier.
-    /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <returns>The log entry if found; otherwise, a not found result.</returns>
-    [HttpGet("{id}")]
+    [HttpGet("{id:int}")]
     [Authorize]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(Log), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<Log>> GetById(int id)
     {
@@ -54,14 +48,9 @@ public class LogController : ControllerBase
         return Ok(log);
     }
 
-    /// <summary>
-    /// Creates a new log entry.
-    /// </summary>
-    /// <param name="request">The create log request.</param>
-    /// <returns>The created log entry.</returns>
     [HttpPost]
     [Authorize]
-    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(Log), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<Log>> Create(CreateLogRequest request)
     {
@@ -69,13 +58,7 @@ public class LogController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = log.Id }, log);
     }
 
-    /// <summary>
-    /// Updates an existing log entry.
-    /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <param name="request">The update log request.</param>
-    /// <returns>A no content result if successful; otherwise, a not found result.</returns>
-    [HttpPut("{id}")]
+    [HttpPut("{id:int}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -87,11 +70,22 @@ public class LogController : ControllerBase
     }
 
     /// <summary>
-    /// Deletes a log entry.
+    /// Deletes ApiLogs matching the given filters.
     /// </summary>
-    /// <param name="id">The log entry identifier.</param>
-    /// <returns>A no content result if successful; otherwise, a not found result.</returns>
-    [HttpDelete("{id}")]
+    [HttpDelete]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<ActionResult> DeleteFiltered(
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
+        [FromQuery] string? category,
+        [FromQuery] int? action)
+    {
+        await _logService.DeleteFilteredAsync(from, to, category, action);
+        return NoContent();
+    }
+
+    [HttpDelete("{id:int}")]
     [Authorize]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
