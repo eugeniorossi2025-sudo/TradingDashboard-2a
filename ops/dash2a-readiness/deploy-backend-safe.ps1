@@ -28,6 +28,30 @@ function Set-IisAppPoolEnvVar {
     }
 }
 
+function Invoke-LocalSmokeTest {
+    param([string]$Url)
+
+    $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
+    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+
+    try {
+        try {
+            return Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30
+        }
+        catch {
+            if ($Url -notmatch '^https://') {
+                $httpsUrl = $Url -replace '^http://', 'https://'
+                Write-Host "Smoke HTTPS fallback: $httpsUrl"
+                return Invoke-WebRequest -Uri $httpsUrl -UseBasicParsing -TimeoutSec 30
+            }
+            throw
+        }
+    }
+    finally {
+        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+    }
+}
+
 function Write-Step { param([string]$msg) Write-Host "==> $msg" }
 
 Import-Module WebAdministration
@@ -101,20 +125,7 @@ try {
     Start-Sleep -Seconds 10
 
     Write-Step "Smoke test: $SmokeTestUrl"
-    try {
-        $response = Invoke-WebRequest -Uri $SmokeTestUrl -UseBasicParsing -TimeoutSec 30
-    }
-    catch {
-        # localhost may redirect to HTTPS with untrusted cert on IIS; retry plain HTTP on loopback
-        $fallback = $SmokeTestUrl -replace 'localhost', '127.0.0.1'
-        if ($fallback -ne $SmokeTestUrl) {
-            Write-Host "Smoke retry: $fallback"
-            $response = Invoke-WebRequest -Uri $fallback -UseBasicParsing -TimeoutSec 30
-        }
-        else {
-            throw
-        }
-    }
+    $response = Invoke-LocalSmokeTest -Url $SmokeTestUrl
     if ($response.StatusCode -ne 200) {
         throw "Smoke test failed: HTTP $($response.StatusCode)"
     }
