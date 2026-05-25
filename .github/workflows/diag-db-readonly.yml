@@ -1,0 +1,85 @@
+name: DASH2A DB Readonly Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type READONLY_DB_DIAG to run read-only DB checks"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Read-only DB and backend diagnostic
+    if: ${{ github.event.inputs.confirm == 'READONLY_DB_DIAG' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Read-only backend health
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $response = Invoke-WebRequest -Uri 'http://localhost/api/Auth/test' -UseBasicParsing -TimeoutSec 15
+          Write-Host "BACKEND_HTTP=$($response.StatusCode)"
+
+      - name: Read deployed config without secrets
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $settingsPath = 'C:\inetpub\wwwroot\publish\appsettings.json'
+          Write-Host "APPSETTINGS_EXISTS=$(Test-Path -LiteralPath $settingsPath)"
+          if (Test-Path -LiteralPath $settingsPath) {
+            $config = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+            $conn = $config.ConnectionStrings.DefaultConnection
+            $parts = @{}
+            $conn -split ';' | ForEach-Object {
+              $kv = $_ -split '=', 2
+              if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+            }
+            Write-Host "CONFIG_SERVER=$($parts['Server'])"
+            Write-Host "CONFIG_DB=$($parts['Database'])"
+            Write-Host "CONFIG_USER=$($parts['User Id'])"
+            Write-Host "CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
+          }
+
+      - name: SQL master read-only inventory
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          Write-Host "SQL_LOCAL_INSTANCE=."
+          sqlcmd -S "." -E -Q "SELECT @@SERVERNAME AS server_name, SUSER_NAME() AS login_name; SELECT name, state_desc, user_access_desc, is_read_only FROM sys.databases WHERE name='Eugenio-Demo10';" -W
+
+      - name: SQL production table counts if accessible
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $query = @"
+          SELECT 'Users' AS table_name, COUNT_BIG(*) AS row_count FROM dbo.Users
+          UNION ALL SELECT 'AspNetRoles', COUNT_BIG(*) FROM dbo.AspNetRoles
+          UNION ALL SELECT 'Configurations', COUNT_BIG(*) FROM dbo.Configurations
+          UNION ALL SELECT 'MissionSessions', COUNT_BIG(*) FROM dbo.MissionSessions
+          UNION ALL SELECT 'MissionMarginSamples', COUNT_BIG(*) FROM dbo.MissionMarginSamples
+          UNION ALL SELECT 'UserNotificationSettings', COUNT_BIG(*) FROM dbo.UserNotificationSettings
+          UNION ALL SELECT 'UserAccessEvents', COUNT_BIG(*) FROM dbo.UserAccessEvents;
+          "@
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q $query -W
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "TABLE_COUNTS_ACCESS=FAILED"
+          } else {
+            Write-Host "TABLE_COUNTS_ACCESS=OK"
+          }
+
+      - name: Admin user read-only check if accessible
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT UserName, Email, EmailConfirmed, CASE WHEN PasswordHash IS NULL THEN 0 ELSE 1 END AS HasPasswordHash FROM dbo.Users WHERE UserName='admin';" -W
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "ADMIN_CHECK_ACCESS=FAILED"
+          } else {
+            Write-Host "ADMIN_CHECK_ACCESS=OK"
+          }
