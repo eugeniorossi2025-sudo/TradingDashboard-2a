@@ -26,14 +26,12 @@ export const DashboardService = {
         return unwrap<any[]>(response);
     },
 
-    // 🔹 RESET DASHBOARD
     async resetDashboard(): Promise<void> {
-        throw new Error('Reset dashboard endpoint is not implemented in the current backend.');
+        await apiClient.post('/api/decider/reset');
     },
 
-     // 🔹 RESET DASHBOARD
     async stopDashboard(): Promise<void> {
-        throw new Error('Emergency stop endpoint is not implemented in the current backend.');
+        await apiClient.post('/api/decider/emergency-stop');
     },
     
     // 🔹 GET STATISTICS DATA

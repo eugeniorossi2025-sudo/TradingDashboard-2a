@@ -37,7 +37,7 @@ const formattedChartData = computed(() => {
     let chartPoints = [...originalPoints];
 
     // Trova tutte le date uniche ordinate
-    const allDates = Array.from(new Set(chartPoints.map((item) => item.timestamp))).sort();
+    const allDates = Array.from(new Set(chartPoints.map((item) => item.dateTime ?? item.timestamp))).sort();
     let selectedDates = allDates;
 
     const labels = allDates.map((dateStr) => {
@@ -58,7 +58,7 @@ const formattedChartData = computed(() => {
     const dataByDate = {};
 
     chartPoints.forEach((item) => {
-        dataByDate[item.timestamp] = item.margine;
+        dataByDate[item.dateTime ?? item.timestamp] = item.margine;
     });
 
     const data = allDates.map((date) => dataByDate[date] ?? null);
