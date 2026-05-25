@@ -15,10 +15,11 @@ jobs:
       - name: Verify SQLEXPRESS01 and table count
         shell: powershell
         run: |
+          $ErrorActionPreference = 'Continue'
           $svc = Get-Service 'MSSQL$SQLEXPRESS01'
           Write-Host "SQLEXPRESS01=$($svc.Status)"
-          sqlcmd -S ".\SQLEXPRESS01" -E -Q "SELECT COUNT(*) AS TableCount FROM [Eugenio-Demo10].INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" -W
-          sqlcmd -S ".\SQLEXPRESS01" -E -d "Eugenio-Demo10" -Q "IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users_v2; ELSE IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users; ELSE PRINT 'no users table';" -W
+          sqlcmd -S "51.83.159.175\SQLEXPRESS01" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" -W
+          sqlcmd -S "51.83.159.175\SQLEXPRESS01" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users_v2; ELSE IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT TOP 5 UserName, Email FROM dbo.Users; ELSE PRINT 'no users table';" -W
 
       - name: Update shared and release appsettings.Production.json
         shell: powershell
