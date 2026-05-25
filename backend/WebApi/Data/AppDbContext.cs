@@ -258,7 +258,7 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
         // Statistiche — read-only, written by Decisore
         modelBuilder.Entity<Statistica>(entity =>
         {
-            entity.ToTable("Statistiche");
+            entity.ToTable("Statistiche", t => t.ExcludeFromMigrations());
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).HasColumnName("ID");
             entity.Property(e => e.MargineTot).HasColumnType("decimal(19,0)");
@@ -270,7 +270,7 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
         // Margini — read-only, written by Decisore via InsertMargine SP
         modelBuilder.Entity<Margine>(entity =>
         {
-            entity.ToTable("Margini");
+            entity.ToTable("Margini", t => t.ExcludeFromMigrations());
             entity.HasKey(e => e.Id);
             entity.Property(e => e.MargineValue).HasColumnName("Margine").HasColumnType("decimal(18,0)");
             entity.Property(e => e.Data).HasColumnName("Data");
