@@ -1,0 +1,72 @@
+name: DIAG — Direct SELECT probe on Decisore tables
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Direct SELECT on Pc_CurrentStatus Statistiche Margini
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: SELECT TOP 1 from each Decisore table via sa3
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=8;"
+          $tables = @("Pc_CurrentStatus","Statistiche","Margini","AspNetUsers","__EFMigrationsHistory")
+          foreach ($t in $tables) {
+            try {
+              $conn = New-Object System.Data.SqlClient.SqlConnection
+              $conn.ConnectionString = $cs
+              $conn.Open()
+              $cmd = $conn.CreateCommand()
+              $cmd.CommandText = "SELECT TOP 1 * FROM dbo.$t"
+              $r = $cmd.ExecuteReader()
+              if ($r.Read()) {
+                Write-Host "TABLE $t : EXISTS, has rows"
+              } else {
+                Write-Host "TABLE $t : EXISTS, empty"
+              }
+              $r.Close()
+              $conn.Close()
+            } catch {
+              Write-Host "TABLE $t : $($_.Exception.Message)"
+            }
+          }
+
+      - name: Check sa3 role and permissions
+        shell: powershell
+        run: |
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=8;"
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT IS_SRVROLEMEMBER('sysadmin') as is_sysadmin, IS_MEMBER('db_owner') as is_dbowner, IS_MEMBER('db_datareader') as is_datareader, USER_NAME() as dbuser, SUSER_NAME() as loginname"
+            $r = $cmd.ExecuteReader()
+            if ($r.Read()) {
+              Write-Host "LOGIN     : $($r['loginname'])"
+              Write-Host "DB_USER   : $($r['dbuser'])"
+              Write-Host "SYSADMIN  : $($r['is_sysadmin'])"
+              Write-Host "DB_OWNER  : $($r['is_dbowner'])"
+              Write-Host "DATAREADER: $($r['is_datareader'])"
+            }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "ERROR: $($_.Exception.Message)"
+          }
