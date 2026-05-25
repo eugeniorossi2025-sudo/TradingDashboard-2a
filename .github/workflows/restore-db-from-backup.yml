@@ -1,0 +1,93 @@
+name: DASH2A Restore DB From Backup
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RESTORE_EUGENIO_DEMO10 to proceed"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  restore-db:
+    name: Restore Eugenio-Demo10 from .bak
+    if: ${{ github.event.inputs.confirm == 'RESTORE_EUGENIO_DEMO10' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 20
+
+    env:
+      BAK_PATH: 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+      DB_NAME: Eugenio-Demo10
+      SQL_INSTANCE: '.\SQLEXPRESS'
+
+    steps:
+      - name: A - Verify backup integrity (sysadmin required)
+        shell: powershell
+        run: |
+          Write-Host "=== A. RESTORE VERIFYONLY ==="
+          sqlcmd -S $env:SQL_INSTANCE -E -Q "
+            RESTORE VERIFYONLY FROM DISK = '$env:BAK_PATH';
+          " -W
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "VERIFY_RESULT=FAIL - SYSTEM non ha sysadmin - serve noVNC"
+            exit 0
+          }
+          Write-Host "VERIFY_RESULT=OK"
+
+      - name: B - Check current DB state via sa3
+        shell: powershell
+        run: |
+          Write-Host "=== B. TABELLE ATTUALI ==="
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
+            SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';
+            SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;
+          " -W
+
+      - name: C - Restore database (sysadmin required)
+        shell: powershell
+        run: |
+          Write-Host "=== C. RESTORE DATABASE ==="
+          $sql = @"
+          ALTER DATABASE [$env:DB_NAME] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+          RESTORE DATABASE [$env:DB_NAME]
+            FROM DISK = '$env:BAK_PATH'
+            WITH REPLACE,
+                 STATS = 10;
+          ALTER DATABASE [$env:DB_NAME] SET MULTI_USER;
+          PRINT 'RESTORE_COMPLETE';
+          "@
+          sqlcmd -S $env:SQL_INSTANCE -E -Q $sql -W
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "RESTORE_RESULT=FAIL - SYSTEM non ha sysadmin"
+            Write-Host ""
+            Write-Host "=== ESEGUIRE MANUALMENTE VIA NOVNC ==="
+            Write-Host "sqlcmd -S '.\SQLEXPRESS' -E -Q `"ALTER DATABASE [Eugenio-Demo10] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [Eugenio-Demo10] FROM DISK = '$env:BAK_PATH' WITH REPLACE, STATS=10; ALTER DATABASE [Eugenio-Demo10] SET MULTI_USER; PRINT 'DONE';`""
+            exit 1
+          }
+          Write-Host "RESTORE_RESULT=OK"
+
+      - name: D - Post-restore: verify tables and users
+        shell: powershell
+        run: |
+          Write-Host "=== D. VERIFICA POST-RESTORE ==="
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
+            SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';
+            SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;
+          " -W
+
+          Write-Host "=== UTENTI (senza password) ==="
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
+            IF OBJECT_ID('dbo.Users') IS NOT NULL
+              SELECT UserName, Email, EmailConfirmed, LockoutEnabled, AccessFailedCount,
+                     CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus
+              FROM dbo.Users;
+            ELSE IF OBJECT_ID('dbo.Users_v2') IS NOT NULL
+              SELECT UserName, Email, EmailConfirmed, LockoutEnabled, AccessFailedCount,
+                     CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus
+              FROM dbo.Users_v2;
+            ELSE
+              PRINT 'Users table not found';
+          " -W
