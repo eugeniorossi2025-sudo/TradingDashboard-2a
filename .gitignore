@@ -87,6 +87,10 @@ logs/
 App_Data/
 appData/
 telegramSession/
+ops/dash2a-readiness/backups/
+ops/dash2a-readiness/merge-missing-report.json
+tools/collaudo-*-report*.json
+tools/collaudo-funzionale-report.json
 
 # OCR / heavy runtime assets
 *.bmp

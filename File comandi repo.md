@@ -54,6 +54,16 @@ Per forzare un backend diverso:
 powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run -ApiBaseUrl "http://51.83.159.175"
 ```
 
+## Merge DB locale (config mancanti, read-only server)
+
+Importa in `Dash2A_LocalProdLike` solo le chiavi `Configurations` mancanti. **Non scrive su produzione.**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-from-prod-readonly.ps1
+```
+
+Backup locale: `ops/dash2a-readiness/backups/` (gitignored).
+
 ## Validazione reale obbligatoria
 
 Non dire mai "funziona" solo perche la pagina apre o risponde `200`.

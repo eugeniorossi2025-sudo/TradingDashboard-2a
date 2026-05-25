@@ -233,6 +233,17 @@ WebApi locale  ──(solo diagnostica)──►  Decider http://51.178.16.37/ap
 .\restart-app-safe.ps1
 ```
 
+### Merge DB locale (read-only da server)
+Popola `Dash2A_LocalProdLike` con configurazioni mancanti **senza scrivere su produzione**:
+```powershell
+powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-from-prod-readonly.ps1
+```
+- Legge connection string da `backend/WebApi/appsettings.json` (solo SELECT remoto)
+- Backup locale in `ops/dash2a-readiness/backups/` (non committare `.bak`)
+- Merge chiavi priority: `DECISION_METHOD`, `STOP_WIN`, `STOP_TIME`, `STOP_LOSS`, `RUNTIME_MODE`, `BASE_UNIT`
+- Chiavi già presenti in locale: non sovrascritte
+- `Pc_CurrentStatus` / missioni: solo conteggi, nessun import automatico
+
 ---
 
 ## 9. REGOLE OPERATIVE
