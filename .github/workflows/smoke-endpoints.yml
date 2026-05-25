@@ -1,10 +1,10 @@
-name: TEST - Live dashboard endpoints telemetry and margini
+name: SMOKE - Dashboard live endpoints test
 
 on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type TEST_LIVE"
+        description: "Type TEST_LIVE to run"
         required: true
         type: string
 
@@ -12,21 +12,20 @@ permissions:
   contents: read
 
 jobs:
-  test:
-    name: Hit /telemetry and /margini-chart on localhost
+  smoke:
+    name: Test telemetry and margini-chart endpoints
     if: ${{ github.event.inputs.confirm == 'TEST_LIVE' }}
     runs-on:
       - self-hosted
       - Windows
       - DASH2A
       - DASH2A-BACKEND
-    timeout-minutes: 3
+    timeout-minutes: 5
 
     steps:
-      - name: Get JWT token and test endpoints
+      - name: Test live endpoints
         shell: powershell
         run: |
-          # PS 5.1 compatible SSL bypass
           Add-Type @"
             using System.Net; using System.Security.Cryptography.X509Certificates;
             public class TrustAll : ICertificatePolicy {
@@ -38,7 +37,6 @@ jobs:
 
           $base = "https://localhost"
 
-          # 1. Login
           $loginBody = @{ email = "admin@dash2a.local"; password = "Admin123!" } | ConvertTo-Json
           try {
             $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
@@ -49,29 +47,26 @@ jobs:
             $token = $null
           }
 
-          $headers = if ($token) { @{ Authorization = "Bearer $token" } } else { @{} }
+          $h = if ($token) { @{ Authorization = "Bearer $token" } } else { @{} }
 
-          # 2. Test /api/dashboard/telemetry
           try {
-            $t = Invoke-RestMethod -Uri "$base/api/dashboard/telemetry" -Method GET -Headers $headers
+            $t = Invoke-RestMethod -Uri "$base/api/dashboard/telemetry" -Method GET -Headers $h
             Write-Host "TELEMETRY: OK"
             Write-Host ($t | ConvertTo-Json -Depth 4 -Compress)
           } catch {
             Write-Host "TELEMETRY: FAILED - $($_.Exception.Message)"
           }
 
-          # 3. Test /api/dashboard/margini-chart
           try {
-            $m = Invoke-RestMethod -Uri "$base/api/dashboard/margini-chart" -Method GET -Headers $headers
+            $m = Invoke-RestMethod -Uri "$base/api/dashboard/margini-chart" -Method GET -Headers $h
             Write-Host "MARGINI: OK - $($m.Count) points"
             $m | Select-Object -First 5 | ForEach-Object { Write-Host "  $($_ | ConvertTo-Json -Compress)" }
           } catch {
             Write-Host "MARGINI: FAILED - $($_.Exception.Message)"
           }
 
-          # 4. Test /api/dashboard/status
           try {
-            $s = Invoke-RestMethod -Uri "$base/api/dashboard/status" -Method GET -Headers $headers
+            $s = Invoke-RestMethod -Uri "$base/api/dashboard/status" -Method GET -Headers $h
             Write-Host "STATUS: OK"
             Write-Host ($s | ConvertTo-Json -Depth 3 -Compress)
           } catch {
