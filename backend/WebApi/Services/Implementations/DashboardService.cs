@@ -47,6 +47,7 @@ public class DashboardService : IDashboardService
         var tableRows = rows.Select(v => new DashboardTableRow
         {
             MinutiPassati = ((int)(DateTime.Now - v.LastUpdate).TotalMinutes).ToString(),
+            Computer = v.Computer,
             Account = v.Account,
             Tavolo = v.Tavolo,
             Mazzo = v.Mazzo,
@@ -54,13 +55,17 @@ public class DashboardService : IDashboardService
             MediaOra = v.MediaOra,
             Stato = v.Stato,
             Colore = v.Colore,
+            Pbt = v.Pbt,
             ColpoMartingala = v.ColpoMartingala.ToString(),
+            ValoreGiocato = v.ValoreGiocato.ToString(),
             Valutazione = v.ValutazioneRisultato,
             Reason = v.LastAdvice,
             Prediction = v.LastInfo,
             Ore = v.Ore.ToString(),
             SaldoIniziale = v.SaldoIniziale,
-            SaldoIstantaneo = v.SaldoIstantaneo
+            SaldoIstantaneo = v.SaldoIstantaneo,
+            DtUltimo = v.LastUpdate,
+            LastUpdate = v.LastUpdate
         }).ToList();
 
         var chartData = tableRows

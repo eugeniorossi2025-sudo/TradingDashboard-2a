@@ -126,6 +126,7 @@ public class DashboardResponse
 public class DashboardTableRow
 {
     public string? MinutiPassati { get; set; }
+    public string? Computer { get; set; }
     public string? Account { get; set; }
     public string? Tavolo { get; set; }
     public string? Mazzo { get; set; }
@@ -134,6 +135,7 @@ public class DashboardTableRow
     public string? ValoreGiocato { get; set; }
     public string? Stato { get; set; }
     public string? Colore { get; set; }
+    public string? Pbt { get; set; }
     public string? ColpoMartingala { get; set; }
     public string? Valutazione { get; set; }
     public string? Reason { get; set; }
@@ -148,6 +150,8 @@ public class DashboardTableRow
     public string? VmLocal20 { get; set; }
     public decimal SaldoIniziale { get; set; }
     public decimal SaldoIstantaneo { get; set; }
+    public DateTime? DtUltimo { get; set; }
+    public DateTime? LastUpdate { get; set; }
     public string? Ore { get; set; }
     public string? Note { get; set; }
     public string? Json { get; set; }

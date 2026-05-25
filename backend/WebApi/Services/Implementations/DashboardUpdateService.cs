@@ -42,10 +42,10 @@ public class DashboardUpdateService : BackgroundService
                 using (var scope = _serviceProvider.CreateScope())
                 {
                     var dashboardService = scope.ServiceProvider.GetRequiredService<IDashboardService>();
-                    var statistics = await dashboardService.GetDashboardStatisticsAsync();
+                    var dashboardData = await dashboardService.GetDashboardDataAsync();
 
                     await _hubContext.Clients.Group("Dashboard")
-                        .SendAsync("ReceiveDashboardUpdate", statistics, stoppingToken);
+                        .SendAsync("ReceiveDashboardUpdate", dashboardData, stoppingToken);
                 }
             }
             catch (Exception ex)

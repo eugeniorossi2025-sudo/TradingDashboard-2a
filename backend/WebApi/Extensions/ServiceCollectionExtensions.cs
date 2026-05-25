@@ -27,6 +27,7 @@ public static class ServiceCollectionExtensions
         IConfiguration configuration)
     {
         services.Configure<DeciderOptions>(configuration.GetSection(DeciderOptions.SectionName));
+        services.Configure<CollaudoOptions>(configuration.GetSection(CollaudoOptions.SectionName));
         services.AddHttpClient(nameof(Controllers.DeciderController));
 
         // Add DbContext
@@ -135,6 +136,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ILogService, LogService>();
         services.AddScoped<IDeviceService, DeviceService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IPcCurrentStatusMirrorService, PcCurrentStatusMirrorService>();
         services.AddScoped<IValueService, ValueService>();
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IUserGridConfigurationService, UserGridConfigurationService>();

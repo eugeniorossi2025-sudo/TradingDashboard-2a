@@ -6,10 +6,27 @@ param(
     [string]$AppPoolName  = 'demoapp',
     [string]$ReleaseRoot  = 'C:\inetpub\wwwroot\releases',
     [string]$SharedConfigPath = 'C:\inetpub\wwwroot\shared\appsettings.Production.json',
-    [string]$SmokeTestUrl = 'http://localhost/api/Auth/test'
+    [string]$SmokeTestUrl = 'http://localhost/api/Auth/test',
+    [string]$CollaudoMirrorSecret = ''
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Set-IisAppPoolEnvVar {
+    param(
+        [string]$AppPoolName,
+        [string]$Name,
+        [string]$Value
+    )
+    $filter = "system.applicationHost/applicationPools/add[@name='$AppPoolName']/environmentVariables"
+    $existing = Get-WebConfiguration -Filter "$filter/add[@name='$Name']" -ErrorAction SilentlyContinue
+    if ($existing) {
+        Set-WebConfigurationProperty -Filter "$filter/add[@name='$Name']" -Name "value" -Value $Value
+    }
+    else {
+        Add-WebConfigurationProperty -Filter $filter -Name "." -Value @{ name = $Name; value = $Value }
+    }
+}
 
 function Write-Step { param([string]$msg) Write-Host "==> $msg" }
 
@@ -72,6 +89,11 @@ try {
             -Filter $envVarFilter `
             -Name "value" `
             -Value "Production"
+    }
+
+    if ($CollaudoMirrorSecret) {
+        Write-Step "Setting app pool env: Collaudo__MirrorSecret (from GitHub secret)"
+        Set-IisAppPoolEnvVar -AppPoolName $AppPoolName -Name 'Collaudo__MirrorSecret' -Value $CollaudoMirrorSecret
     }
 
     Write-Step "Starting app pool: $AppPoolName"
