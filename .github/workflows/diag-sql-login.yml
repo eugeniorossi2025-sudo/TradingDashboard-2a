@@ -1,0 +1,76 @@
+name: DASH2A SQL Login Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_SQL to run"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Check sa3 login status on SQL Server
+    if: ${{ github.event.inputs.confirm == 'DIAG_SQL' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Discover SQL instance (Windows Auth)
+        shell: powershell
+        run: |
+          $instances = @(".", ".\SQLEXPRESS", ".\SQLEXPRESS01", ".\MSSQLSERVER", "localhost")
+          foreach ($inst in $instances) {
+            $r = sqlcmd -S $inst -E -Q "SELECT @@SERVERNAME" -W 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "INSTANCE_FOUND: $inst"
+              Add-Content $env:GITHUB_ENV "SQL_LOCAL=$inst"
+              break
+            } else {
+              Write-Host "NOT_FOUND: $inst"
+            }
+          }
+
+      - name: Check sa3 exists and status
+        shell: powershell
+        run: |
+          sqlcmd -S "$env:SQL_LOCAL" -E -Q "
+          SELECT
+            name,
+            is_disabled,
+            CASE is_disabled WHEN 0 THEN 'ENABLED' ELSE 'DISABLED' END as status,
+            is_policy_checked,
+            is_expiration_checked
+          FROM sys.sql_logins
+          WHERE name = 'sa3';
+          " -W
+
+      - name: Enable sa3 if disabled
+        shell: powershell
+        run: |
+          $result = sqlcmd -S "$env:SQL_LOCAL" -E -Q "SELECT is_disabled FROM sys.sql_logins WHERE name='sa3'" -W -h -1 2>&1
+          $disabled = ($result | Where-Object { $_ -match '^\s*[01]\s*$' } | Select-Object -First 1).Trim()
+          if ($disabled -eq '1') {
+            Write-Host "sa3 e' DISABLED — abilitazione in corso..."
+            sqlcmd -S "$env:SQL_LOCAL" -E -Q "ALTER LOGIN sa3 ENABLE;" -W
+            Write-Host "sa3 ABILITATO"
+          } elseif ($disabled -eq '0') {
+            Write-Host "sa3 e' gia' ENABLED — nessuna modifica"
+          } else {
+            Write-Host "sa3 NON TROVATO nel SQL Server"
+          }
+
+      - name: Test sa3 TCP login from localhost
+        shell: powershell
+        run: |
+          $pass = (Get-Content "C:\inetpub\wwwroot\publish\appsettings.json" -Raw | ConvertFrom-Json).ConnectionStrings.DefaultConnection -split ';' | Where-Object { $_ -match 'Password' } | ForEach-Object { ($_ -split '=',2)[1] }
+          $r = sqlcmd -S "127.0.0.1,1433" -U sa3 -P $pass -d "Eugenio-Demo10" -Q "SELECT DB_NAME();" -W 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "LOGIN TEST: OK - connessione riuscita"
+          } else {
+            Write-Host "LOGIN TEST: FAILED"
+            Write-Host ($r | Select-Object -First 5)
+          }
