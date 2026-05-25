@@ -72,7 +72,7 @@ jobs:
           if ($iis) {
             Import-Module WebAdministration
             $site = Get-Website -Name "$env:DASH2A_SITE_NAME" -ErrorAction SilentlyContinue
-            if ($site) { Write-Host "IIS site '$env:DASH2A_SITE_NAME': OK — PhysicalPath=$($site.PhysicalPath)" }
+            if ($site) { Write-Host "IIS site '$env:DASH2A_SITE_NAME': OK - PhysicalPath=$($site.PhysicalPath)" }
             else { $failed += "IIS site '$env:DASH2A_SITE_NAME' non trovato" }
 
             $pool = Get-Item "IIS:\AppPools\$env:DASH2A_APP_POOL" -ErrorAction SilentlyContinue
