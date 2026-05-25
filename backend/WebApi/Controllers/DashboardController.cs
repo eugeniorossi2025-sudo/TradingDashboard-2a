@@ -230,8 +230,8 @@ public class DashboardTelemetry
     public bool GlobalPauseScalping { get; set; }
     public string GlobalPauseScalpingDetails { get; set; } = "Pausa non attiva";
     public string GlobalPauseScalpingDuration { get; set; } = "0";
-    public double Inc { get; set; }
-    public double Ewma { get; set; }
+    public decimal Inc { get; set; }
+    public decimal Ewma { get; set; }
     public int TotalPbHandsPlayed { get; set; }
     public int TotalL5Played { get; set; }
     public int TotalL5Won { get; set; }

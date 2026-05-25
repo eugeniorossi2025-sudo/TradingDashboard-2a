@@ -127,7 +127,7 @@ public class DashboardService : IDashboardService
             MargineTot = row.MargineTot,
             MargineMin = row.MargineMin,
             MargineMax = row.MargineMax,
-            Elapsed = (double)row.Elapsed
+            Elapsed = row.Elapsed
         };
 
         if (!string.IsNullOrWhiteSpace(row.Telemetry))
@@ -144,9 +144,9 @@ public class DashboardService : IDashboardService
                 if (root.TryGetProperty("GlobalPauseScalpingDuration", out var gpsdur))
                     result.GlobalPauseScalpingDuration = gpsdur.GetString() ?? "0";
                 if (root.TryGetProperty("INC", out var inc))
-                    result.Inc = inc.GetDouble();
+                    result.Inc = (decimal)inc.GetDouble();
                 if (root.TryGetProperty("EWMA", out var ewma))
-                    result.Ewma = ewma.GetDouble();
+                    result.Ewma = (decimal)ewma.GetDouble();
                 if (root.TryGetProperty("TotalPBHandsPlayed", out var pbh))
                     result.TotalPbHandsPlayed = pbh.GetInt32();
                 if (root.TryGetProperty("TotalL5Played", out var l5p))
