@@ -4,7 +4,8 @@ param(
     [switch]$SkipBuild,
     [string]$ApiBaseUrl = "http://localhost:5299",
     [bool]$UseLocalDb = $true,
-    [string]$LocalDbName = "Dash2A_LocalImportTest"
+    [string]$LocalDbName = "Dash2A_LocalProdLike",
+    [string]$AspNetCoreEnvironment = "LocalProdLike"
 )
 
 $ErrorActionPreference = "Stop"
@@ -193,10 +194,11 @@ try {
         $backendCommand = "cd `"$PSScriptRoot\backend\WebApi`"; "
         if ($UseLocalDb -and $ApiBaseUrl -match "localhost:5299|127\.0\.0\.1:5299") {
             $connectionString = "Server=(localdb)\MSSQLLocalDB;Database=$LocalDbName;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;"
-            $backendCommand += "`$env:ConnectionStrings__DefaultConnection='$connectionString'; `$env:Database__EnsureCreated='true'; "
-            Write-Host "Backend DB locale: $LocalDbName"
+            $backendCommand += "`$env:ASPNETCORE_ENVIRONMENT='$AspNetCoreEnvironment'; `$env:ConnectionStrings__DefaultConnection='$connectionString'; `$env:Database__EnsureCreated='true'; "
+            Write-Host "Backend DB locale: $LocalDbName (ASPNETCORE_ENVIRONMENT=$AspNetCoreEnvironment)"
+            Write-Host "Decider remoto: http://51.178.16.37 (config Decider in appsettings.LocalProdLike.json)"
         }
-        $backendCommand += "dotnet run --launch-profile http"
+        $backendCommand += "dotnet run --launch-profile LocalProdLike"
 
         Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCommand
         Wait-HttpReady -Url "$ApiBaseUrl/api/Auth/test" -TimeoutSeconds 90

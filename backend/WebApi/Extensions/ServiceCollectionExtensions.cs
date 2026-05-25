@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using WebApi.Options;
 using WebApi.Constants;
 using WebApi.Data;
 using WebApi.Services;
@@ -25,6 +26,9 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddApplicationServices(this IServiceCollection services,
         IConfiguration configuration)
     {
+        services.Configure<DeciderOptions>(configuration.GetSection(DeciderOptions.SectionName));
+        services.AddHttpClient(nameof(Controllers.DeciderController));
+
         // Add DbContext
         services.AddDbContext<AppDbContext>(options =>
             options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
