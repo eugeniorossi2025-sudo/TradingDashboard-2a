@@ -192,7 +192,11 @@
 |---|---|
 | Backend porta | `http://localhost:5299` |
 | Frontend porta | `http://localhost:5001` |
-| DB locale | `(localdb)\MSSQLLocalDB`, database `Dash2A_LocalImportTest` |
+| DB locale | `(localdb)\MSSQLLocalDB`, database `Dash2A_LocalProdLike` |
+| Profilo ASP.NET | `LocalProdLike` → `appsettings.LocalProdLike.json` |
+| Decisore reale | VPS `51.210.181.37` — HTTP `:5286` interno (non esposto esternamente); SQL `:1433` |
+| Decisore RDP | `administrator` — password in GitHub Secret (non committare) |
+| Config riferimento | `ops/dash2a-readiness/local-prod-like.env.example` |
 | Admin locale | `admin` / `Admin@123456` |
 | SMTP | Configurato (Gmail app password) |
 

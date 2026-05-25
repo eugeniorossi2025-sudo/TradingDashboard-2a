@@ -33,10 +33,10 @@ Come `Restart APP`, ma alla fine avvia anche WebApi e frontend locali.
 URL attesi:
 - WebApi: `http://localhost:5299`
 - Frontend: `http://localhost:5001`
-- Frontend API effettiva default: `http://51.83.159.175`
-- Frontend pubblico DASH2A: `https://eugenio-dashboard-2a.web.app/auth/login?redirect=/pages/user`
-- Dashboard.Url operativo Gamebot: `http://51.178.16.37`
-- Dashboard.UrlDev operativo Gamebot: `http://192.168.1.41:5286`
+- Frontend API effettiva default: `http://localhost:5299` (WebApi locale) oppure `http://51.83.159.175` (prod)
+- Decisore VPS (bot + engine): `http://51.210.181.37` — **non** confondere con WebApi
+- Frontend env Decisore: `VITE_DECISORE_BASE_URL=http://51.210.181.37`
+- Dashboard.Url operativo Gamebot: `http://51.210.181.37` (VPS Decisore DASH2A — **non** Dashboard 1)
 - Dashboard.Username operativo Gamebot: `eugenio`
 
 ```powershell
