@@ -1,0 +1,33 @@
+name: DASH2A Compare DB Schema ReadOnly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+    steps:
+      - name: Server tables and row counts
+        shell: powershell
+        run: |
+          $s = '51.83.159.175\SQLEXPRESS01'
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;
+          " -W -h-1
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT 'Users_v2' t, COUNT(*) c FROM Users_v2 UNION ALL
+            SELECT 'Users', COUNT(*) FROM Users UNION ALL
+            SELECT 'Configurations', COUNT(*) FROM Configurations UNION ALL
+            SELECT 'PC', COUNT(*) FROM PC UNION ALL
+            SELECT 'Values', COUNT(*) FROM [Values] UNION ALL
+            SELECT 'Logs', COUNT(*) FROM Logs UNION ALL
+            SELECT 'Commands', COUNT(*) FROM Commands UNION ALL
+            SELECT 'MissionSessions', COUNT(*) FROM MissionSessions UNION ALL
+            SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples UNION ALL
+            SELECT 'UserNotificationSettings', COUNT(*) FROM UserNotificationSettings UNION ALL
+            SELECT 'UserAccessEvents', COUNT(*) FROM UserAccessEvents;
+          " -W
