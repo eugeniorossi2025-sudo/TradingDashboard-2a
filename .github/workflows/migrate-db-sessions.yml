@@ -39,22 +39,35 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Find SQL instance and test connection
+        shell: powershell
+        run: |
+          $instances = @("localhost", ".\SQLEXPRESS", ".\MSSQLSERVER", "(local)")
+          $found = $false
+          foreach ($inst in $instances) {
+            $result = sqlcmd -S $inst -E -Q "SELECT @@SERVERNAME" -W 2>&1
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Connesso a: $inst (Windows Auth)"
+              Add-Content $env:GITHUB_ENV "SQL_INSTANCE=$inst"
+              $found = $true
+              break
+            }
+            Write-Host "Fallito: $inst"
+          }
+          if (-not $found) { throw "Nessuna istanza SQL raggiungibile con Windows Auth" }
+
       - name: Check current row counts
         shell: powershell
         run: |
-          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
-          SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
-          UNION ALL
-          SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
-          " -W
+          sqlcmd -S "$env:SQL_INSTANCE" -E -d "Eugenio-Demo10" -Q "SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions UNION ALL SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples" -W
 
       - name: Import MissionSessions
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           Write-Host "Importo MissionSessions..."
-          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -i "ops\migrate-sessions.sql" -W
-          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT COUNT(*) as MissionSessions_dopo FROM MissionSessions" -W
+          sqlcmd -S "$env:SQL_INSTANCE" -E -d "Eugenio-Demo10" -i "ops\migrate-sessions.sql" -W
+          sqlcmd -S "$env:SQL_INSTANCE" -E -d "Eugenio-Demo10" -Q "SELECT COUNT(*) as MissionSessions_dopo FROM MissionSessions" -W
 
       - name: Decompress and import MissionMarginSamples
         shell: powershell
@@ -63,15 +76,11 @@ jobs:
           Write-Host "Decomprimo samples..."
           Expand-Archive -Path "ops\migrate-samples.zip" -DestinationPath "$env:TEMP\migrate" -Force
           Write-Host "Importo 227.332 campioni (potrebbe richiedere 5-10 minuti)..."
-          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -i "$env:TEMP\migrate\migrate-samples.sql" -W
+          sqlcmd -S "$env:SQL_INSTANCE" -E -d "Eugenio-Demo10" -i "$env:TEMP\migrate\migrate-samples.sql" -W
           Remove-Item "$env:TEMP\migrate" -Recurse -Force
 
       - name: Verify final counts
         shell: powershell
         run: |
-          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
-          SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
-          UNION ALL
-          SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
-          " -W
+          sqlcmd -S "$env:SQL_INSTANCE" -E -d "Eugenio-Demo10" -Q "SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions UNION ALL SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples" -W
           Write-Host "Migrazione completata."
