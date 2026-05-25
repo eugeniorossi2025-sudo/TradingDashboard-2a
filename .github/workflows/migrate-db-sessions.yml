@@ -58,9 +58,9 @@ jobs:
           $user   = $parts['User Id']
           $pass   = $parts['Password']
           Write-Host "Server originale: $server | DB: $db | User: $user"
-          # Forza connessione localhost per evitare restrizioni IP su sa3
-          $server = "127.0.0.1,1433"
-          Write-Host "Connessione via: $server"
+          # Usa named pipe locale (bypassa TCP/IP restrictions)
+          $server = "."
+          Write-Host "Connessione via Named Pipe: $server"
           Add-Content $env:GITHUB_ENV "SQL_SERVER=$server"
           Add-Content $env:GITHUB_ENV "SQL_DB=$db"
           Add-Content $env:GITHUB_ENV "SQL_USER=$user"
