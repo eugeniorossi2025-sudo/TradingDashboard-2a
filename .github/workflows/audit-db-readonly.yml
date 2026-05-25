@@ -1,0 +1,95 @@
+name: DASH2A Audit DB ReadOnly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-db:
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: 1 - Server and DB identity
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT @@SERVERNAME AS ServerName, @@SERVICENAME AS InstanceName, DB_NAME() AS CurrentDb;
+          " -W
+
+      - name: 2 - Table count and list
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT COUNT(*) AS TableCount
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE='BASE TABLE';
+
+            SELECT TABLE_SCHEMA, TABLE_NAME
+            FROM INFORMATION_SCHEMA.TABLES
+            WHERE TABLE_TYPE='BASE TABLE'
+            ORDER BY TABLE_NAME;
+          " -W
+
+      - name: 3 - Restore history
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -Q "
+            SELECT TOP 20
+              rh.restore_date,
+              rh.destination_database_name,
+              bmf.physical_device_name,
+              bs.database_name AS source_db,
+              bs.backup_start_date,
+              bs.backup_finish_date
+            FROM msdb.dbo.restorehistory rh
+            LEFT JOIN msdb.dbo.backupset bs ON rh.backup_set_id = bs.backup_set_id
+            LEFT JOIN msdb.dbo.backupmediafamily bmf ON bs.media_set_id = bmf.media_set_id
+            WHERE rh.destination_database_name = 'Eugenio-Demo10'
+            ORDER BY rh.restore_date DESC;
+          " -W
+
+      - name: 4 - Backup history
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -Q "
+            SELECT TOP 20
+              bs.database_name,
+              bs.backup_start_date,
+              bs.backup_finish_date,
+              bs.type,
+              bmf.physical_device_name
+            FROM msdb.dbo.backupset bs
+            LEFT JOIN msdb.dbo.backupmediafamily bmf ON bs.media_set_id = bmf.media_set_id
+            WHERE bs.database_name = 'Eugenio-Demo10'
+            ORDER BY bs.backup_finish_date DESC;
+          " -W
+
+      - name: 5 - Default trace DROP/TRUNCATE/RESTORE/ALTER DATABASE
+        shell: powershell
+        run: |
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -Q "
+            DECLARE @trace NVARCHAR(260);
+            SELECT @trace = path FROM sys.traces WHERE is_default = 1;
+
+            SELECT TOP 100
+              StartTime,
+              LoginName,
+              HostName,
+              ApplicationName,
+              DatabaseName,
+              ObjectName,
+              EventClass,
+              TextData
+            FROM fn_trace_gettable(@trace, DEFAULT)
+            WHERE DatabaseName = 'Eugenio-Demo10'
+              AND (
+                TextData LIKE '%DROP%'
+                OR TextData LIKE '%TRUNCATE%'
+                OR TextData LIKE '%RESTORE%'
+                OR TextData LIKE '%ALTER DATABASE%'
+              )
+            ORDER BY StartTime DESC;
+          " -W
