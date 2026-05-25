@@ -352,14 +352,6 @@ const parseTooltipJson = (tooltipJson) => {
                                         <span class="text-muted-color">Valore Giocato:</span>
                                         <span class="font-semibold">{{ formatCurrency(slotProps.data.valoreGiocato) }}</span>
                                     </div>
-                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
-                                        <span class="text-muted-color">Margine Min:</span>
-                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.margineMin) }}</span>
-                                    </div>
-                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
-                                        <span class="text-muted-color">Margine Max:</span>
-                                        <span class="font-semibold">{{ formatCurrency(slotProps.data.margineMax) }}</span>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -400,7 +392,7 @@ const parseTooltipJson = (tooltipJson) => {
                                     </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Minuti Trascorsi:</span>
-                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed') ? Math.round(getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed')) : '-' }}</span>
+                                        <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed') != null ? calculateMinutesPassed(getLastAdviceField(slotProps.data.lastAdvice, 'Elapsed')) : '-' }}</span>
                                     </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">HotZone:</span>
