@@ -1,0 +1,77 @@
+name: DASH2A DB Migration - Sessions + Samples
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_migration:
+        description: "Type I_UNDERSTAND_DB_MIGRATION to run"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  migrate:
+    name: Import MissionSessions + MissionMarginSamples to production DB
+    if: ${{ github.event.inputs.confirm_migration == 'I_UNDERSTAND_DB_MIGRATION' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 30
+
+    steps:
+      - name: Guard
+        shell: powershell
+        run: |
+          Write-Host "DB Migration: MissionSessions + MissionMarginSamples"
+          Write-Host "Target: localhost Eugenio-Demo10"
+          Write-Host "NO schema changes. NO user table changes."
+
+      - name: Ensure Git in PATH
+        shell: powershell
+        run: |
+          Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
+          git config --global --add safe.directory "*"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check current row counts
+        shell: powershell
+        run: |
+          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+          SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
+          UNION ALL
+          SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
+          " -W
+
+      - name: Import MissionSessions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "Importo MissionSessions..."
+          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -i "ops\migrate-sessions.sql" -W
+          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT COUNT(*) as MissionSessions_dopo FROM MissionSessions" -W
+
+      - name: Decompress and import MissionMarginSamples
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "Decomprimo samples..."
+          Expand-Archive -Path "ops\migrate-samples.zip" -DestinationPath "$env:TEMP\migrate" -Force
+          Write-Host "Importo 227.332 campioni (potrebbe richiedere 5-10 minuti)..."
+          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -i "$env:TEMP\migrate\migrate-samples.sql" -W
+          Remove-Item "$env:TEMP\migrate" -Recurse -Force
+
+      - name: Verify final counts
+        shell: powershell
+        run: |
+          sqlcmd -S "localhost" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+          SELECT 'MissionSessions' as tbl, COUNT(*) as righe FROM MissionSessions
+          UNION ALL
+          SELECT 'MissionMarginSamples', COUNT(*) FROM MissionMarginSamples
+          " -W
+          Write-Host "Migrazione completata."
