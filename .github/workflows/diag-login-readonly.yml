@@ -1,0 +1,124 @@
+name: DASH2A Login Readonly Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type LOGIN_READONLY_DIAG to run read-only login checks"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Read-only login diagnostic on production DB
+    if: ${{ github.event.inputs.confirm == 'LOGIN_READONLY_DIAG' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Read live connection string without printing password
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $paths = @(
+            'C:\inetpub\wwwroot\shared\appsettings.Production.json',
+            'C:\inetpub\wwwroot\publish\appsettings.Production.json',
+            'C:\inetpub\wwwroot\publish\appsettings.json'
+          )
+          $settingsPath = $paths | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          if (-not $settingsPath) { throw "No appsettings file found" }
+          $config = Get-Content -LiteralPath $settingsPath -Raw | ConvertFrom-Json
+          $conn = $config.ConnectionStrings.DefaultConnection
+          $parts = @{}
+          $conn -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+          Add-Content $env:GITHUB_ENV "SQL_SERVER=$($parts['Server'])"
+          Add-Content $env:GITHUB_ENV "SQL_DB=$($parts['Database'])"
+          Add-Content $env:GITHUB_ENV "SQL_USER=$($parts['User Id'])"
+          Add-Content $env:GITHUB_ENV "SQL_PASS=$($parts['Password'])"
+          Write-Host "CONFIG_FILE=$settingsPath"
+          Write-Host "CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "CONFIG_DB=$($parts['Database'])"
+          Write-Host "CONFIG_USER=$($parts['User Id'])"
+          Write-Host "CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
+
+      - name: Read-only user table inventory
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME LIKE '%User%' OR TABLE_NAME LIKE '%AspNet%' ORDER BY TABLE_NAME;" -W
+          Write-Host "TABLE_INVENTORY_EXIT=$LASTEXITCODE"
+
+      - name: Read dbo.Users shape and rows masked
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $columnQuery = "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA='dbo' AND TABLE_NAME='Users' ORDER BY ORDINAL_POSITION;"
+          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q $columnQuery -W
+          Write-Host "USERS_COLUMNS_EXIT=$LASTEXITCODE"
+
+          $safeQuery = @"
+          IF OBJECT_ID('dbo.Users') IS NOT NULL
+          BEGIN
+            SELECT TOP 20
+              Id,
+              CASE WHEN COL_LENGTH('dbo.Users','Username') IS NOT NULL THEN CONVERT(nvarchar(256), Username) ELSE NULL END AS Username,
+              CASE WHEN COL_LENGTH('dbo.Users','Email') IS NOT NULL THEN CONVERT(nvarchar(256), Email) ELSE NULL END AS Email,
+              CASE WHEN COL_LENGTH('dbo.Users','Administrator') IS NOT NULL THEN CONVERT(nvarchar(20), Administrator) ELSE NULL END AS Administrator,
+              CASE WHEN COL_LENGTH('dbo.Users','LastLoginDate') IS NOT NULL THEN CONVERT(nvarchar(50), LastLoginDate) ELSE NULL END AS LastLoginDate,
+              CASE WHEN COL_LENGTH('dbo.Users','PasswordHash') IS NOT NULL THEN CASE WHEN PasswordHash IS NULL THEN 'NO' ELSE 'YES' END ELSE NULL END AS HasPasswordHash,
+              CASE WHEN COL_LENGTH('dbo.Users','Password') IS NOT NULL THEN CASE WHEN Password IS NULL THEN 'NO' ELSE 'YES' END ELSE NULL END AS HasPassword
+            FROM dbo.Users;
+          END
+          ELSE SELECT 'dbo.Users not found' AS info;
+          "@
+          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q $safeQuery -W
+          Write-Host "USERS_ROWS_EXIT=$LASTEXITCODE"
+
+      - name: Check admin in dbo.Users masked
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $query = @"
+          IF OBJECT_ID('dbo.Users') IS NOT NULL
+          BEGIN
+            SELECT
+              Id,
+              CASE WHEN COL_LENGTH('dbo.Users','Username') IS NOT NULL THEN CONVERT(nvarchar(256), Username) ELSE NULL END AS Username,
+              CASE WHEN COL_LENGTH('dbo.Users','Email') IS NOT NULL THEN CONVERT(nvarchar(256), Email) ELSE NULL END AS Email,
+              CASE WHEN COL_LENGTH('dbo.Users','Administrator') IS NOT NULL THEN CONVERT(nvarchar(20), Administrator) ELSE NULL END AS Administrator,
+              CASE WHEN COL_LENGTH('dbo.Users','PasswordHash') IS NOT NULL THEN CASE WHEN PasswordHash IS NULL THEN 'NO' ELSE 'YES' END ELSE NULL END AS HasPasswordHash,
+              CASE WHEN COL_LENGTH('dbo.Users','Password') IS NOT NULL THEN CASE WHEN Password IS NULL THEN 'NO' ELSE 'YES' END ELSE NULL END AS HasPassword
+            FROM dbo.Users
+            WHERE (COL_LENGTH('dbo.Users','Username') IS NOT NULL AND Username='admin')
+               OR (COL_LENGTH('dbo.Users','Email') IS NOT NULL AND Email LIKE '%admin%');
+          END
+          ELSE SELECT 'dbo.Users not found' AS info;
+          "@
+          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q $query -W
+          Write-Host "ADMIN_USERS_EXIT=$LASTEXITCODE"
+
+      - name: Check AspNetUsers if present
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $query = @"
+          IF OBJECT_ID('dbo.AspNetUsers') IS NOT NULL
+          BEGIN
+            SELECT TOP 20
+              Id,
+              UserName,
+              NormalizedUserName,
+              Email,
+              CASE WHEN PasswordHash IS NULL THEN 'NO' ELSE 'YES' END AS HasPasswordHash
+            FROM dbo.AspNetUsers;
+          END
+          ELSE SELECT 'dbo.AspNetUsers not found' AS info;
+          "@
+          sqlcmd -S "$env:SQL_SERVER" -U "$env:SQL_USER" -P "$env:SQL_PASS" -d "$env:SQL_DB" -Q $query -W
+          Write-Host "ASPNET_USERS_EXIT=$LASTEXITCODE"
