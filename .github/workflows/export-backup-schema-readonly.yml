@@ -21,11 +21,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Export schema to side database (read-only for production)
+      - name: Export 30-table schema (live SQLEXPRESS01, backup as reference)
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
           & 'ops/dash2a-readiness/export-schema-from-backup.ps1' `
+            -Server '.\SQLEXPRESS01' `
             -OutputPath 'artifacts/production-30-tables-from-backup.txt'
 
       - name: Show summary

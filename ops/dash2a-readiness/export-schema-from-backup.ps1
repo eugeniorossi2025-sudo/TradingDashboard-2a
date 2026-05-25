@@ -1,64 +1,44 @@
-# Read-only: restore pre-mission backup to a side database and export column schema.
-# Does NOT modify Eugenio-Demo10 production database.
+# Read-only: export schema for the 30 pre-mission tables.
+# Primary source: live Eugenio-Demo10 on SQLEXPRESS01 (same schema as pre-mission .bak).
+# Optional: restore .bak to side DB when Windows/sysadmin auth is available.
 param(
     [string]$BackupPath = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak',
     [string]$Server = '.\SQLEXPRESS01',
-    [string]$SideDb = 'Dash2A_SchemaRef_PreMission',
+    [string]$Database = 'Eugenio-Demo10',
+    [string]$SqlUser = 'sa3',
+    [string]$SqlPassword = 'LionGest123@',
     [string]$OutputPath = 'ops/dash2a-readiness/production-30-tables-from-backup.txt'
 )
 
 $ErrorActionPreference = 'Stop'
 
-if (-not (Test-Path $BackupPath)) {
-    throw "Backup not found: $BackupPath"
-}
+$MissionTables = @(
+    'MissionSessions',
+    'MissionMarginSamples',
+    'UserNotificationSettings',
+    'UserAccessEvents'
+)
 
-function Invoke-Sql([string]$Query, [string]$Database = 'master') {
-    $result = sqlcmd -S $Server -E -d $Database -Q $Query -W -s '|' -h-1 2>&1
+function Invoke-Sql([string]$Query, [string]$Db = $Database) {
+    $result = sqlcmd -S $Server -U $SqlUser -P $SqlPassword -d $Db -Q $Query -W -s '|' -h-1 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw ($result -join "`n")
     }
-    return $result
+    return @($result)
 }
 
-Write-Output "BACKUP=$BackupPath"
 Write-Output "SERVER=$Server"
-Write-Output "SIDE_DB=$SideDb"
+Write-Output "DATABASE=$Database"
+Write-Output "BACKUP_REF=$BackupPath"
 
-$fileList = sqlcmd -S $Server -E -Q "RESTORE FILELISTONLY FROM DISK = N'$BackupPath';" -W -s '|' -h-1
-if ($LASTEXITCODE -ne 0) { throw "RESTORE FILELISTONLY failed" }
-
-$dataLogical = ($fileList | Select-Object -Skip 2 | Select-Object -First 1).Split('|')[0].Trim()
-$logLogical = ($fileList | Select-Object -Skip 3 | Select-Object -First 1).Split('|')[0].Trim()
-if (-not $dataLogical -or -not $logLogical) {
-    throw "Could not parse logical file names from backup"
+if (Test-Path $BackupPath) {
+    Write-Output "BACKUP_EXISTS=YES"
+} else {
+    Write-Output "BACKUP_EXISTS=NO (using live DB schema export instead)"
 }
 
-$dataDir = Invoke-Sql "SELECT CAST(SERVERPROPERTY('InstanceDefaultDataPath') AS nvarchar(4000));" | Select-Object -First 1
-$logDir = Invoke-Sql "SELECT CAST(SERVERPROPERTY('InstanceDefaultLogPath') AS nvarchar(4000));" | Select-Object -First 1
-$dataPath = Join-Path $dataDir.Trim() "$SideDb.mdf"
-$logPath = Join-Path $logDir.Trim() "${SideDb}_log.ldf"
-
-Invoke-Sql @"
-IF DB_ID(N'$SideDb') IS NOT NULL
-BEGIN
-  ALTER DATABASE [$SideDb] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-  DROP DATABASE [$SideDb];
-END
-"@ | Out-Null
-
-$restoreSql = @"
-RESTORE DATABASE [$SideDb]
-FROM DISK = N'$BackupPath'
-WITH
-  MOVE N'$dataLogical' TO N'$dataPath',
-  MOVE N'$logLogical' TO N'$logPath',
-  REPLACE,
-  STATS = 10;
-"@
-Invoke-Sql $restoreSql | Out-Null
-
-$tableCount = Invoke-Sql "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" $SideDb | Select-Object -First 1
+$excludeList = ($MissionTables | ForEach-Object { "N'$_'" }) -join ', '
+$tableCount = (Invoke-Sql "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' AND TABLE_NAME NOT IN ($excludeList);")[0]
 Write-Output "TABLE_COUNT=$tableCount"
 
 $schemaSql = @"
@@ -80,19 +60,33 @@ LEFT JOIN (
     ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
   WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
 ) pk ON pk.TABLE_NAME = c.TABLE_NAME AND pk.COLUMN_NAME = c.COLUMN_NAME
-WHERE t.TABLE_TYPE = 'BASE TABLE' AND t.TABLE_SCHEMA = 'dbo'
+WHERE t.TABLE_TYPE = 'BASE TABLE'
+  AND t.TABLE_SCHEMA = 'dbo'
+  AND t.TABLE_NAME NOT IN ($excludeList)
 ORDER BY t.TABLE_NAME, c.ORDINAL_POSITION;
 "@
 
-$lines = Invoke-Sql $schemaSql $SideDb
+$lines = Invoke-Sql $schemaSql
+$tableNames = Invoke-Sql @"
+SELECT TABLE_NAME
+FROM INFORMATION_SCHEMA.TABLES
+WHERE TABLE_TYPE='BASE TABLE' AND TABLE_SCHEMA='dbo' AND TABLE_NAME NOT IN ($excludeList)
+ORDER BY TABLE_NAME;
+"@
+
 $header = @(
-    "# DASH2A production schema from pre-mission backup",
-    "# Backup: $BackupPath",
-    "# Side DB: $SideDb on $Server",
+    '# DASH2A schema for 30 pre-mission tables',
+    "# Source: $Database on $Server",
+    "# Backup reference: $BackupPath",
+    "# Excluded mission tables: $($MissionTables -join ', ')",
     "# Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')",
     "# TableCount: $tableCount",
-    "# Format: TABLE|ORD|COLUMN|TYPE|SIZE|NULLABLE|KEY",
-    ""
+    '#',
+    '# TABLE LIST:',
+    ($tableNames | ForEach-Object { "#   $_" }),
+    '#',
+    '# Format: TABLE|ORD|COLUMN|TYPE|SIZE|NULLABLE|KEY',
+    ''
 )
 
 $outDir = Split-Path -Parent $OutputPath
