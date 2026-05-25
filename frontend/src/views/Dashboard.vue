@@ -20,6 +20,7 @@ const lastInfo = ref(null);
 const resultValutation = ref(null);
 const tableData = ref([]);
 const chartData = ref([]);
+const marginiChartData = ref([]);
 const statisticsData = ref([]);
 const isConnected = ref(false);
 const decisionMethod = ref(null);
@@ -31,6 +32,18 @@ const fetchDashboardData = async () => {
     try {
         const data = await DashboardService.getDashboardData();
         chartData.value = await DashboardService.getChartData();
+        marginiChartData.value = await DashboardService.getMarginiChart();
+        const telemetry = await DashboardService.getTelemetry();
+        if (telemetry) {
+            statisticsData.value = [{
+                timestamp: telemetry.sessionStart ?? new Date().toISOString(),
+                margine: telemetry.margineTot ?? 0,
+                margineMin: telemetry.margineMin ?? 0,
+                margineMax: telemetry.margineMax ?? 0,
+                elapsed: telemetry.elapsed ?? 0,
+                telemetry: telemetry
+            }];
+        }
         if (data) {
             dashboardData.value = data;
             const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
@@ -397,7 +410,7 @@ onUnmounted(async () => {
             </div>
             <StatsWidget :telemetry="latestStatisticData?.telemetry" />
             <div class="col-span-12">
-                <ProfitsChats :title="'Profits Chart'" :chartData="chartData || []" />
+                <ProfitsChats :title="'Profits Chart'" :chartData="marginiChartData.length ? marginiChartData : (chartData || [])" />
             </div>
         </template>
     </div>

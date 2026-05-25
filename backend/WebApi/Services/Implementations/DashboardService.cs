@@ -124,7 +124,10 @@ public class DashboardService : IDashboardService
         {
             SessionStart = row.DataInizio,
             SessionEnd = row.DataFine,
-            MargineTot = row.MargineTot
+            MargineTot = row.MargineTot,
+            MargineMin = row.MargineMin,
+            MargineMax = row.MargineMax,
+            Elapsed = (double)row.Elapsed
         };
 
         if (!string.IsNullOrWhiteSpace(row.Telemetry))

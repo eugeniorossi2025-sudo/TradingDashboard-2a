@@ -33,6 +33,14 @@ export const DashboardService = {
     async stopDashboard(): Promise<void> {
         await apiClient.post('/api/decider/emergency-stop');
     },
-    
-    // 🔹 GET STATISTICS DATA
+
+    async getMarginiChart(limit = 200): Promise<any[]> {
+        const response = await apiClient.get(`/api/Dashboard/margini-chart?limit=${limit}`);
+        return unwrap<any[]>(response) ?? [];
+    },
+
+    async getTelemetry(): Promise<any | null> {
+        const response = await apiClient.get('/api/Dashboard/telemetry');
+        return unwrap<any>(response) ?? null;
+    },
 };

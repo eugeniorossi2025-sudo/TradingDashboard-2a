@@ -240,4 +240,7 @@ public class DashboardTelemetry
     public DateTime? SessionStart { get; set; }
     public DateTime? SessionEnd { get; set; }
     public decimal MargineTot { get; set; }
+    public decimal MargineMin { get; set; }
+    public decimal MargineMax { get; set; }
+    public decimal Elapsed { get; set; }
 }
