@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   deploy-backend:
-    name: Build, Publish, Backup, Swap IIS
+    name: Build, Publish, Swap IIS PhysicalPath
     if: ${{ github.event.inputs.confirm_safe_backend_deploy == 'I_UNDERSTAND_BACKEND_DEPLOY_ONLY' }}
     runs-on:
       - self-hosted
@@ -32,43 +32,89 @@ jobs:
       PUBLISH_DIR: ${{ github.workspace }}\artifacts\backend-publish
       DASH2A_SITE_NAME: demoapp
       DASH2A_APP_POOL: demoapp
-      DASH2A_CURRENT_PATH: C:\inetpub\wwwroot\publish
       DASH2A_RELEASE_ROOT: C:\inetpub\wwwroot\releases
-      DASH2A_BACKUP_ROOT: C:\inetpub\wwwroot\backups
       DASH2A_SMOKE_TEST_URL: http://localhost/api/Auth/test
 
     steps:
       - name: Guard deployment scope
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
           if ('${{ github.event.inputs.confirm_safe_backend_deploy }}' -ne 'I_UNDERSTAND_BACKEND_DEPLOY_ONLY') {
             throw 'Manual confirmation input is invalid.'
           }
           Write-Host 'Backend-only deploy confirmed.'
-          Write-Host 'No DB migrations will be executed.'
-          Write-Host 'No frontend Firebase deploy will be executed.'
-          Write-Host 'No Decisore operation will be executed.'
+          Write-Host 'No DB migrations. No frontend deploy. No Decisore.'
+
+      - name: Check prerequisites
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $failed = @()
+
+          # .NET SDK
+          $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+          if (-not $dotnet) {
+            $dotnet = Get-Command "C:\actions-runner\dotnet\dotnet.exe" -ErrorAction SilentlyContinue
+          }
+          if ($dotnet) {
+            $ver = & $dotnet.Source --version 2>&1
+            Write-Host ".NET SDK: $ver at $($dotnet.Source)"
+          } else {
+            $failed += ".NET SDK non trovato — installare Hosting Bundle sul server"
+          }
+
+          # IIS module
+          $iis = Get-Module -ListAvailable WebAdministration
+          if ($iis) { Write-Host "IIS WebAdministration: OK" }
+          else { $failed += "IIS WebAdministration module non trovato" }
+
+          # IIS site
+          if ($iis) {
+            Import-Module WebAdministration
+            $site = Get-Website -Name "$env:DASH2A_SITE_NAME" -ErrorAction SilentlyContinue
+            if ($site) { Write-Host "IIS site '$env:DASH2A_SITE_NAME': OK — PhysicalPath=$($site.PhysicalPath)" }
+            else { $failed += "IIS site '$env:DASH2A_SITE_NAME' non trovato" }
+
+            $pool = Get-Item "IIS:\AppPools\$env:DASH2A_APP_POOL" -ErrorAction SilentlyContinue
+            if ($pool) { Write-Host "App pool '$env:DASH2A_APP_POOL': OK — State=$($pool.State)" }
+            else { $failed += "App pool '$env:DASH2A_APP_POOL' non trovato" }
+          }
+
+          # Release root
+          if (-not (Test-Path $env:DASH2A_RELEASE_ROOT)) {
+            New-Item -ItemType Directory -Force -Path $env:DASH2A_RELEASE_ROOT | Out-Null
+            Write-Host "Release root creata: $env:DASH2A_RELEASE_ROOT"
+          } else {
+            Write-Host "Release root: OK"
+          }
+
+          if ($failed.Count -gt 0) {
+            Write-Host ""
+            Write-Host "PREREQUISITI MANCANTI:"
+            $failed | ForEach-Object { Write-Host "  - $_" }
+            throw "Prerequisiti non soddisfatti. Deploy bloccato."
+          }
+
+          Write-Host ""
+          Write-Host "Tutti i prerequisiti OK."
 
       - name: Ensure Git in PATH
         shell: powershell
         run: |
-          $gitExe = "C:\Program Files\Git\cmd\git.exe"
-          if (Test-Path $gitExe) { Write-Host "Git presente." } else { Write-Host "WARN: git non trovato" }
           Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
           git config --global --add safe.directory "*"
 
-      - name: Ensure .NET 9 SDK in PATH
+      - name: Ensure .NET SDK in PATH
         shell: powershell
         run: |
           $dotnetDir = "C:\actions-runner\dotnet"
-          if (-not (Test-Path "$dotnetDir\dotnet.exe")) {
-            Write-Host "Installo .NET 9..."
-            Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1" -UseBasicParsing
-            & "$env:TEMP\dotnet-install.ps1" -Channel 9.0 -InstallDir $dotnetDir
+          if (Test-Path "$dotnetDir\dotnet.exe") {
+            Add-Content $env:GITHUB_PATH $dotnetDir
+            Write-Host ".NET SDK aggiunto al PATH da $dotnetDir"
+          } else {
+            Write-Host ".NET SDK trovato nel PATH di sistema"
           }
-          Add-Content $env:GITHUB_PATH $dotnetDir
-          & "$dotnetDir\dotnet.exe" --version
+          dotnet --version
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -94,7 +140,7 @@ jobs:
             --no-build `
             --no-self-contained
 
-      - name: Deploy backend to IIS safely
+      - name: Deploy via IIS PhysicalPath swap
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
@@ -102,7 +148,5 @@ jobs:
             -ArtifactPath $env:PUBLISH_DIR `
             -SiteName $env:DASH2A_SITE_NAME `
             -AppPoolName $env:DASH2A_APP_POOL `
-            -CurrentPath $env:DASH2A_CURRENT_PATH `
             -ReleaseRoot $env:DASH2A_RELEASE_ROOT `
-            -BackupRoot $env:DASH2A_BACKUP_ROOT `
             -SmokeTestUrl $env:DASH2A_SMOKE_TEST_URL

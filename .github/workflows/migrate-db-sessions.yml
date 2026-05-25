@@ -1,5 +1,6 @@
 name: DASH2A DB Migration - Sessions + Samples
 
+# BLOCCATO — richiede prima ALTER SERVER ROLE sysadmin ADD MEMBER [NT AUTHORITY\SYSTEM] sul server
 on:
   workflow_dispatch:
     inputs:

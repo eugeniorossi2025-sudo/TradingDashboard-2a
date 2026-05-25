@@ -1,14 +1,16 @@
 name: Firebase Hosting Live
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'frontend/**'
+  workflow_dispatch:
+    inputs:
+      confirm_frontend_deploy:
+        description: "Type DEPLOY_FRONTEND to deploy Firebase"
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
   build_and_deploy:
+    if: ${{ github.event.inputs.confirm_frontend_deploy == 'DEPLOY_FRONTEND' }}
     runs-on: ubuntu-latest
     env:
       VITE_API_BASE_URL: http://51.83.159.175
