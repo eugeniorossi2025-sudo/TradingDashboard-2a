@@ -1,0 +1,79 @@
+name: DIAG — SQL services status and start SQLEXPRESS01
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Check and start SQLEXPRESS01
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: List all SQL-related services
+        shell: powershell
+        run: |
+          Get-Service | Where-Object { $_.Name -match "SQL|MSSQL" } | Select-Object Name, DisplayName, Status | Format-Table -AutoSize
+
+      - name: Start MSSQL-SQLEXPRESS01 if stopped
+        shell: powershell
+        run: |
+          $svcName = "MSSQL`$SQLEXPRESS01"
+          $svc = Get-Service -Name $svcName -ErrorAction SilentlyContinue
+          if (-not $svc) {
+            Write-Host "Service $svcName : not found"
+          } elseif ($svc.Status -eq "Running") {
+            Write-Host "Service $svcName : already Running"
+          } else {
+            Write-Host "Service $svcName : $($svc.Status) -> starting..."
+            Start-Service -Name $svcName -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 5
+            $svc.Refresh()
+            Write-Host "Service $svcName after start: $($svc.Status)"
+          }
+
+      - name: Connect to SQLEXPRESS01 and list tables
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 3
+          $cs = "Server=.\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            Write-Host "CONNECTION: OK"
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            Write-Host "=== Tables ==="
+            while ($r.Read()) { Write-Host "  $($r[0])" }
+            $r.Close()
+
+            Write-Host "=== Row counts Decisore tables ==="
+            foreach ($t in @("Pc_CurrentStatus","Statistiche","Margini")) {
+              $cmd2 = $conn.CreateCommand()
+              $cmd2.CommandText = "SELECT COUNT(*) FROM dbo.$t"
+              try {
+                $c = $cmd2.ExecuteScalar()
+                Write-Host "  $t : $c rows"
+              } catch {
+                Write-Host "  $t : $($_.Exception.Message)"
+              }
+            }
+            $conn.Close()
+          } catch {
+            Write-Host "CONNECTION ERROR: $($_.Exception.Message)"
+          }
