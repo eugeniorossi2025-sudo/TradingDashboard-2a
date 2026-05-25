@@ -1,0 +1,84 @@
+name: DIAG — Find SQLEXPRESS01 dynamic port
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Find SQLEXPRESS01 port from registry and netstat
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: SQL Browser service status
+        shell: powershell
+        run: |
+          $svc = Get-Service -Name "SQLBrowser" -ErrorAction SilentlyContinue
+          if ($svc) {
+            Write-Host "SQLBrowser status: $($svc.Status)"
+          } else {
+            Write-Host "SQLBrowser: not found"
+          }
+
+      - name: Find SQLEXPRESS01 port from registry
+        shell: powershell
+        run: |
+          $instances = @("SQLEXPRESS01","SQLEXPRESS","MSSQL01","MSSQLSERVER")
+          foreach ($inst in $instances) {
+            $regPath = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$inst\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+            if (Test-Path $regPath) {
+              $port = (Get-ItemProperty $regPath).TcpDynamicPorts
+              $static = (Get-ItemProperty $regPath).TcpPort
+              Write-Host "Instance $inst -> DynamicPort=$port StaticPort=$static"
+            }
+            $regPath2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL16.$inst\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+            if (Test-Path $regPath2) {
+              $port = (Get-ItemProperty $regPath2).TcpDynamicPorts
+              $static = (Get-ItemProperty $regPath2).TcpPort
+              Write-Host "Instance MSSQL16.$inst -> DynamicPort=$port StaticPort=$static"
+            }
+          }
+          Write-Host "=== All SQL registry keys ==="
+          $root = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server"
+          if (Test-Path $root) {
+            Get-ChildItem $root | Select-Object Name | ForEach-Object { Write-Host "  $($_.Name)" }
+          }
+
+      - name: netstat - all listening TCP ports (find SQL)
+        shell: powershell
+        run: |
+          Write-Host "=== sqlservr.exe listening ports ==="
+          $procs = Get-Process -Name "sqlservr" -ErrorAction SilentlyContinue
+          foreach ($p in $procs) {
+            Write-Host "sqlservr PID: $($p.Id)"
+            netstat -ano | findstr "$($p.Id)" | Where-Object { $_ -match "LISTENING" } | ForEach-Object { Write-Host "  $_" }
+          }
+          if (-not $procs) { Write-Host "sqlservr.exe: not running" }
+
+      - name: Try connect with direct port scan 1433-1500 and 49152-49200
+        shell: powershell
+        run: |
+          $portRanges = @(1433..1440) + @(49152..49165)
+          foreach ($p in $portRanges) {
+            $t = New-Object System.Net.Sockets.TcpClient
+            try {
+              $t.Connect("127.0.0.1", $p)
+              if ($t.Connected) {
+                Write-Host "PORT $p : OPEN (local)"
+                $t.Close()
+              }
+            } catch { }
+          }
