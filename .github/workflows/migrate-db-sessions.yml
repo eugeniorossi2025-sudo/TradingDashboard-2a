@@ -38,20 +38,8 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          Write-Host "Connessione a master per creare login SYSTEM e concedere accesso a Eugenio-Demo10..."
-          sqlcmd -S "." -E -Q "
-            IF NOT EXISTS (SELECT * FROM master.sys.server_principals WHERE name = 'NT AUTHORITY\SYSTEM')
-              CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
-          " -W
-          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "
-            IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'NT AUTHORITY\SYSTEM')
-              CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
-            IF IS_ROLEMEMBER('db_datareader','NT AUTHORITY\SYSTEM') = 0
-              ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\SYSTEM];
-            IF IS_ROLEMEMBER('db_datawriter','NT AUTHORITY\SYSTEM') = 0
-              ALTER ROLE db_datawriter ADD MEMBER [NT AUTHORITY\SYSTEM];
-            SELECT DB_NAME() as db, SUSER_NAME() as login, 'ACCESS OK' as status;
-          " -W
+          Write-Host "Grant SYSTEM su Eugenio-Demo10 (singola chiamata, partenza da master)..."
+          sqlcmd -S "." -E -Q "IF NOT EXISTS (SELECT * FROM master.sys.server_principals WHERE name='NT AUTHORITY\SYSTEM') CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS; USE [Eugenio-Demo10]; IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name='NT AUTHORITY\SYSTEM') CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM]; ALTER ROLE db_owner ADD MEMBER [NT AUTHORITY\SYSTEM]; SELECT DB_NAME() as db, SUSER_NAME() as login;" -W
 
       - name: Check current row counts
         shell: powershell
