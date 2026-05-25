@@ -34,28 +34,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Test Windows Auth access to Eugenio-Demo10
+      - name: Grant SYSTEM access to Eugenio-Demo10
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $r = sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT DB_NAME(), SUSER_NAME()" -W 2>&1
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "Windows Auth fallita su Eugenio-Demo10 - provo a concedere accesso a SYSTEM..."
-            sqlcmd -S "." -E -Q "
-              IF NOT EXISTS (SELECT * FROM master.sys.server_principals WHERE name = 'NT AUTHORITY\SYSTEM')
-                CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
-              USE [Eugenio-Demo10];
-              IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'NT AUTHORITY\SYSTEM')
-                CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+          Write-Host "Connessione a master per creare login SYSTEM e concedere accesso a Eugenio-Demo10..."
+          sqlcmd -S "." -E -Q "
+            IF NOT EXISTS (SELECT * FROM master.sys.server_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+              CREATE LOGIN [NT AUTHORITY\SYSTEM] FROM WINDOWS;
+          " -W
+          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "
+            IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = 'NT AUTHORITY\SYSTEM')
+              CREATE USER [NT AUTHORITY\SYSTEM] FOR LOGIN [NT AUTHORITY\SYSTEM];
+            IF IS_ROLEMEMBER('db_datareader','NT AUTHORITY\SYSTEM') = 0
               ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\SYSTEM];
+            IF IS_ROLEMEMBER('db_datawriter','NT AUTHORITY\SYSTEM') = 0
               ALTER ROLE db_datawriter ADD MEMBER [NT AUTHORITY\SYSTEM];
-            " -W
-            Write-Host "Accesso concesso. Ritest..."
-            sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT DB_NAME(), SUSER_NAME()" -W
-          } else {
-            Write-Host $r
-            Write-Host "Accesso OK"
-          }
+            SELECT DB_NAME() as db, SUSER_NAME() as login, 'ACCESS OK' as status;
+          " -W
 
       - name: Check current row counts
         shell: powershell
