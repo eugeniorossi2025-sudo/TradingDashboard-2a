@@ -33,6 +33,7 @@ jobs:
       DASH2A_SITE_NAME: demoapp
       DASH2A_APP_POOL: demoapp
       DASH2A_RELEASE_ROOT: C:\inetpub\wwwroot\releases
+      DASH2A_SHARED_CONFIG: C:\inetpub\wwwroot\shared\appsettings.Production.json
       DASH2A_SMOKE_TEST_URL: http://localhost/api/Auth/test
 
     steps:
@@ -52,13 +53,16 @@ jobs:
           $failed = @()
 
           # .NET SDK
-          $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-          if (-not $dotnet) {
-            $dotnet = Get-Command "C:\actions-runner\dotnet\dotnet.exe" -ErrorAction SilentlyContinue
+          $dotnetExe = "C:\actions-runner\dotnet\dotnet.exe"
+          if (-not (Test-Path $dotnetExe)) {
+            $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+            if ($dotnetCmd) { $dotnetExe = $dotnetCmd.Source }
           }
-          if ($dotnet) {
-            $ver = & $dotnet.Source --version 2>&1
-            Write-Host ".NET SDK: $ver at $($dotnet.Source)"
+          if (Test-Path $dotnetExe) {
+            $env:PATH = "$(Split-Path $dotnetExe -Parent);$env:PATH"
+            $ver = & $dotnetExe --version 2>&1
+            Write-Host ".NET SDK: $ver at $dotnetExe"
+            Add-Content $env:GITHUB_ENV "DOTNET_EXE=$dotnetExe"
           } else {
             $failed += ".NET SDK non trovato - installare Hosting Bundle sul server"
           }
@@ -88,6 +92,13 @@ jobs:
             Write-Host "Release root: OK"
           }
 
+          # Shared production config outside the repo
+          if (Test-Path $env:DASH2A_SHARED_CONFIG) {
+            Write-Host "Shared appsettings.Production.json: OK"
+          } else {
+            $failed += "Shared config mancante: $env:DASH2A_SHARED_CONFIG"
+          }
+
           if ($failed.Count -gt 0) {
             Write-Host ""
             Write-Host "PREREQUISITI MANCANTI:"
@@ -107,25 +118,21 @@ jobs:
       - name: Ensure .NET SDK in PATH
         shell: powershell
         run: |
-          $dotnetDir = "C:\actions-runner\dotnet"
-          if (Test-Path "$dotnetDir\dotnet.exe") {
-            Add-Content $env:GITHUB_PATH $dotnetDir
-            Write-Host ".NET SDK aggiunto al PATH da $dotnetDir"
-          } else {
-            Write-Host ".NET SDK trovato nel PATH di sistema"
-          }
-          dotnet --version
+          $dotnetDir = Split-Path $env:DOTNET_EXE -Parent
+          $env:PATH = "$dotnetDir;$env:PATH"
+          Add-Content $env:GITHUB_PATH $dotnetDir
+          & $env:DOTNET_EXE --info
 
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Restore backend
         shell: powershell
-        run: dotnet restore backend\WebApi\WebApi.csproj
+        run: '& $env:DOTNET_EXE restore backend\WebApi\WebApi.csproj'
 
       - name: Build backend Release
         shell: powershell
-        run: dotnet build backend\WebApi\WebApi.csproj --configuration $env:CONFIGURATION --no-restore
+        run: '& $env:DOTNET_EXE build backend\WebApi\WebApi.csproj --configuration $env:CONFIGURATION --no-restore'
 
       - name: Publish backend Release
         shell: powershell
@@ -134,7 +141,7 @@ jobs:
           if (Test-Path -LiteralPath $env:PUBLISH_DIR) {
             Remove-Item -LiteralPath $env:PUBLISH_DIR -Recurse -Force
           }
-          dotnet publish backend\WebApi\WebApi.csproj `
+          & $env:DOTNET_EXE publish backend\WebApi\WebApi.csproj `
             --configuration $env:CONFIGURATION `
             --output $env:PUBLISH_DIR `
             --no-build `
@@ -149,4 +156,5 @@ jobs:
             -SiteName $env:DASH2A_SITE_NAME `
             -AppPoolName $env:DASH2A_APP_POOL `
             -ReleaseRoot $env:DASH2A_RELEASE_ROOT `
+            -SharedConfigPath $env:DASH2A_SHARED_CONFIG `
             -SmokeTestUrl $env:DASH2A_SMOKE_TEST_URL
