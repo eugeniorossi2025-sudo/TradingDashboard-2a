@@ -12,31 +12,16 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: List all tables via Windows Auth (SYSTEM)
+      - name: List all tables via sa3
         shell: powershell
         run: |
-          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;" -W
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;" -W
 
-      - name: Check sa3 database permissions
+      - name: Query Identity Users table via sa3
         shell: powershell
         run: |
-          $sql = @"
-          USE [Eugenio-Demo10];
-          SELECT dp.name AS principal, dp.type_desc, drm.role_principal_id
-          FROM sys.database_principals dp
-          LEFT JOIN sys.database_role_members drm ON dp.principal_id = drm.member_principal_id
-          WHERE dp.name = 'sa3';
-          SELECT HAS_DBACCESS('Eugenio-Demo10') AS sa3_has_db_access;
-          "@
-          sqlcmd -S "." -E -Q $sql -W
-
-      - name: Query Identity Users table via Windows Auth
-        shell: powershell
-        run: |
-          $tables = sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME LIKE '%User%' OR TABLE_NAME LIKE '%AspNet%';" -W 2>&1
-          Write-Host "USER_TABLES: $tables"
-          sqlcmd -S "." -E -d "Eugenio-Demo10" -Q "
-            SELECT TOP 5
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            SELECT TOP 10
               UserName,
               Email,
               EmailConfirmed,
@@ -44,6 +29,5 @@ jobs:
               LockoutEnd,
               AccessFailedCount,
               CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus
-            FROM AspNetUsers
-            WHERE UserName='admin' OR Email LIKE '%admin%';
+            FROM AspNetUsers;
           " -W
