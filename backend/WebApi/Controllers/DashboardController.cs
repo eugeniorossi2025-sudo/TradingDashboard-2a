@@ -243,4 +243,6 @@ public class DashboardTelemetry
     public decimal MargineMin { get; set; }
     public decimal MargineMax { get; set; }
     public decimal Elapsed { get; set; }
+    /// <summary>Raw TELEMETRY JSON string from dbo.Statistiche — passed through to the frontend as-is.</summary>
+    public string? RawTelemetry { get; set; }
 }

@@ -97,17 +97,20 @@ public class DashboardService : IDashboardService
 
     public async Task<List<ChartDataPoint>> GetMarginiChartAsync(int limit = 200)
     {
-        return await _context.Margini
+        var items = await _context.Margini
             .AsNoTracking()
             .Where(m => m.Data != null)
-            .OrderBy(m => m.Data)
-            .TakeLast(limit)
+            .OrderByDescending(m => m.Data)
+            .Take(limit)
             .Select(m => new ChartDataPoint
             {
                 DateTime = m.Data!.Value,
                 Margine = m.MargineValue ?? 0m
             })
             .ToListAsync();
+
+        items.Reverse();
+        return items;
     }
 
     public async Task<DashboardTelemetry> GetLatestTelemetryAsync()
@@ -127,7 +130,8 @@ public class DashboardService : IDashboardService
             MargineTot = row.MargineTot,
             MargineMin = row.MargineMin,
             MargineMax = row.MargineMax,
-            Elapsed = row.Elapsed
+            Elapsed = row.Elapsed,
+            RawTelemetry = row.Telemetry
         };
 
         if (!string.IsNullOrWhiteSpace(row.Telemetry))

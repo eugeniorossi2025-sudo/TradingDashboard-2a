@@ -41,7 +41,7 @@ const fetchDashboardData = async () => {
                 margineMin: telemetry.margineMin ?? 0,
                 margineMax: telemetry.margineMax ?? 0,
                 elapsed: telemetry.elapsed ?? 0,
-                telemetry: telemetry
+                telemetry: telemetry.rawTelemetry ?? null
             }];
         }
         if (data) {
