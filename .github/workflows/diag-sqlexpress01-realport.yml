@@ -1,0 +1,98 @@
+name: DIAG — SQLEXPRESS01 real port and tables
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Find SQLEXPRESS01 real port and Decisore tables
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: Read MSSQL17.SQLEXPRESS01 registry port
+        shell: powershell
+        run: |
+          $key = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+          if (Test-Path $key) {
+            $props = Get-ItemProperty $key
+            Write-Host "SQLEXPRESS01 DynamicPort : $($props.TcpDynamicPorts)"
+            Write-Host "SQLEXPRESS01 StaticPort  : $($props.TcpPort)"
+          } else {
+            Write-Host "Registry key not found for MSSQL17.SQLEXPRESS01"
+            $alt = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\SQLEXPRESS01\MSSQLServer\SuperSocketNetLib\Tcp\IPAll"
+            if (Test-Path $alt) {
+              $props = Get-ItemProperty $alt
+              Write-Host "Alt SQLEXPRESS01 DynamicPort : $($props.TcpDynamicPorts)"
+              Write-Host "Alt SQLEXPRESS01 StaticPort  : $($props.TcpPort)"
+            }
+          }
+          Write-Host "=== Instance Names ==="
+          $instKey = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"
+          if (Test-Path $instKey) {
+            Get-ItemProperty $instKey | ForEach-Object {
+              $_.PSObject.Properties | Where-Object { $_.Name -notlike "PS*" } | ForEach-Object {
+                Write-Host "  $($_.Name) = $($_.Value)"
+              }
+            }
+          }
+
+      - name: Two-sqlservr processes check
+        shell: powershell
+        run: |
+          $procs = Get-Process -Name "sqlservr" -ErrorAction SilentlyContinue
+          foreach ($p in $procs) {
+            Write-Host "=== sqlservr PID $($p.Id) ==="
+            netstat -ano | Where-Object { $_ -match "LISTENING" -and $_ -match "\s$($p.Id)$" } | ForEach-Object { Write-Host "  $_" }
+          }
+
+      - name: Connect to SQLEXPRESS01 via named pipe (local)
+        shell: powershell
+        run: |
+          $cs = "Server=np:\\.\pipe\MSSQL$SQLEXPRESS01\sql\query;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            Write-Host "NAMED_PIPE_CONNECTION: OK"
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            while ($r.Read()) { Write-Host "  TABLE: $($r[0])" }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "NAMED_PIPE_ERROR: $($_.Exception.Message)"
+          }
+
+      - name: Connect via localhost named instance
+        shell: powershell
+        run: |
+          $cs = "Server=localhost\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            Write-Host "LOCALHOST_INSTANCE_CONNECTION: OK"
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            while ($r.Read()) { Write-Host "  TABLE: $($r[0])" }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "LOCALHOST_INSTANCE_ERROR: $($_.Exception.Message)"
+          }
