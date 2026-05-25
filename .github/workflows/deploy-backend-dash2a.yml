@@ -50,6 +50,25 @@ jobs:
           Write-Host 'No frontend Firebase deploy will be executed.'
           Write-Host 'No Decisore operation will be executed.'
 
+      - name: Ensure Git in PATH
+        shell: powershell
+        run: |
+          $gitExe = "C:\Program Files\Git\cmd\git.exe"
+          if (Test-Path $gitExe) { Write-Host "Git presente." } else { Write-Host "WARN: git non trovato" }
+          Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
+
+      - name: Ensure .NET 9 SDK in PATH
+        shell: powershell
+        run: |
+          $dotnetDir = "C:\actions-runner\dotnet"
+          if (-not (Test-Path "$dotnetDir\dotnet.exe")) {
+            Write-Host "Installo .NET 9..."
+            Invoke-WebRequest -Uri "https://dot.net/v1/dotnet-install.ps1" -OutFile "$env:TEMP\dotnet-install.ps1" -UseBasicParsing
+            & "$env:TEMP\dotnet-install.ps1" -Channel 9.0 -InstallDir $dotnetDir
+          }
+          Add-Content $env:GITHUB_PATH $dotnetDir
+          & "$dotnetDir\dotnet.exe" --version
+
       - name: Checkout
         uses: actions/checkout@v4
 
