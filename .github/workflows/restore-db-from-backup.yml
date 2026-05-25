@@ -4,90 +4,60 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type RESTORE_EUGENIO_DEMO10 to proceed"
+        description: 'Type RESTORE_EUGENIO_DEMO10 to proceed'
         required: true
-        type: string
 
 permissions:
   contents: read
 
 jobs:
   restore-db:
-    name: Restore Eugenio-Demo10 from .bak
-    if: ${{ github.event.inputs.confirm == 'RESTORE_EUGENIO_DEMO10' }}
+    name: Restore Eugenio-Demo10 from backup
+    if: github.event.inputs.confirm == 'RESTORE_EUGENIO_DEMO10'
     runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
     timeout-minutes: 20
 
-    env:
-      BAK_PATH: 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
-      DB_NAME: Eugenio-Demo10
-      SQL_INSTANCE: '.\SQLEXPRESS'
-
     steps:
-      - name: A - Verify backup integrity (sysadmin required)
+      - name: A - Verify backup file exists
         shell: powershell
         run: |
-          Write-Host "=== A. RESTORE VERIFYONLY ==="
-          sqlcmd -S $env:SQL_INSTANCE -E -Q "
-            RESTORE VERIFYONLY FROM DISK = '$env:BAK_PATH';
-          " -W
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "VERIFY_RESULT=FAIL - SYSTEM non ha sysadmin - serve noVNC"
-            exit 0
+          $bak = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+          if (Test-Path $bak) {
+            Write-Host "BACKUP_EXISTS=YES size=$([math]::Round((Get-Item $bak).Length/1MB,2))MB"
+          } else {
+            Write-Error "BACKUP NOT FOUND: $bak"
           }
-          Write-Host "VERIFY_RESULT=OK"
 
-      - name: B - Check current DB state via sa3
+      - name: B - Current DB state (sa3)
         shell: powershell
         run: |
-          Write-Host "=== B. TABELLE ATTUALI ==="
-          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
-            SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';
-            SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;
-          " -W
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';" -W
 
-      - name: C - Restore database (sysadmin required)
+      - name: C - RESTORE VERIFYONLY via Windows Auth
         shell: powershell
         run: |
-          Write-Host "=== C. RESTORE DATABASE ==="
-          $sql = @"
-          ALTER DATABASE [$env:DB_NAME] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
-          RESTORE DATABASE [$env:DB_NAME]
-            FROM DISK = '$env:BAK_PATH'
-            WITH REPLACE,
-                 STATS = 10;
-          ALTER DATABASE [$env:DB_NAME] SET MULTI_USER;
-          PRINT 'RESTORE_COMPLETE';
-          "@
-          sqlcmd -S $env:SQL_INSTANCE -E -Q $sql -W
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "RESTORE_RESULT=FAIL - SYSTEM non ha sysadmin"
-            Write-Host ""
-            Write-Host "=== ESEGUIRE MANUALMENTE VIA NOVNC ==="
-            Write-Host "sqlcmd -S '.\SQLEXPRESS' -E -Q `"ALTER DATABASE [Eugenio-Demo10] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [Eugenio-Demo10] FROM DISK = '$env:BAK_PATH' WITH REPLACE, STATS=10; ALTER DATABASE [Eugenio-Demo10] SET MULTI_USER; PRINT 'DONE';`""
-            exit 1
+          $bak = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+          sqlcmd -S ".\SQLEXPRESS" -E -Q "RESTORE VERIFYONLY FROM DISK = '$bak';" -W
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "VERIFY=OK"
+          } else {
+            Write-Host "VERIFY=FAIL (SYSTEM manca sysadmin - serve noVNC)"
           }
-          Write-Host "RESTORE_RESULT=OK"
 
-      - name: D - Post-restore: verify tables and users
+      - name: D - RESTORE DATABASE WITH REPLACE
         shell: powershell
         run: |
-          Write-Host "=== D. VERIFICA POST-RESTORE ==="
-          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
-            SELECT COUNT(*) AS TableCount FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE';
-            SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;
-          " -W
+          $bak = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup\Eugenio-Demo10_pre_mission_tables_20260524_192426.bak'
+          sqlcmd -S ".\SQLEXPRESS" -E -Q "ALTER DATABASE [Eugenio-Demo10] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; RESTORE DATABASE [Eugenio-Demo10] FROM DISK = '$bak' WITH REPLACE, STATS=10; ALTER DATABASE [Eugenio-Demo10] SET MULTI_USER; PRINT 'RESTORE_DONE';" -W
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "RESTORE=OK"
+          } else {
+            Write-Host "RESTORE=FAIL"
+          }
 
-          Write-Host "=== UTENTI (senza password) ==="
-          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "$env:DB_NAME" -Q "
-            IF OBJECT_ID('dbo.Users') IS NOT NULL
-              SELECT UserName, Email, EmailConfirmed, LockoutEnabled, AccessFailedCount,
-                     CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus
-              FROM dbo.Users;
-            ELSE IF OBJECT_ID('dbo.Users_v2') IS NOT NULL
-              SELECT UserName, Email, EmailConfirmed, LockoutEnabled, AccessFailedCount,
-                     CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus
-              FROM dbo.Users_v2;
-            ELSE
-              PRINT 'Users table not found';
-          " -W
+      - name: E - Post-restore verify
+        shell: powershell
+        run: |
+          Start-Sleep -Seconds 5
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;" -W
+          sqlcmd -S "51.83.159.175,1433" -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT UserName, Email, EmailConfirmed, LockoutEnabled, CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus FROM dbo.Users; ELSE IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT UserName, Email, EmailConfirmed, LockoutEnabled, CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PwdStatus FROM dbo.Users_v2; ELSE PRINT 'no users table';" -W
