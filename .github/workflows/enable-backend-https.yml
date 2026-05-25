@@ -39,5 +39,5 @@ jobs:
       - name: Smoke HTTPS localhost
         shell: powershell
         run: |
-          $r = Invoke-WebRequest -Uri 'https://localhost/api/Auth/test' -UseBasicParsing -SkipCertificateCheck
-          Write-Host "HTTPS localhost smoke: $($r.StatusCode)"
+          $r = Invoke-WebRequest -Uri 'https://vps-b0942869.vps.ovh.net/api/Auth/test' -UseBasicParsing
+          Write-Host "HTTPS smoke: $($r.StatusCode)"
