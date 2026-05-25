@@ -1,0 +1,67 @@
+name: DIAG — SQL Server location probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Find where Decisore DB actually lives
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: Probe - sa login on WebApi SQL Server (51.83.159.175)
+        shell: powershell
+        run: |
+          Write-Host "=== Trying Decisore credentials (sa) on WebApi SQL Server ==="
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=8;"
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('Pc_CurrentStatus','Statistiche','Margini')"
+            $count = $cmd.ExecuteScalar()
+            Write-Host "SA_LOGIN_ON_WEBAPI_SQL : OK"
+            Write-Host "DECISORE_TABLES_FOUND  : $count / 3"
+            $cmd2 = $conn.CreateCommand()
+            $cmd2.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('Pc_CurrentStatus','Statistiche','Margini') ORDER BY TABLE_NAME"
+            $r = $cmd2.ExecuteReader()
+            while ($r.Read()) { Write-Host "  TABLE: $($r[0])" }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "SA_LOGIN_ON_WEBAPI_SQL : FAILED - $($_.Exception.Message)"
+          }
+
+      - name: Probe - sa3 login sees Decisore tables too?
+        shell: powershell
+        run: |
+          Write-Host "=== Checking if sa3 can also see Decisore tables ==="
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=8;"
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME IN ('Pc_CurrentStatus','Statistiche','Margini') ORDER BY TABLE_NAME"
+            $r = $cmd.ExecuteReader()
+            $found = @()
+            while ($r.Read()) { $found += $r[0] }
+            $r.Close()
+            $conn.Close()
+            Write-Host "SA3_SEES_DECISORE_TABLES: $($found -join ', ')"
+          } catch {
+            Write-Host "SA3_PROBE: FAILED - $($_.Exception.Message)"
+          }
