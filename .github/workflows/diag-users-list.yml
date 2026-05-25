@@ -1,0 +1,50 @@
+name: DIAG - List users in DASH2A DB
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    name: List users
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: Query users
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection
+          $conn.ConnectionString = $cs
+          $conn.Open()
+
+          Write-Host "=== Tables with 'User' in name ==="
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = "SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME LIKE '%User%' OR TABLE_NAME LIKE '%user%'"
+          $r = $cmd.ExecuteReader()
+          while ($r.Read()) { Write-Host "  $($r[0])" }
+          $r.Close()
+
+          foreach ($t in @("Users","Users_v2","AspNetUsers")) {
+            $cmd2 = $conn.CreateCommand()
+            $cmd2.CommandText = "IF OBJECT_ID('dbo.$t') IS NOT NULL SELECT TOP 10 * FROM dbo.$t"
+            try {
+              $r2 = $cmd2.ExecuteReader()
+              if ($r2.HasRows) {
+                Write-Host "=== $t ==="
+                while ($r2.Read()) {
+                  $cols = @(); for ($i=0; $i -lt $r2.FieldCount; $i++) { $cols += "$($r2.GetName($i))=$($r2.GetValue($i))" }
+                  Write-Host ($cols -join " | ")
+                }
+              }
+              $r2.Close()
+            } catch { Write-Host "$t error: $($_.Exception.Message)" }
+          }
+          $conn.Close()
