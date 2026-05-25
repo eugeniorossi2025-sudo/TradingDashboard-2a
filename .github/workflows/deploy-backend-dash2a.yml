@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: dash2a-backend-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy-backend:
