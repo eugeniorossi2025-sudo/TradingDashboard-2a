@@ -1,5 +1,9 @@
 namespace WebApi.Options;
 
+/// <summary>
+/// Decider connectivity for diagnostics only (GET /api/decider/config, GET /api/decider/health).
+/// Does not feed dashboard data; Pc_CurrentStatus and missions remain on the WebApi local DB.
+/// </summary>
 public class DeciderOptions
 {
     public const string SectionName = "Decider";

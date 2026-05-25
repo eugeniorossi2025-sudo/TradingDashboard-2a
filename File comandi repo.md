@@ -30,14 +30,19 @@ powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1
 
 Come `Restart APP`, ma alla fine avvia anche WebApi e frontend locali.
 
-URL attesi:
-- WebApi: `http://localhost:5299`
-- Frontend: `http://localhost:5001`
-- Frontend API effettiva default: `http://localhost:5299` (WebApi locale) oppure `http://51.83.159.175` (prod)
-- Decisore VPS (bot + engine): `http://51.210.181.37` — **non** confondere con WebApi
-- Frontend env Decisore: `VITE_DECISORE_BASE_URL=http://51.210.181.37`
-- Dashboard.Url operativo Gamebot: `http://51.210.181.37` (VPS Decisore DASH2A — **non** Dashboard 1)
-- Dashboard.Username operativo Gamebot: `eugenio`
+URL attesi (stack locale-prod-like):
+- Frontend: `http://localhost:5001` → WebApi locale `http://localhost:5299`
+- WebApi → DB locale `Dash2A_LocalProdLike`
+- WebApi → Decider `http://51.178.16.37` **solo** `/api/decider/config` e `/api/decider/health` (nessun sync verso DB)
+- `Pc_CurrentStatus` dashboard: **DB locale**, non Decider live
+
+Stato atteso:
+1. Stack applicativo locale: OK
+2. Decider remoto raggiungibile (health): OK
+3. Dashboard dati live Decider: **NO** (non implementato)
+
+Decisore produzione DASH2A (engine autonomo, VPS separato): `http://51.210.181.37` — non confondere con WebApi.
+Gamebot legacy (Dashboard 1): `http://51.178.16.37` — stack separato, non usato dal frontend Vue DASH2A.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run

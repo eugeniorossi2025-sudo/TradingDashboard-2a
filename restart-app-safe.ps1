@@ -196,7 +196,7 @@ try {
             $connectionString = "Server=(localdb)\MSSQLLocalDB;Database=$LocalDbName;Trusted_Connection=True;MultipleActiveResultSets=true;TrustServerCertificate=True;"
             $backendCommand += "`$env:ASPNETCORE_ENVIRONMENT='$AspNetCoreEnvironment'; `$env:ConnectionStrings__DefaultConnection='$connectionString'; `$env:Database__EnsureCreated='true'; "
             Write-Host "Backend DB locale: $LocalDbName (ASPNETCORE_ENVIRONMENT=$AspNetCoreEnvironment)"
-            Write-Host "Decider remoto: http://51.178.16.37 (config Decider in appsettings.LocalProdLike.json)"
+            Write-Host "Decider remoto (solo config/health): http://51.178.16.37 — nessun sync verso DB locale"
         }
         $backendCommand += "dotnet run --launch-profile LocalProdLike"
 

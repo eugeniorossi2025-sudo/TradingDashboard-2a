@@ -186,7 +186,34 @@
 
 ---
 
-## 8. AMBIENTE LOCALE SVILUPPO
+## 8. AMBIENTE LOCALE SVILUPPO (local prod-like)
+
+### Flusso dati reale
+
+```text
+Frontend locale     http://localhost:5001
+       ↓  VITE_API_BASE_URL=http://localhost:5299
+WebApi locale       http://localhost:5299
+       ↓  ConnectionStrings → Dash2A_LocalProdLike
+DB locale           (localdb)\MSSQLLocalDB / Dash2A_LocalProdLike
+       ↑  Pc_CurrentStatus, missioni, auth — tutto da qui
+
+WebApi locale  ──(solo diagnostica)──►  Decider http://51.178.16.37/api/proactive
+                                        GET /api/decider/config
+                                        GET /api/decider/health (probe reset)
+```
+
+**Non implementato in locale (né in repo):**
+- sync Decider → DB locale
+- dashboard con dati live dal Decider (`Pc_CurrentStatus` resta sul DB locale)
+
+### Stato verificabile
+
+| # | Cosa | Stato |
+|---|---|---|
+| 1 | Stack applicativo locale-prod-like (Vue → WebApi → DB) | OK |
+| 2 | Decider remoto raggiungibile via `/api/decider/health` | OK |
+| 3 | Dashboard con dati live dal Decider | **NO** — non implementato |
 
 | Parametro | Valore |
 |---|---|
@@ -194,8 +221,8 @@
 | Frontend porta | `http://localhost:5001` |
 | DB locale | `(localdb)\MSSQLLocalDB`, database `Dash2A_LocalProdLike` |
 | Profilo ASP.NET | `LocalProdLike` → `appsettings.LocalProdLike.json` |
-| Decisore reale | VPS `51.210.181.37` — HTTP `:5286` interno (non esposto esternamente); SQL `:1433` |
-| Decisore RDP | `administrator` — password in GitHub Secret (non committare) |
+| Decider (solo config/health) | `http://51.178.16.37` — probe `/api/proactive/reset`; **non** alimenta la dashboard |
+| Decisore produzione DASH2A (VPS separato) | `51.210.181.37` — engine autonomo, DB proprio |
 | Config riferimento | `ops/dash2a-readiness/local-prod-like.env.example` |
 | Admin locale | `admin` / `Admin@123456` |
 | SMTP | Configurato (Gmail app password) |

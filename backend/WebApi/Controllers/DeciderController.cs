@@ -6,6 +6,10 @@ using WebApi.Models;
 
 namespace WebApi.Controllers;
 
+/// <summary>
+/// Exposes Decider configuration and reachability probes only.
+/// Not part of the dashboard data pipeline; no Decider-to-local-DB sync.
+/// </summary>
 [ApiController]
 [Route("api/decider")]
 [Produces("application/json")]
