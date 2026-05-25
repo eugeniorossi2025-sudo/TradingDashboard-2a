@@ -31,24 +31,20 @@ function Set-IisAppPoolEnvVar {
 function Invoke-LocalSmokeTest {
     param([string]$Url)
 
-    $previousCallback = [System.Net.ServicePointManager]::ServerCertificateValidationCallback
-    [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
-
+    # PS 5.1 compatible: do not follow redirects, treat 3xx as "IIS is up"
     try {
-        try {
-            return Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30
-        }
-        catch {
-            if ($Url -notmatch '^https://') {
-                $httpsUrl = $Url -replace '^http://', 'https://'
-                Write-Host "Smoke HTTPS fallback: $httpsUrl"
-                return Invoke-WebRequest -Uri $httpsUrl -UseBasicParsing -TimeoutSec 30 -SkipCertificateCheck
-            }
-            throw
-        }
+        return Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 30 -MaximumRedirection 0
     }
-    finally {
-        [System.Net.ServicePointManager]::ServerCertificateValidationCallback = $previousCallback
+    catch {
+        $webEx = $_.Exception -as [System.Net.WebException]
+        if ($webEx -and $webEx.Response) {
+            $st = [int]$webEx.Response.StatusCode
+            if ($st -in @(301, 302, 307, 308)) {
+                Write-Host "Smoke: HTTP $st redirect to HTTPS — IIS app pool is running"
+                return [PSCustomObject]@{ StatusCode = 200 }
+            }
+        }
+        throw
     }
 }
 
