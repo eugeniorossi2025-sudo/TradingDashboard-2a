@@ -26,17 +26,26 @@ jobs:
       - name: Get JWT token and test endpoints
         shell: powershell
         run: |
+          # PS 5.1 compatible SSL bypass
+          Add-Type @"
+            using System.Net; using System.Security.Cryptography.X509Certificates;
+            public class TrustAll : ICertificatePolicy {
+              public bool CheckValidationResult(ServicePoint sp, X509Certificate cert, WebRequest req, int problem) { return true; }
+            }
+"@
+          [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAll
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
+
           $base = "https://localhost"
 
           # 1. Login
           $loginBody = @{ email = "admin@dash2a.local"; password = "Admin123!" } | ConvertTo-Json
           try {
-            $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json" -SkipCertificateCheck
+            $login = Invoke-RestMethod -Uri "$base/api/auth/login" -Method POST -Body $loginBody -ContentType "application/json"
             $token = $login.token
-            Write-Host "LOGIN: OK — token obtained"
+            Write-Host "LOGIN: OK"
           } catch {
             Write-Host "LOGIN FAILED: $($_.Exception.Message)"
-            Write-Host "Trying without auth..."
             $token = $null
           }
 
@@ -44,7 +53,7 @@ jobs:
 
           # 2. Test /api/dashboard/telemetry
           try {
-            $t = Invoke-RestMethod -Uri "$base/api/dashboard/telemetry" -Method GET -Headers $headers -SkipCertificateCheck
+            $t = Invoke-RestMethod -Uri "$base/api/dashboard/telemetry" -Method GET -Headers $headers
             Write-Host "TELEMETRY: OK"
             Write-Host ($t | ConvertTo-Json -Depth 4 -Compress)
           } catch {
@@ -53,8 +62,8 @@ jobs:
 
           # 3. Test /api/dashboard/margini-chart
           try {
-            $m = Invoke-RestMethod -Uri "$base/api/dashboard/margini-chart" -Method GET -Headers $headers -SkipCertificateCheck
-            Write-Host "MARGINI: OK — $($m.Count) points"
+            $m = Invoke-RestMethod -Uri "$base/api/dashboard/margini-chart" -Method GET -Headers $headers
+            Write-Host "MARGINI: OK - $($m.Count) points"
             $m | Select-Object -First 5 | ForEach-Object { Write-Host "  $($_ | ConvertTo-Json -Compress)" }
           } catch {
             Write-Host "MARGINI: FAILED - $($_.Exception.Message)"
@@ -62,7 +71,7 @@ jobs:
 
           # 4. Test /api/dashboard/status
           try {
-            $s = Invoke-RestMethod -Uri "$base/api/dashboard/status" -Method GET -Headers $headers -SkipCertificateCheck
+            $s = Invoke-RestMethod -Uri "$base/api/dashboard/status" -Method GET -Headers $headers
             Write-Host "STATUS: OK"
             Write-Host ($s | ConvertTo-Json -Depth 3 -Compress)
           } catch {
