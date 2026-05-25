@@ -12,12 +12,17 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Query dbo.Users read-only
+      - name: List all tables in Eugenio-Demo10
+        shell: powershell
+        run: |
+          sqlcmd -S "." -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "SELECT TABLE_SCHEMA, TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE='BASE TABLE' ORDER BY TABLE_NAME;" -W
+
+      - name: Query Users table read-only
         shell: powershell
         run: |
           $sql = @"
           USE [Eugenio-Demo10];
-          SELECT
+          SELECT TOP 5
             UserName,
             Email,
             EmailConfirmed,
@@ -25,7 +30,7 @@ jobs:
             LockoutEnd,
             AccessFailedCount,
             CASE WHEN PasswordHash IS NULL THEN 'NO_HASH' ELSE 'HAS_HASH' END AS PasswordHashStatus
-          FROM dbo.AspNetUsers
+          FROM dbo.Users
           WHERE UserName = 'admin' OR Email LIKE '%admin%';
           "@
           sqlcmd -S "." -U sa3 -P "LionGest123@" -Q $sql -W
