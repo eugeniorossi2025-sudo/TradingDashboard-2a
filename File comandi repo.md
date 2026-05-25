@@ -41,8 +41,8 @@ Stato atteso:
 2. Decider remoto raggiungibile (health): OK
 3. Dashboard dati live Decider: **NO** (non implementato)
 
-Decisore produzione DASH2A (engine autonomo, VPS separato): `http://51.210.181.37` — non confondere con WebApi.
-Gamebot legacy (Dashboard 1): `http://51.178.16.37` — stack separato, non usato dal frontend Vue DASH2A.
+Decisore produzione DASH2A (engine autonomo): `http://51.178.16.37/api/proactive` — non confondere con WebApi dashboard.
+Gamebot legacy (Dashboard 1): stesso host storico `51.178.16.37` — stack separato, non usato dal frontend Vue DASH2A.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\restart-app-safe.ps1 -Run
