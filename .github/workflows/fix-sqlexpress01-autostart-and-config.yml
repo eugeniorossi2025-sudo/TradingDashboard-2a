@@ -1,0 +1,76 @@
+name: FIX — SQLEXPRESS01 autostart + update shared appsettings port 1434
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIX_APPLY to confirm"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Set SQLEXPRESS01 autostart and update production config
+    if: ${{ github.event.inputs.confirm == 'FIX_APPLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Set SQLEXPRESS01 to Automatic startup
+        shell: powershell
+        run: |
+          Set-Service -Name "MSSQL`$SQLEXPRESS01" -StartupType Automatic
+          $svc = Get-Service -Name "MSSQL`$SQLEXPRESS01"
+          if ($svc.Status -ne "Running") { Start-Service -Name "MSSQL`$SQLEXPRESS01" }
+          Start-Sleep -Seconds 3
+          $svc.Refresh()
+          Write-Host "MSSQL-SQLEXPRESS01 StartupType: Automatic"
+          Write-Host "MSSQL-SQLEXPRESS01 Status: $($svc.Status)"
+
+      - name: Update shared appsettings.Production.json with port 1434
+        shell: powershell
+        run: |
+          $path = "C:\inetpub\wwwroot\shared\appsettings.Production.json"
+          if (-not (Test-Path $path)) {
+            Write-Host "ERROR: shared appsettings not found at $path"
+            exit 1
+          }
+          $json = Get-Content $path -Raw | ConvertFrom-Json
+          $old = $json.ConnectionStrings.DefaultConnection
+          Write-Host "OLD connection string: $($old -replace 'Password=[^;]*','Password=***')"
+          $json.ConnectionStrings.DefaultConnection = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;"
+          $json | ConvertTo-Json -Depth 10 | Set-Content $path -Encoding UTF8
+          $verify = (Get-Content $path -Raw | ConvertFrom-Json).ConnectionStrings.DefaultConnection
+          Write-Host "NEW connection string: $($verify -replace 'Password=[^;]*','Password=***')"
+          Write-Host "CONFIG_UPDATED: OK"
+
+      - name: Verify SQL connection with new config
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.Pc_CurrentStatus"
+            $c1 = $cmd.ExecuteScalar()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.Statistiche"
+            $c2 = $cmd.ExecuteScalar()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.Margini"
+            $c3 = $cmd.ExecuteScalar()
+            $conn.Close()
+            Write-Host "SQL_VERIFY: OK"
+            Write-Host "Pc_CurrentStatus : $c1 rows"
+            Write-Host "Statistiche      : $c2 rows"
+            Write-Host "Margini          : $c3 rows"
+          } catch {
+            Write-Host "SQL_VERIFY: FAILED - $($_.Exception.Message)"
+          }
