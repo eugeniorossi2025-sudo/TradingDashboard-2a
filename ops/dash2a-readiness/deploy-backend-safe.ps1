@@ -76,21 +76,24 @@ $appOffline = Join-Path $CurrentPath 'app_offline.htm'
 $previousPath = "$CurrentPath.previous-$timestamp"
 
 try {
-    Write-Step 'Taking app offline for controlled file swap'
-    '<html><body>DASH2A backend deployment in progress.</body></html>' | Set-Content -LiteralPath $appOffline -Encoding UTF8
-    Start-Sleep -Seconds 2
+    Write-Step 'Stopping app pool to release file locks'
+    Stop-WebAppPool -Name $AppPoolName
+    $waited = 0
+    do {
+        Start-Sleep -Seconds 2
+        $waited += 2
+        $state = (Get-WebAppPoolState -Name $AppPoolName).Value
+    } while ($state -ne 'Stopped' -and $waited -lt 30)
+    if ($state -ne 'Stopped') { throw "App pool did not stop within 30s (state: $state)" }
+    Write-Host "App pool stopped after ${waited}s"
 
     Write-Step 'Swapping publish directory'
     Rename-Item -LiteralPath $CurrentPath -NewName (Split-Path $previousPath -Leaf)
     New-Item -ItemType Directory -Force -Path $CurrentPath | Out-Null
     Copy-DirectoryContents -Source $releasePath -Destination $CurrentPath
 
-    if (Test-Path -LiteralPath $appOffline) {
-        Remove-Item -LiteralPath $appOffline -Force
-    }
-
-    Write-Step "Recycling app pool only: $AppPoolName"
-    Restart-WebAppPool -Name $AppPoolName
+    Write-Step "Starting app pool: $AppPoolName"
+    Start-WebAppPool -Name $AppPoolName
     Start-Sleep -Seconds 10
 
     Write-Step "Smoke test: $SmokeTestUrl"
@@ -123,6 +126,6 @@ catch {
         Copy-DirectoryContents -Source $backupPath -Destination $CurrentPath
     }
 
-    Restart-WebAppPool -Name $AppPoolName
+    Start-WebAppPool -Name $AppPoolName
     throw
 }
