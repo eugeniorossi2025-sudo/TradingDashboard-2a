@@ -12,7 +12,7 @@ public class DeciderOptions
 
     public string Mode { get; set; } = "Remote";
 
-    public string BaseUrl { get; set; } = "http://51.210.181.37";
+    public string BaseUrl { get; set; } = "http://51.178.16.37";
 
     public string ApiBasePath { get; set; } = "/api/proactive";
 

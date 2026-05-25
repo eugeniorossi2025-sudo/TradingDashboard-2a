@@ -1,0 +1,43 @@
+name: DASH2A Enable Backend HTTPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_https:
+        description: "Type ENABLE_HTTPS to configure IIS 443 on 51.83.159.175"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  enable-https:
+    if: ${{ github.event.inputs.confirm_https == 'ENABLE_HTTPS' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable IIS HTTPS (Let's Encrypt via win-acme)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ('${{ github.event.inputs.confirm_https }}' -ne 'ENABLE_HTTPS') {
+            throw 'Confirmation input invalid.'
+          }
+          Write-Host 'DASH2A HTTPS only — no DB, no frontend deploy.'
+          powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\enable-iis-https.ps1 `
+            -SiteName demoapp `
+            -Hostname vps-b0942869.vps.ovh.net `
+            -ContactEmail ak47129898@gmail.com
+
+      - name: Smoke HTTPS localhost
+        shell: powershell
+        run: |
+          $r = Invoke-WebRequest -Uri 'https://localhost/api/Auth/test' -UseBasicParsing -SkipCertificateCheck
+          Write-Host "HTTPS localhost smoke: $($r.StatusCode)"
