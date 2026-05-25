@@ -25,22 +25,22 @@ jobs:
         run: |
           Write-Host "TEST ONLY - No IIS changes, no deploy, no DB changes."
 
-      - name: Ensure Git is in PATH
+      - name: Ensure Git is installed and in GITHUB_PATH
         shell: powershell
         run: |
           $gitCmd = "C:\Program Files\Git\cmd\git.exe"
-          if (Test-Path $gitCmd) {
-            Write-Host "Git gia installato."
-          } else {
+          if (-not (Test-Path $gitCmd)) {
             Write-Host "Git non trovato - scarico e installo..."
             $installer = "$env:TEMP\git-installer.exe"
             Invoke-WebRequest -Uri "https://github.com/git-for-windows/git/releases/download/v2.45.2.windows.1/Git-2.45.2-64-bit.exe" -OutFile $installer -UseBasicParsing
             Start-Process -FilePath $installer -ArgumentList "/VERYSILENT /NORESTART /NOCANCEL /SP-" -Wait
             Write-Host "Git installato."
+          } else {
+            Write-Host "Git gia presente."
           }
-          $env:PATH = "C:\Program Files\Git\cmd;$env:PATH"
-          [System.Environment]::SetEnvironmentVariable("PATH", $env:PATH, "Process")
-          git --version
+          # Aggiungo al GITHUB_PATH per tutti i passi successivi
+          Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
+          & "C:\Program Files\Git\cmd\git.exe" --version
 
       - name: Checkout
         uses: actions/checkout@v4
