@@ -21,12 +21,16 @@ jobs:
             SELECT 'Users_v2' AS T, COUNT(*) AS C FROM sys.tables WHERE name='Users_v2';
           " -W
           sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
-            IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT 'Users' AS Src, COUNT(*) AS RowCount FROM dbo.Users;
-            IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT 'Users_v2' AS Src, COUNT(*) AS RowCount FROM dbo.Users_v2;
+            IF OBJECT_ID('dbo.Users') IS NOT NULL SELECT 'Users' AS Src, COUNT(*) AS UserCnt FROM dbo.Users;
+            IF OBJECT_ID('dbo.Users_v2') IS NOT NULL SELECT 'Users_v2' AS Src, COUNT(*) AS UserCnt FROM dbo.Users_v2;
           " -W
           sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
-            IF OBJECT_ID('dbo.Users') IS NOT NULL
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Users' ORDER BY ORDINAL_POSITION;
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Users_v2' ORDER BY ORDINAL_POSITION;
+          " -W
+          sqlcmd -S $s -U sa3 -P "LionGest123@" -d "Eugenio-Demo10" -Q "
+            IF COL_LENGTH('dbo.Users','PasswordHash') IS NOT NULL
               SELECT TOP 5 UserName, CASE WHEN PasswordHash IS NULL THEN 'NO' ELSE 'YES' END AS HasPwd FROM dbo.Users;
-            IF OBJECT_ID('dbo.Users_v2') IS NOT NULL
-              SELECT TOP 5 * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='Users_v2' ORDER BY ORDINAL_POSITION;
+            ELSE IF COL_LENGTH('dbo.Users','UserName') IS NOT NULL
+              SELECT TOP 5 * FROM dbo.Users;
           " -W
