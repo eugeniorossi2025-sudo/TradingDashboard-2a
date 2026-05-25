@@ -1,4 +1,4 @@
-name: TEST — Live dashboard endpoints telemetry + margini
+name: TEST - Live dashboard endpoints telemetry and margini
 
 on:
   workflow_dispatch:
