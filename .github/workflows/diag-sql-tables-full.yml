@@ -1,0 +1,42 @@
+name: DIAG — Full table list in Eugenio-Demo10
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: List all tables visible to sa3
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: List all tables in Eugenio-Demo10 via sa3
+        shell: powershell
+        run: |
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=8;"
+            $conn.Open()
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            Write-Host "=== All tables in Eugenio-Demo10 (sa3) ==="
+            while ($r.Read()) { Write-Host "  $($r[0])" }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "ERROR: $($_.Exception.Message)"
+          }
