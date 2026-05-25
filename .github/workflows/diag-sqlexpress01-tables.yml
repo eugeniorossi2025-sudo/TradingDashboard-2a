@@ -1,0 +1,65 @@
+name: DIAG — Tables on SQLEXPRESS01 named instance
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Check Decisore tables on SQLEXPRESS01
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 3
+
+    steps:
+      - name: List all tables on SQLEXPRESS01 via sa3
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          Write-Host "=== Connecting to SQLEXPRESS01 ==="
+          try {
+            $conn = New-Object System.Data.SqlClient.SqlConnection
+            $conn.ConnectionString = $cs
+            $conn.Open()
+            Write-Host "CONNECTION: OK"
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT name FROM sys.tables ORDER BY name"
+            $r = $cmd.ExecuteReader()
+            Write-Host "=== Tables ==="
+            while ($r.Read()) { Write-Host "  $($r[0])" }
+            $r.Close()
+            $conn.Close()
+          } catch {
+            Write-Host "ERROR: $($_.Exception.Message)"
+          }
+
+      - name: Row counts for Decisore tables
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175\SQLEXPRESS01;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $tables = @("Pc_CurrentStatus","Statistiche","Margini")
+          foreach ($t in $tables) {
+            try {
+              $conn = New-Object System.Data.SqlClient.SqlConnection
+              $conn.ConnectionString = $cs
+              $conn.Open()
+              $cmd = $conn.CreateCommand()
+              $cmd.CommandText = "SELECT COUNT(*) FROM dbo.$t"
+              $count = $cmd.ExecuteScalar()
+              Write-Host "$t : $count rows"
+              $conn.Close()
+            } catch {
+              Write-Host "$t : $($_.Exception.Message)"
+            }
+          }
