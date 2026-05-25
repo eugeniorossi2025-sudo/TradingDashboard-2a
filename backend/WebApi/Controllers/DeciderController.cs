@@ -39,6 +39,50 @@ public class DeciderController : ControllerBase
         }));
     }
 
+    [HttpPost("reset")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> TriggerReset(CancellationToken cancellationToken)
+    {
+        var url = _options.ProactiveUrl("reset");
+        var client = _httpClientFactory.CreateClient(nameof(DeciderController));
+        client.Timeout = TimeSpan.FromSeconds(15);
+        try
+        {
+            var response = await client.GetAsync(url, cancellationToken);
+            return response.IsSuccessStatusCode
+                ? Ok(ApiResponse<object>.SuccessResponse(new { url }, "Reset inviato al Decisore"))
+                : StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore ha risposto {(int)response.StatusCode}"));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore non raggiungibile: {ex.Message}"));
+        }
+    }
+
+    [HttpPost("emergency-stop")]
+    [Authorize(Roles = "Admin")]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status502BadGateway)]
+    public async Task<IActionResult> TriggerEmergencyStop(CancellationToken cancellationToken)
+    {
+        var url = _options.ProactiveUrl("emergency-stop");
+        var client = _httpClientFactory.CreateClient(nameof(DeciderController));
+        client.Timeout = TimeSpan.FromSeconds(15);
+        try
+        {
+            var response = await client.GetAsync(url, cancellationToken);
+            return response.IsSuccessStatusCode
+                ? Ok(ApiResponse<object>.SuccessResponse(new { url }, "Emergency stop inviato al Decisore"))
+                : StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore ha risposto {(int)response.StatusCode}"));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore non raggiungibile: {ex.Message}"));
+        }
+    }
+
     [HttpGet("health")]
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Health(CancellationToken cancellationToken)
