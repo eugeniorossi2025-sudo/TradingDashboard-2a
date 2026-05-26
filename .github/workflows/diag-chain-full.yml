@@ -1,0 +1,143 @@
+name: DIAG - Full chain validation DASH2A
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Full chain check
+        shell: powershell
+        run: |
+          Write-Host "============================================"
+          Write-Host "1. WEBAPI CONFIG SUL SERVER"
+          Write-Host "============================================"
+
+          $prodConfig = "C:\inetpub\wwwroot\shared\appsettings.Production.json"
+          if (Test-Path $prodConfig) {
+            Write-Host "appsettings.Production.json TROVATO:"
+            Get-Content $prodConfig | Select-String -Pattern "Server|Connection|Decider|Base|1433|1434|Runtime|Collaudo" | ForEach-Object { Write-Host "  $_" }
+          } else {
+            Write-Host "appsettings.Production.json NON TROVATO su $prodConfig"
+          }
+
+          # Cerca in tutti i path IIS
+          Write-Host ""
+          Write-Host "Path IIS wwwroot:"
+          Get-ChildItem "C:\inetpub\wwwroot\" -Recurse -Filter "appsettings*.json" -ErrorAction SilentlyContinue |
+            Select-Object FullName | ForEach-Object { Write-Host "  $($_.FullName)" }
+
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "2. TABELLE SU 1433 (WebApi DB)"
+          Write-Host "============================================"
+          $cs1433 = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $conn1433 = New-Object System.Data.SqlClient.SqlConnection($cs1433)
+          $conn1433.Open()
+          $cmd = $conn1433.CreateCommand()
+          $cmd.CommandText = "SELECT name FROM sys.objects WHERE type='U' ORDER BY name"
+          $r = $cmd.ExecuteReader()
+          while ($r.Read()) { Write-Host "  $($r['name'])" }
+          $r.Close()
+          $conn1433.Close()
+
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "3. TABELLE SU 1434 (Decisore DB)"
+          Write-Host "============================================"
+          $cs1434 = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $conn1434 = New-Object System.Data.SqlClient.SqlConnection($cs1434)
+          $conn1434.Open()
+          $cmd2 = $conn1434.CreateCommand()
+          $cmd2.CommandText = "SELECT name FROM sys.objects WHERE type='U' ORDER BY name"
+          $r2 = $cmd2.ExecuteReader()
+          while ($r2.Read()) { Write-Host "  $($r2['name'])" }
+          $r2.Close()
+          $conn1434.Close()
+
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "4. TEST API WEBAPI (dal runner locale)"
+          Write-Host "============================================"
+          # Auth test
+          try {
+            $at = Invoke-WebRequest -Uri "http://127.0.0.1/api/Auth/test" -TimeoutSec 5 -UseBasicParsing
+            Write-Host "Auth/test: $($at.StatusCode)"
+          } catch { Write-Host "Auth/test: ERRORE $($_.Exception.Message)" }
+
+          # Login
+          $loginBody = '{"username":"admin","password":"Admin@123456"}'
+          try {
+            $lr = Invoke-RestMethod -Uri "http://127.0.0.1/api/Auth/login" -Method POST -Body $loginBody -ContentType "application/json" -TimeoutSec 5
+            $tok = $lr.data.token
+            Write-Host "Login: OK - token $(if($tok){$tok.Substring(0,[Math]::Min(20,$tok.Length))}...)"
+            $h = @{ Authorization = "Bearer $tok" }
+
+            # Dashboard data
+            $dd = Invoke-RestMethod -Uri "http://127.0.0.1/api/Dashboard/data" -Headers $h -TimeoutSec 5
+            Write-Host "Dashboard/data: OK - tabelle=$($dd.data.tables.Count) margine=$($dd.data.statistics.totalMargine)"
+
+            # Runtime mode
+            $rm = Invoke-RestMethod -Uri "http://127.0.0.1/api/runtime-mode" -Headers $h -TimeoutSec 5
+            Write-Host "Runtime mode: $($rm.data)"
+
+            # Decider config
+            $dc = Invoke-RestMethod -Uri "http://127.0.0.1/api/decider/config" -Headers $h -TimeoutSec 5
+            Write-Host "Decider config: enabled=$($dc.data.enabled) baseUrl=$($dc.data.baseUrl)"
+
+            # Decider health
+            $dh = Invoke-RestMethod -Uri "http://127.0.0.1/api/decider/health" -Headers $h -TimeoutSec 10
+            Write-Host "Decider health: reachable=$($dh.data.reachable) status=$($dh.data.statusCode) url=$($dh.data.url)"
+
+          } catch { Write-Host "Login/API: ERRORE $($_.Exception.Message)" }
+
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "5. Pc_CurrentStatus su 1433: righe e ultimi update"
+          Write-Host "============================================"
+          $conn1433b = New-Object System.Data.SqlClient.SqlConnection($cs1433)
+          $conn1433b.Open()
+          try {
+            $cmdpc = $conn1433b.CreateCommand()
+            $cmdpc.CommandText = "SELECT COUNT(*) FROM dbo.Pc_CurrentStatus"
+            $cnt = $cmdpc.ExecuteScalar()
+            Write-Host "Pc_CurrentStatus su 1433: $cnt righe"
+
+            if ($cnt -gt 0) {
+              $cmdpc2 = $conn1433b.CreateCommand()
+              $cmdpc2.CommandText = "SELECT TOP 3 COMPUTER, MARGINE, LAST_UPDATE FROM dbo.Pc_CurrentStatus ORDER BY LAST_UPDATE DESC"
+              $rpc = $cmdpc2.ExecuteReader()
+              while ($rpc.Read()) { Write-Host "  COMPUTER=$($rpc['COMPUTER']) MARGINE=$($rpc['MARGINE']) LAST_UPDATE=$($rpc['LAST_UPDATE'])" }
+              $rpc.Close()
+            }
+          } catch { Write-Host "Pc_CurrentStatus su 1433: $($_.Exception.Message)" }
+          $conn1433b.Close()
+
+          Write-Host ""
+          Write-Host "============================================"
+          Write-Host "6. Pc_CurrentStatus su 1434: righe e ultimi update"
+          Write-Host "============================================"
+          $conn1434b = New-Object System.Data.SqlClient.SqlConnection($cs1434)
+          $conn1434b.Open()
+          $cmdpc3 = $conn1434b.CreateCommand()
+          $cmdpc3.CommandText = "SELECT COUNT(*) FROM dbo.Pc_CurrentStatus"
+          $cnt2 = $cmdpc3.ExecuteScalar()
+          Write-Host "Pc_CurrentStatus su 1434: $cnt2 righe"
+          if ($cnt2 -gt 0) {
+            $cmdpc4 = $conn1434b.CreateCommand()
+            $cmdpc4.CommandText = "SELECT TOP 5 COMPUTER, MARGINE, LAST_UPDATE FROM dbo.Pc_CurrentStatus ORDER BY LAST_UPDATE DESC"
+            $rpc2 = $cmdpc4.ExecuteReader()
+            while ($rpc2.Read()) { Write-Host "  COMPUTER=$($rpc2['COMPUTER']) MARGINE=$($rpc2['MARGINE']) LAST_UPDATE=$($rpc2['LAST_UPDATE'])" }
+            $rpc2.Close()
+          }
+          $conn1434b.Close()
