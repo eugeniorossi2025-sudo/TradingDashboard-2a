@@ -15,8 +15,8 @@
 
 param(
     [string]$ArtifactPath       = '',
-    [string]$SiteName           = 'decisore',
-    [string]$AppPoolName        = 'decisore',
+    [string]$SiteName           = 'default',
+    [string]$AppPoolName        = 'Proactive',
     [string]$ReleaseRoot        = 'C:\inetpub\decisore\releases',
     [string]$SharedConfigPath   = 'C:\inetpub\decisore\shared\appsettings.Production.json',
     [string]$HealthUrl          = 'http://127.0.0.1/api/proactive/health',
