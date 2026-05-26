@@ -1,4 +1,4 @@
-name: FIX — Create dbo.Statistiche for Decisore
+name: FIX - Create dbo.Statistiche for Decisore
 
 on:
   workflow_dispatch:
@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   fix:
-    name: Create dbo.Statistiche + fix Decisore appsettings port
+    name: Create dbo.Statistiche and fix Decisore
     if: ${{ github.event.inputs.confirm == 'FIX_STATISTICHE' }}
     runs-on:
       - self-hosted
@@ -23,92 +23,40 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: "1 — Create dbo.Statistiche on SQLEXPRESS01:1434"
+      - name: Create dbo.Statistiche on SQLEXPRESS01 port 1434
         shell: powershell
         run: |
           $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
-          Write-Host "=== Connessione a SQLEXPRESS01:1434 ==="
+          $sql = "IF NOT EXISTS (SELECT 1 FROM sys.objects WHERE object_id=OBJECT_ID(N'dbo.Statistiche') AND type='U') BEGIN CREATE TABLE dbo.Statistiche (ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY, DATA_INIZIO DATETIME NULL, DATA_FINE DATETIME NULL, MARGINE_TOT DECIMAL(18,2) NULL DEFAULT 0, MARGINE_MIN DECIMAL(18,2) NULL DEFAULT 0, MARGINE_MAX DECIMAL(18,2) NULL DEFAULT 0, ELAPSED DECIMAL(18,4) NULL DEFAULT 0, TELEMETRY NVARCHAR(MAX) NULL); PRINT 'CREATA' END ELSE PRINT 'GIA ESISTE'"
+          Write-Host "Connessione a SQLEXPRESS01:1434..."
           $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
           $conn.Open()
           Write-Host "Connesso OK"
-
           $cmd = $conn.CreateCommand()
-          $cmd.CommandText = @"
-          IF NOT EXISTS (
-            SELECT 1 FROM sys.objects
-            WHERE object_id = OBJECT_ID(N'dbo.Statistiche') AND type = 'U'
-          )
-          BEGIN
-            CREATE TABLE dbo.Statistiche (
-              ID          INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-              DATA_INIZIO DATETIME          NULL,
-              DATA_FINE   DATETIME          NULL,
-              MARGINE_TOT DECIMAL(18,2)     NULL CONSTRAINT DF_Stat_MargTot DEFAULT 0,
-              MARGINE_MIN DECIMAL(18,2)     NULL CONSTRAINT DF_Stat_MargMin DEFAULT 0,
-              MARGINE_MAX DECIMAL(18,2)     NULL CONSTRAINT DF_Stat_MargMax DEFAULT 0,
-              ELAPSED     DECIMAL(18,4)     NULL CONSTRAINT DF_Stat_Elapsed DEFAULT 0,
-              TELEMETRY   NVARCHAR(MAX)     NULL
-            )
-            PRINT 'dbo.Statistiche CREATA'
-          END
-          ELSE
-            PRINT 'dbo.Statistiche GIA ESISTE'
-"@
-          $result = $cmd.ExecuteNonQuery()
-          Write-Host "ExecuteNonQuery result: $result"
+          $cmd.CommandText = $sql
+          $cmd.ExecuteNonQuery() | Out-Null
+          Write-Host "SQL eseguito"
+          $cmd2 = $conn.CreateCommand()
+          $cmd2.CommandText = "SELECT COUNT(*) FROM sys.objects WHERE object_id=OBJECT_ID(N'dbo.Statistiche') AND type='U'"
+          $exists = $cmd2.ExecuteScalar()
+          Write-Host "dbo.Statistiche exists: $($exists -eq 1)"
           $conn.Close()
-          Write-Host "=== Tabella OK ==="
+          if ($exists -ne 1) { Write-Error "TABELLA NON CREATA"; exit 1 }
+          Write-Host "=== dbo.Statistiche OK ==="
 
-      - name: "2 — Verify dbo.Statistiche exists"
-        shell: powershell
-        run: |
-          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
-          $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
-          $conn.Open()
-          $cmd = $conn.CreateCommand()
-          $cmd.CommandText = "SELECT COUNT(*) FROM sys.objects WHERE object_id=OBJECT_ID(N'dbo.Statistiche') AND type='U'"
-          $count = $cmd.ExecuteScalar()
-          Write-Host "dbo.Statistiche exists: $($count -eq 1)"
-          if ($count -ne 1) { Write-Error "TABELLA NON TROVATA"; exit 1 }
-          $conn.Close()
-
-      - name: "3 — Fix Decisore appsettings port 1433 -> 1434 (shared config)"
-        shell: powershell
-        run: |
-          $paths = @(
-            "C:\inetpub\wwwroot\shared\appsettings.Production.json",
-            "C:\inetpub\wwwroot\shared\appsettings.Decisore.json"
-          )
-          foreach ($p in $paths) {
-            if (Test-Path $p) {
-              $json = Get-Content $p -Raw | ConvertFrom-Json
-              $conn = $json.ConnectionStrings.DefaultConnection
-              Write-Host "[$p] Connection attuale: $($conn -replace 'Password=[^;]+','Password=***')"
-              if ($conn -match '51\.178\.16\.37' -or $conn -match ',1433') {
-                Write-Host "  [!] Questo file punta al Decisore VPS o porta 1433 — non modificato (gestito da deploy Decisore)"
-              }
-            }
-          }
-          Write-Host "=== Nota: appsettings del Decisore su C:\Decisore va aggiornato manualmente sul VPS 51.178.16.37 ==="
-          Write-Host "=== Connection string corretta: Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@ ==="
-
-      - name: "SUMMARY"
+      - name: Print next steps
         shell: powershell
         run: |
           Write-Host ""
-          Write-Host "========================================="
-          Write-Host "  dbo.Statistiche creata su Eugenio-Demo10"
-          Write-Host "========================================="
+          Write-Host "=== TABELLA CREATA ==="
           Write-Host ""
-          Write-Host "PROSSIMO STEP (manuale sul VPS 51.178.16.37):"
+          Write-Host "ORA sul VPS 51.178.16.37 (RDP) esegui:"
           Write-Host ""
-          Write-Host "  1. Aggiorna C:\Decisore\appsettings.json:"
-          Write-Host '     Server=51.83.159.175,1434 (non 1433)'
+          Write-Host "STEP 1 - Aggiorna porta in appsettings.json:"
+          Write-Host '(Get-Content C:\Decisore\appsettings.json -Raw) -replace "1433","1434" | Set-Content C:\Decisore\appsettings.json'
           Write-Host ""
-          Write-Host "  2. Riavvia app pool:"
-          Write-Host '     & "$env:windir\system32\inetsrv\appcmd.exe" stop apppool /apppool.name:Proactive'
-          Write-Host '     Start-Sleep 3'
-          Write-Host '     & "$env:windir\system32\inetsrv\appcmd.exe" start apppool /apppool.name:Proactive'
+          Write-Host "STEP 2 - Riavvia app pool:"
+          Write-Host '& "$env:windir\system32\inetsrv\appcmd.exe" stop apppool /apppool.name:Proactive; Start-Sleep 3; & "$env:windir\system32\inetsrv\appcmd.exe" start apppool /apppool.name:Proactive'
           Write-Host ""
-          Write-Host "  3. Verifica:"
-          Write-Host '     Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing'
+          Write-Host "STEP 3 - Verifica:"
+          Write-Host 'Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing | Select-Object StatusCode'
