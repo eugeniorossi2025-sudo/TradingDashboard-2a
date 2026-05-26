@@ -1,0 +1,52 @@
+name: READ - Stored procedures body on SQLEXPRESS01 1434
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  read:
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Read all SP bodies
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
+          $conn.Open()
+          Write-Host "Connesso a SQLEXPRESS01:1434 / $($conn.Database)"
+
+          # Lista SP custom (escluse sp_ di sistema)
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = "SELECT name FROM sys.objects WHERE type='P' AND name NOT LIKE 'sp_%' ORDER BY name"
+          $r = $cmd.ExecuteReader()
+          $spList = @()
+          while ($r.Read()) { $spList += $r['name'] }
+          $r.Close()
+
+          Write-Host ""
+          Write-Host "=== SP TROVATE: $($spList.Count) ==="
+          foreach ($sp in $spList) { Write-Host "  - $sp" }
+
+          Write-Host ""
+          Write-Host "============================================"
+
+          foreach ($sp in $spList) {
+            Write-Host ""
+            Write-Host "====== SP: $sp ======"
+            $cmd2 = $conn.CreateCommand()
+            $cmd2.CommandText = "SELECT definition FROM sys.sql_modules WHERE object_id = OBJECT_ID('dbo.$sp')"
+            $def = $cmd2.ExecuteScalar()
+            if ($def) { Write-Host $def }
+            else { Write-Host "(definizione non disponibile)" }
+          }
+
+          $conn.Close()
