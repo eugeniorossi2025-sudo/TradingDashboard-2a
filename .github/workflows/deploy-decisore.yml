@@ -1,13 +1,5 @@
 name: Decisore Deploy
 
-# Triggered automatically on push to main when decision-engine code changes.
-# No workflow_dispatch dependency — push path-filter is more reliable.
-# Also accepts manual dispatch as emergency fallback (no confirmation input required).
-#
-# Runner requirement: self-hosted runner on the Decisore VPS (51.178.16.37)
-#   Labels: DASH2A-DECISORE
-#   Install: ops/dash2a-readiness/install-decisore-runner.ps1
-
 on:
   push:
     branches: [main]
@@ -25,109 +17,33 @@ concurrency:
 
 jobs:
   deploy-decisore:
-    name: Build, Publish, Deploy Decisore
-    runs-on:
-      - self-hosted
-      - Windows
-      - DASH2A-DECISORE
-
+    name: Deploy Decisore
+    runs-on: [self-hosted, Windows, DASH2A-DECISORE]
     timeout-minutes: 20
-
-    env:
-      DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1"
-      DOTNET_NOLOGO: "1"
-      CONFIGURATION: Release
-      PUBLISH_DIR: ${{ github.workspace }}\artifacts\decisore-publish
-      DECISORE_SITE_NAME: default
-      DECISORE_APP_POOL: Proactive
-      DECISORE_RELEASE_ROOT: C:\inetpub\decisore\releases
-      DECISORE_SHARED_CONFIG: C:\inetpub\decisore\shared\appsettings.Production.json
-      DECISORE_HEALTH_URL: http://127.0.0.1/api/proactive/health
-
     steps:
-      - name: Check prerequisites
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $failed = @()
-
-          $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
-          if ($dotnet) {
-              $ver = & dotnet --version 2>&1
-              Write-Host ".NET SDK: $ver"
-          } else {
-              $failed += ".NET SDK non trovato"
-          }
-
-          $iis = Get-Module -ListAvailable WebAdministration -ErrorAction SilentlyContinue
-          if ($iis) {
-              Import-Module WebAdministration
-              $site = Get-Website -Name $env:DECISORE_SITE_NAME -ErrorAction SilentlyContinue
-              $pool = Get-Item "IIS:\AppPools\$env:DECISORE_APP_POOL" -ErrorAction SilentlyContinue
-              if ($site) { Write-Host "IIS site '$env:DECISORE_SITE_NAME': OK" }
-              else        { Write-Host "IIS site non trovato — verifico Windows Service" }
-              if ($pool) { Write-Host "App pool '$env:DECISORE_APP_POOL': OK" }
-          } else {
-              $svc = Get-Service -Name 'Decisore' -ErrorAction SilentlyContinue
-              if ($svc) { Write-Host "Windows Service 'Decisore': OK (state=$($svc.Status))" }
-              else       { $failed += "IIS WebAdministration non trovato e servizio 'Decisore' non trovato" }
-          }
-
-          if (-not (Test-Path $env:DECISORE_SHARED_CONFIG)) {
-              Write-Host "WARN: shared appsettings.Production.json non trovato — il deploy usa la config nei binari"
-          } else {
-              Write-Host "Shared config: OK"
-          }
-
-          if ($failed.Count -gt 0) {
-              $failed | ForEach-Object { Write-Host "ERRORE: $_" }
-              throw "Prerequisiti non soddisfatti."
-          }
-
-          Write-Host "Tutti i prerequisiti OK."
-
-      - name: Ensure Git in PATH
-        shell: powershell
-        run: Add-Content $env:GITHUB_PATH "C:\Program Files\Git\cmd"
-
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Restore Decisore
+      - name: Restore
         shell: powershell
         run: dotnet restore decision-engine\Decisore\Decisore.csproj
 
-      - name: Build Decisore Release
-        shell: powershell
-        run: dotnet build decision-engine\Decisore\Decisore.csproj --configuration $env:CONFIGURATION --no-restore
-
-      - name: Publish Decisore Release
+      - name: Publish
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
-          if (Test-Path $env:PUBLISH_DIR) { Remove-Item $env:PUBLISH_DIR -Recurse -Force }
-          dotnet publish decision-engine\Decisore\Decisore.csproj `
-            --configuration $env:CONFIGURATION `
-            --output $env:PUBLISH_DIR `
-            --no-build `
-            --no-self-contained
+          $out = "$env:TEMP\decisore-publish"
+          if (Test-Path $out) { Remove-Item $out -Recurse -Force }
+          dotnet publish decision-engine\Decisore\Decisore.csproj --configuration Release --output $out --no-restore --no-self-contained
+          Write-Host "PUBLISH_DIR=$out"
+          echo "PUBLISH_DIR=$out" >> $env:GITHUB_ENV
 
-      - name: Deploy via deploy-decisore.ps1
+      - name: Deploy
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
           .\ops\dash2a-readiness\deploy-decisore.ps1 `
             -ArtifactPath $env:PUBLISH_DIR `
-            -SiteName     $env:DECISORE_SITE_NAME `
-            -AppPoolName  $env:DECISORE_APP_POOL `
-            -ReleaseRoot  $env:DECISORE_RELEASE_ROOT `
-            -SharedConfigPath $env:DECISORE_SHARED_CONFIG `
-            -HealthUrl    $env:DECISORE_HEALTH_URL
-
-      - name: Summary
-        if: success()
-        shell: powershell
-        run: |
-          Write-Host "Decisore deploy completato su commit $env:GITHUB_SHA"
-          Write-Host "Branch: $env:GITHUB_REF_NAME"
-          Write-Host "Triggered by: $env:GITHUB_EVENT_NAME"
+            -SiteName default `
+            -AppPoolName Proactive `
+            -ReleaseRoot C:\inetpub\decisore\releases `
+            -SharedConfigPath C:\inetpub\decisore\shared\appsettings.Production.json `
+            -HealthUrl http://127.0.0.1/api/proactive/health
