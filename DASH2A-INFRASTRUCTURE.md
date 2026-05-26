@@ -2,7 +2,7 @@
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-25** — prod HTTPS attivo, vedi §13
+> **Ultimo aggiornamento: 2026-05-26 (sera)** — Decisore completamente operativo: DB corretto su `51.83.159.175,1434`, tabelle create, firewall aperto. Vedi §11.
 
 ---
 
@@ -58,12 +58,34 @@
 | Hostname | `vps-4ca306e8.vps.ovh.net` |
 | IPv4 | **`51.178.16.37`** |
 | Nome servizio | **Decisore Proattivo / Logica Multi-tavolo** |
-| API runtime | `http://51.178.16.37/api/proactive` (es. `/reset`, engine proactive) |
-| Web Server | IIS 10 — *validato 2026-05-25* |
+| API runtime | `http://51.178.16.37/api/proactive` |
+| Web Server | IIS 10 |
+| IIS site | `default` |
+| IIS app pool | **`Proactive`** (state: Started) |
+| Path produzione attivo | `C:\Decisore` |
 | Repo path sorgente | `decision-engine/Decisore/` |
-| DB engine | Istanza SQL separata (credenziali in secret/local config del Decisore) |
+| DB engine | **`51.83.159.175,1434`** (SQLEXPRESS01 sul VPS backend) / `Eugenio-Demo10` / login `sa3` |
+| appsettings.json live | `Server=51.83.159.175,1434;Database=Eugenio-Demo10;...` — **NON modificare** |
+| Deploy Decisore | **Manuale / non automatizzato** |
+| Stato 2026-05-26 | **OPERATIVO** — HTTP 200 su `/api/proactive/reset` e `/api/proactive/decide` |
 
-> Il Decisore è **completamente separato** dalla WebApi dashboard. Scrive sul proprio DB; la dashboard Vue consuma dati dalla WebApi → DB `51.83.159.175`.
+> **ATTENZIONE:** il Decisore usa il DB sul **VPS backend** (`51.83.159.175,1434`), NON un DB locale a se stesso. La porta 1434 è SQLEXPRESS01, istanza separata da quella usata dalla WebApi (1433).
+
+> La regola firewall `SQLEXPRESS01-1434-Decisore` sul VPS backend permette l'accesso dalla sola IP `51.178.16.37` porta 1434. Non rimuovere questa regola.
+
+#### Route disponibili Decisore
+
+| Endpoint | Metodo | Descrizione |
+|---|---|---|
+| `/api/proactive/reset` | GET | Reset sessione + svuota Pc_CurrentStatus (side effect!) |
+| `/api/proactive/decide` | GET | Endpoint principale bot — richiede parametri query |
+| `/api/proactive/emergency-stop` | GET | Stop d'emergenza tutti i bot attivi |
+| `/api/proactive/update-params` | POST form | Aggiorna stato PC senza decide |
+| `/api/proactive/update-deck` | POST form | Aggiorna solo mazzo |
+| `/api/proactive/get-global-profit` | POST form | Legge margine/saldo da DB |
+| `/api/proactive/bot-app-config` | POST JSON | Salva config bot su DB |
+
+> **Non esiste `/health`** — usare `/reset` solo per test manuali (ha side effect: svuota tabelle).
 
 **Locale:** la WebApi in `LocalProdLike` espone `/api/decider/config` e `/api/decider/health` come **sonda diagnostica** verso `51.178.16.37`. **Non** sincronizza `Pc_CurrentStatus` né alimenta la dashboard locale.
 
@@ -194,6 +216,7 @@ File: `backend/WebApi/appsettings.json` + override IIS `appsettings.Production.j
 | `firebase-hosting-pull-request.yml` | PR | Build frontend (no deploy live) |
 
 > **Nessun auto-deploy su push `main`** — backend e frontend richiedono entrambi `workflow_dispatch` manuale.
+> **Decisore:** nessun workflow deploy attivo nel repo dopo il rollback infra `b104502`. Il workflow sperimentale `deploy-decisore-v2.yml` è stato rimosso dal repo e disabilitato lato GitHub durante la stabilizzazione.
 
 ### Segreti GitHub (repository secrets — verificati 2026-05-25)
 
@@ -202,6 +225,7 @@ File: `backend/WebApi/appsettings.json` + override IIS `appsettings.Production.j
 | `DASH2A_RDP_PASSWORD` | **OK** | RDP emergenza / readiness VPS |
 | `FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2` | **OK** | Deploy Firebase (`eugenio-dashboard-2a`) |
 | Connection string / JWT / SMTP | server-side | Override IIS — non in repo |
+| `DECISORE_DB_PASSWORD` | **Non usare per deploy automatico** | Creato durante tentativo 2026-05-26; non agganciare a workflow deploy senza audit DB approvato |
 
 Verifica secrets:
 
@@ -319,10 +343,87 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 6. Deploy backend solo via workflow manuale con conferma.
 7. Smoke `/api/Auth/test` → 200 obbligatorio post-deploy.
 8. **NON** usare `51.210.181.37` per Decider — obsoleto.
+9. **NON** deployare il Decisore via GitHub Actions finché non esiste un piano approvato.
+10. **NON** applicare migration/script SQL sul DB Decisore senza audit read-only e backup/diff delle stored procedure esistenti.
+11. **NON** usare `/api/proactive/reset` come healthcheck neutro: ha side effect.
 
 ---
 
-## 11. STATO VALIDATO (2026-05-25)
+## 11. DECISORE — STATO OPERATIVO (2026-05-26)
+
+### Stato produzione verificato
+
+| Punto | Stato |
+|---|---|
+| Runtime attivo | `C:\Decisore` |
+| IIS site | `default` |
+| App pool | `Proactive` (Started) |
+| DB configurato | **`51.83.159.175,1434`** / `Eugenio-Demo10` / login `sa3` |
+| Deploy CI/CD | **Non attivo** — solo manuale |
+| HTTP status | **200 OK** — `/api/proactive/reset` risponde da interno e da internet |
+| Ultimo fix | 2026-05-26 sera — vedere log sotto |
+
+### Cronologia fix 2026-05-26
+
+| Problema | Causa | Fix applicato |
+|---|---|---|
+| `HTTP 500.30` startup crash | `appsettings.json` puntava a `51.178.16.37,1433` (locale VPS) | Modificato manualmente a `51.83.159.175,1434` |
+| `Invalid object name 'dbo.Statistiche'` | Tabella mancante su `1433` | Creata su `1433` (obsoleto) poi su `1434` (corretto) |
+| `Invalid object name 'dbo.Pc_CurrentStatus_PBT_History'` | Tabella mancante | Creata su `51.83.159.175,1434` |
+| TCP timeout 10060 su `1434` | Firewall Windows bloccava porta 1434 da IP Decisore | Aggiunta regola `SQLEXPRESS01-1434-Decisore` (inbound TCP 1434, remote `51.178.16.37`) |
+
+### DB Decisore — oggetti verificati su `51.83.159.175,1434`
+
+**Tabelle (tutte OK):**
+
+| Tabella | Stato | Note |
+|---|---|---|
+| `dbo.Pc_CurrentStatus` | **OK** | Preesistente |
+| `dbo.Pc_CurrentStatus_PBT_History` | **OK** | Creata 2026-05-26 |
+| `dbo.Margini` | **OK** | Preesistente |
+| `dbo.Statistiche` | **OK** | Creata 2026-05-26 |
+| `dbo.ApiConfigurations` | **OK** | Creata 2026-05-26 |
+| `dbo.ApiLogs` | **OK** | Creata 2026-05-26 |
+| `dbo.Configurations` | **OK** | Preesistente |
+
+**Stored Procedure:**
+
+| SP | Stato | Note |
+|---|---|---|
+| `UpS_Users_Api` | **OK** | Validazione utente |
+| `Upsert_Pc_CurrentStatus` | **OK** | Update full |
+| `Upsert_Pc_CurrentStatus_Simple` | **OK** | Update parziale |
+| `Upsert_Pc_CurrentStatus_Deck` | **OK** | Update mazzo |
+| `AggiornaStatistiche` | **OK** | Aggiorna statistiche |
+| `InsertMargine` | **OK** | Inserisce margine |
+| `upI_Values` | **MANCANTE** | Non critica per startup; usata solo in `SaveRequestValue` (fire & forget) |
+
+### Regola firewall attiva (VPS backend `51.83.159.175`)
+
+```text
+Nome: SQLEXPRESS01-1434-Decisore
+Direzione: Inbound
+Protocollo: TCP
+Porta locale: 1434
+IP remoto ammesso: 51.178.16.37
+Azione: Allow
+Stato: Enabled
+```
+
+**Non rimuovere questa regola** — senza di essa il Decisore non si avvia.
+
+### Riavvio manuale app pool (dal VNC del VPS Decisore)
+
+```powershell
+C:\Windows\System32\inetsrv\appcmd stop apppool /apppool.name:"Proactive"
+C:\Windows\System32\inetsrv\appcmd start apppool /apppool.name:"Proactive"
+Start-Sleep 6
+Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
+```
+
+---
+
+## 12. STATO VALIDATO (2026-05-26)
 
 | # | Controllo | Esito | Note |
 |---|---|---|---|
@@ -332,7 +433,7 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 | 4 | SQL prod porta 1433 | **OK** | TcpTestSucceeded |
 | 5 | SQL login `sa3` / `Eugenio-Demo10` | **OK** | read-only query |
 | 6 | Frontend prod Firebase | **OK** | HTTP 200, build da GitHub Actions |
-| 7 | Decider `51.178.16.37/api/proactive/reset` | **OK** | HTTP 200 |
+| 7 | Decider `51.178.16.37/api/proactive/reset` | **OK** | HTTP 200 (verificato 2026-05-26 sera) — side effect: non usare come healthcheck neutro |
 | 8 | Decider obsoleto `51.210.181.37` | **404** | non usare |
 | 9 | Stack locale `:5299` / `:5001` | **OK** | smoke sessione corrente |
 | 10 | Decider locale health/config | **OK** | diagnostica only, no sync DB |
@@ -344,15 +445,14 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 
 | Punto | Stato |
 |---|---|
-| Hostname interno istanza SQL (`SQLEXPRESS01` vs `1433`) | Entrambi referenziati in workflow; **1433+sa3 verificato OK** |
-| Contenuto DB Decisore su `51.178.16.37` | Non auditato in questa sessione (no credenziali Decisore in WebApi) |
+| SP `upI_Values` mancante su `1434` | **Da creare** — non critica per startup; blocca solo `SaveRequestValue` (fire & forget) |
 | SignalR / push VAPID in locale | Opzionale — 404 atteso se non configurato |
 | `MissionSessions` prod vuota vs locale ricca | Locale ha dati demo/import; prod 0 al check — non allineare automaticamente |
-| Password Decisore in `decision-engine/Decisore/appsettings.json` | Ancora punta a IP obsoleto `51.210.181.37` nel repo — aggiornare in task dedicato |
+| Allineamento binario live `C:\Decisore` vs codice repo | Da verificare prima di qualsiasi nuovo deploy |
 
 ---
 
-## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-05-25)
+## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-05-26)
 
 | Componente | Stato | Branch / run | Dettaglio |
 |---|---|---|---|
@@ -363,6 +463,7 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 | **Frontend live URL** | **OK** | — | `https://eugenio-dashboard-2a.web.app` |
 | **Backend live URL HTTPS** | **OK** | — | `https://vps-b0942869.vps.ovh.net` |
 | **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175` |
+| **Decisore live** | **OPERATIVO** | fix 2026-05-26 sera | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; HTTP 200 |
 
 ### Run fallite (storico sessione — risolte)
 
