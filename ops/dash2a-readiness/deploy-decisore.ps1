@@ -1,0 +1,212 @@
+# deploy-decisore.ps1
+# Idempotent deploy script for the Decisore engine (51.178.16.37).
+# Can be run:
+#   - Manually via RDP on the Decisore VPS
+#   - By the GitHub Actions workflow deploy-decisore.yml
+#
+# Usage:
+#   .\deploy-decisore.ps1 -ArtifactPath C:\path\to\publish
+#   .\deploy-decisore.ps1 -ArtifactPath C:\path\to\publish -SiteName decisore -AppPoolName decisore
+#
+# If -ArtifactPath is omitted, the script builds from the local repo checkout.
+# Always runs the same steps — safe to re-run.
+
+param(
+    [string]$ArtifactPath       = '',
+    [string]$SiteName           = 'decisore',
+    [string]$AppPoolName        = 'decisore',
+    [string]$ReleaseRoot        = 'C:\inetpub\decisore\releases',
+    [string]$SharedConfigPath   = 'C:\inetpub\decisore\shared\appsettings.Production.json',
+    [string]$HealthUrl          = 'http://127.0.0.1/api/proactive/reset',
+    [int]   $HealthTimeoutSec   = 30,
+    [int]   $StartupWaitSec     = 12,
+    [string]$RepoRoot           = ''          # auto-detected if empty
+)
+
+$ErrorActionPreference = 'Stop'
+Set-StrictMode -Version Latest
+
+function Write-Step { param([string]$msg) Write-Host "==> $msg" -ForegroundColor Cyan }
+function Write-Ok   { param([string]$msg) Write-Host "    OK: $msg" -ForegroundColor Green }
+function Write-Warn { param([string]$msg) Write-Host "    WARN: $msg" -ForegroundColor Yellow }
+
+# ── Resolve repo root ────────────────────────────────────────────────────────
+if (-not $RepoRoot) {
+    $RepoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+}
+$decisionEnginePath = Join-Path $RepoRoot 'decision-engine\Decisore'
+
+# ── Step 1: Build + publish (if no artifact provided) ────────────────────────
+if (-not $ArtifactPath) {
+    Write-Step "Building Decisore from: $decisionEnginePath"
+
+    $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+    if (-not $dotnet) { throw ".NET SDK not found. Install it on this machine." }
+
+    $ArtifactPath = Join-Path $env:TEMP "decisore-publish-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+    & dotnet publish "$decisionEnginePath\Decisore.csproj" `
+        --configuration Release `
+        --output $ArtifactPath `
+        --no-self-contained
+    if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed (exit $LASTEXITCODE)" }
+    Write-Ok "Published to $ArtifactPath"
+} else {
+    Write-Step "Using provided artifact: $ArtifactPath"
+    if (-not (Test-Path $ArtifactPath)) { throw "ArtifactPath not found: $ArtifactPath" }
+}
+
+# ── Step 2: Detect runtime (IIS or Windows Service) ─────────────────────────
+Write-Step "Detecting Decisore runtime"
+
+$useIIS     = $false
+$useService = $false
+$serviceName = 'Decisore'
+
+$iisAvailable = $null -ne (Get-Module -ListAvailable WebAdministration -ErrorAction SilentlyContinue)
+
+if ($iisAvailable) {
+    Import-Module WebAdministration
+    $site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
+    if ($site) {
+        $useIIS = $true
+        Write-Ok "Runtime: IIS site '$SiteName' found at $($site.PhysicalPath)"
+    }
+}
+
+if (-not $useIIS) {
+    $svc = Get-Service -Name $serviceName -ErrorAction SilentlyContinue
+    if ($svc) {
+        $useService = $true
+        Write-Ok "Runtime: Windows Service '$serviceName' found"
+    }
+}
+
+if (-not $useIIS -and -not $useService) {
+    throw "Cannot find IIS site '$SiteName' or Windows Service '$serviceName'. Check -SiteName / -AppPoolName or verify IIS/service setup."
+}
+
+# ── Step 3: Prepare release folder ──────────────────────────────────────────
+$timestamp   = Get-Date -Format 'yyyyMMdd-HHmmss'
+$releasePath = Join-Path $ReleaseRoot "decisore-$timestamp"
+
+Write-Step "Preparing release folder: $releasePath"
+New-Item -ItemType Directory -Force -Path $releasePath | Out-Null
+Get-ChildItem -LiteralPath $ArtifactPath -Force | Copy-Item -Destination $releasePath -Recurse -Force
+Write-Ok "$((Get-ChildItem $releasePath -Recurse -File).Count) files copied"
+
+# ── Step 4: Apply shared production config ──────────────────────────────────
+Write-Step "Applying production config"
+if (Test-Path $SharedConfigPath) {
+    Copy-Item -LiteralPath $SharedConfigPath `
+        -Destination (Join-Path $releasePath 'appsettings.Production.json') -Force
+    Write-Ok "appsettings.Production.json applied from $SharedConfigPath"
+} else {
+    Write-Warn "Shared config NOT found at $SharedConfigPath — using binaries config as-is"
+}
+
+# ── Step 5: Record current path for rollback ────────────────────────────────
+$previousPath = ''
+if ($useIIS) {
+    $previousPath = (Get-Website -Name $SiteName).PhysicalPath
+} else {
+    $svcObj     = Get-WmiObject Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
+    $previousPath = if ($svcObj) { Split-Path $svcObj.PathName -Parent } else { '' }
+}
+Write-Ok "Previous path recorded: $previousPath"
+
+# ── Deploy block (with rollback on failure) ──────────────────────────────────
+try {
+    # Step 6: Stop runtime
+    Write-Step "Stopping $( $useIIS ? "IIS app pool '$AppPoolName'" : "service '$serviceName'" )"
+    if ($useIIS) {
+        Stop-WebAppPool -Name $AppPoolName
+        $waited = 0
+        do {
+            Start-Sleep -Seconds 2; $waited += 2
+            $state = (Get-WebAppPoolState -Name $AppPoolName).Value
+        } while ($state -ne 'Stopped' -and $waited -lt 30)
+        if ($state -ne 'Stopped') { throw "App pool did not stop within 30s (state: $state)" }
+        Write-Ok "App pool stopped after ${waited}s"
+    } else {
+        Stop-Service -Name $serviceName -Force
+        Start-Sleep -Seconds 3
+        Write-Ok "Service stopped"
+    }
+
+    # Step 7: Swap to new release
+    Write-Step "Swapping to new release: $releasePath"
+    if ($useIIS) {
+        Set-WebConfigurationProperty `
+            -Filter "system.applicationHost/sites/site[@name='$SiteName']/application[@path='/']/virtualDirectory[@path='/']" `
+            -Name "physicalPath" `
+            -Value $releasePath
+    } else {
+        # For Windows Service: update the service binary path
+        $exePath = Join-Path $releasePath 'Decisore.exe'
+        if (Test-Path $exePath) {
+            Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" `
+                -Name ImagePath -Value $exePath
+        } else {
+            Write-Warn "Decisore.exe not found in release — service path not updated"
+        }
+    }
+    Write-Ok "Swap complete"
+
+    # Step 8: Start runtime
+    Write-Step "Starting $( $useIIS ? "IIS app pool '$AppPoolName'" : "service '$serviceName'" )"
+    if ($useIIS) {
+        Start-WebAppPool -Name $AppPoolName
+    } else {
+        Start-Service -Name $serviceName
+    }
+    Write-Ok "Runtime started — waiting ${StartupWaitSec}s for process warm-up"
+    Start-Sleep -Seconds $StartupWaitSec
+
+    # Step 9: Health check
+    Write-Step "Health check: $HealthUrl"
+    $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing `
+        -TimeoutSec $HealthTimeoutSec -MaximumRedirection 0 -ErrorAction Stop
+
+    if ($response.StatusCode -ne 200) {
+        throw "Health check returned HTTP $($response.StatusCode)"
+    }
+    $body = ($response.Content -as [string]).Trim()
+    if ($body -ne '1') {
+        throw "Health check body unexpected: '$body' (expected '1')"
+    }
+    Write-Ok "Health check OK (HTTP 200, body='1')"
+
+} catch {
+    Write-Host ""
+    Write-Host "DEPLOY FAILED: $($_.Exception.Message)" -ForegroundColor Red
+
+    if ($previousPath -and (Test-Path $previousPath)) {
+        Write-Step "ROLLBACK: restoring to $previousPath"
+        if ($useIIS) {
+            Set-WebConfigurationProperty `
+                -Filter "system.applicationHost/sites/site[@name='$SiteName']/application[@path='/']/virtualDirectory[@path='/']" `
+                -Name "physicalPath" `
+                -Value $previousPath
+            Start-WebAppPool -Name $AppPoolName
+        } else {
+            $oldExe = Join-Path $previousPath 'Decisore.exe'
+            if (Test-Path $oldExe) {
+                Set-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Services\$serviceName" `
+                    -Name ImagePath -Value $oldExe
+            }
+            Start-Service -Name $serviceName -ErrorAction SilentlyContinue
+        }
+        Write-Host "Rollback completato — runtime ripristinato su: $previousPath" -ForegroundColor Yellow
+    } else {
+        Write-Warn "No valid previous path for rollback — manual intervention required"
+    }
+    throw
+}
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+Write-Host ""
+Write-Host "DEPLOY OK" -ForegroundColor Green
+Write-Host "RELEASE_PATH=$releasePath"
+Write-Host "PREVIOUS_PATH=$previousPath"
+Write-Host "HEALTH_URL=$HealthUrl"
+Write-Host "TIMESTAMP=$(Get-Date -Format 'o')"
