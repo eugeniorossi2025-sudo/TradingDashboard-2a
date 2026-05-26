@@ -1,0 +1,82 @@
+name: FIX - Decisore missing tables on SQLEXPRESS01 1434
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIX_1434"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Create missing Decisore tables on SQLEXPRESS01
+    if: ${{ github.event.inputs.confirm == 'FIX_1434' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Check and create missing tables on SQLEXPRESS01 port 1434
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
+          $conn.Open()
+          Write-Host "Connesso a SQLEXPRESS01:1434"
+
+          function TableExists($name) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT OBJECT_ID('dbo.$name','U')"
+            $id = $cmd.ExecuteScalar()
+            return ($id -ne $null -and $id -ne [DBNull]::Value)
+          }
+          function RunSql($sql) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = $sql
+            $cmd.ExecuteNonQuery() | Out-Null
+          }
+
+          Write-Host "=== TABELLE ESISTENTI ==="
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = "SELECT name FROM sys.objects WHERE type='U' ORDER BY name"
+          $r = $cmd.ExecuteReader()
+          while ($r.Read()) { Write-Host "  $($r['name'])" }
+          $r.Close()
+
+          Write-Host ""
+          Write-Host "=== FIX TABELLE MANCANTI ==="
+
+          if (-not (TableExists "Statistiche")) {
+            RunSql "CREATE TABLE dbo.Statistiche (ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY, DATA_INIZIO DATETIME NULL, DATA_FINE DATETIME NULL, MARGINE_TOT DECIMAL(18,2) NULL DEFAULT 0, MARGINE_MIN DECIMAL(18,2) NULL DEFAULT 0, MARGINE_MAX DECIMAL(18,2) NULL DEFAULT 0, ELAPSED DECIMAL(18,4) NULL DEFAULT 0, TELEMETRY NVARCHAR(MAX) NULL)"
+            Write-Host "dbo.Statistiche CREATA"
+          } else { Write-Host "dbo.Statistiche OK" }
+
+          if (-not (TableExists "Pc_CurrentStatus_PBT_History")) {
+            RunSql "CREATE TABLE [dbo].[Pc_CurrentStatus_PBT_History] ([ID] BIGINT IDENTITY(1,1) NOT NULL, [COMPUTER] NVARCHAR(50) NOT NULL, [PBT] NVARCHAR(1) NOT NULL, [numero_mazzo] NVARCHAR(50) NOT NULL, [DT_INSERT] DATETIME2 NOT NULL, CONSTRAINT [PK_Pc_CurrentStatus_PBT_History] PRIMARY KEY ([ID]))"
+            Write-Host "dbo.Pc_CurrentStatus_PBT_History CREATA"
+          } else { Write-Host "dbo.Pc_CurrentStatus_PBT_History OK" }
+
+          if (-not (TableExists "ApiConfigurations")) {
+            RunSql "CREATE TABLE dbo.ApiConfigurations (ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY, pc NVARCHAR(10) NULL, config NVARCHAR(4000) NOT NULL, CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME())"
+            Write-Host "dbo.ApiConfigurations CREATA"
+          } else { Write-Host "dbo.ApiConfigurations OK" }
+
+          if (-not (TableExists "ApiLogs")) {
+            RunSql "CREATE TABLE dbo.ApiLogs (ID INT IDENTITY(1,1) NOT NULL PRIMARY KEY, Description NVARCHAR(MAX) NULL, Category NVARCHAR(200) NULL, Action INT NULL, CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME())"
+            Write-Host "dbo.ApiLogs CREATA"
+          } else { Write-Host "dbo.ApiLogs OK" }
+
+          Write-Host ""
+          Write-Host "=== STATO FINALE ==="
+          foreach ($t in @("Pc_CurrentStatus","Pc_CurrentStatus_PBT_History","Margini","Statistiche","ApiConfigurations","ApiLogs","Configurations")) {
+            Write-Host "  dbo.$t : $(if(TableExists $t){'OK'}else{'MANCANTE'})"
+          }
+
+          $conn.Close()
