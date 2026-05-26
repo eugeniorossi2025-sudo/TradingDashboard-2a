@@ -422,6 +422,24 @@ const parseTooltipJson = (tooltipJson) => {
                                         <span class="text-muted-color">GlobalPauseScalpingDuration:</span>
                                         <span class="font-semibold">{{ getLastAdviceField(slotProps.data.lastAdvice, 'GlobalPauseScalpingDuration') ?? '-' }}</span>
                                     </div>
+                                    <!-- Security Filter -->
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                        <span class="text-muted-color">Security Filter:</span>
+                                        <Tag
+                                            :value="getLastAdviceField(slotProps.data.lastAdvice, 'SecurityFilterActive') ? `ATTIVO [${getLastAdviceField(slotProps.data.lastAdvice, 'SecurityRiskScore')}/4]` : `OFF [${getLastAdviceField(slotProps.data.lastAdvice, 'SecurityRiskScore') ?? 0}/4]`"
+                                            :severity="getLastAdviceField(slotProps.data.lastAdvice, 'SecurityFilterActive') ? 'danger' : 'secondary'"
+                                        />
+                                    </div>
+                                    <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
+                                        <span class="text-muted-color">Streak / Avg / Delta:</span>
+                                        <span class="font-semibold text-sm">
+                                            {{ getLastAdviceField(slotProps.data.lastAdvice, 'CurrentStreak') ?? '-' }}
+                                            /
+                                            {{ getLastAdviceField(slotProps.data.lastAdvice, 'AvgHandSeconds') != null ? Number(getLastAdviceField(slotProps.data.lastAdvice, 'AvgHandSeconds')).toFixed(1) + 's' : '-' }}
+                                            /
+                                            {{ getLastAdviceField(slotProps.data.lastAdvice, 'LastHandDeltaSeconds') != null ? Number(getLastAdviceField(slotProps.data.lastAdvice, 'LastHandDeltaSeconds')).toFixed(1) + 's' : '-' }}
+                                        </span>
+                                    </div>
                                     <div class="flex justify-between py-1 border-b border-surface-100 dark:border-surface-700">
                                         <span class="text-muted-color">Motivo:</span>
                                         <span class="font-semibold">

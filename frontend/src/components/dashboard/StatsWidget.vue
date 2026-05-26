@@ -174,4 +174,29 @@ const telemetryData = computed(() => {
             </div>
         </div>
     </div>
+
+    <!-- ================= SECURITY FILTER ================= -->
+    <div class="col-span-12 mt-6">
+        <h3 class="text-xl font-semibold mb-4">Security Filter (sperimentale)</h3>
+    </div>
+
+    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+        <div class="card">
+            <span class="block text-muted-color font-medium mb-4">Security Filter Attivazioni</span>
+            <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
+                {{ telemetryData?.TotalSecurityFilterActivated ?? 0 }}
+            </div>
+            <div class="text-sm text-muted-color mt-2">Avg hand: {{ telemetryData?.LastAvgHandSeconds != null ? Number(telemetryData.LastAvgHandSeconds).toFixed(1) + 's' : '-' }}</div>
+        </div>
+    </div>
+
+    <div class="col-span-12 lg:col-span-6 xl:col-span-3">
+        <div class="card">
+            <span class="block text-muted-color font-medium mb-4">Security Filter L6 Prevenuti</span>
+            <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
+                {{ telemetryData?.TotalSecurityFilterPreventedL6 ?? 0 }}
+            </div>
+            <div class="text-sm text-muted-color mt-2">Filtro a L5 con credito disponibile</div>
+        </div>
+    </div>
 </template>

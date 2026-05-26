@@ -8,6 +8,12 @@ namespace Decisore.Engine
         readonly Dictionary<string, ActiveBet> _activeBets = new();
         readonly Dictionary<string, double> _lastBotMargin = new();
 
+        // Security Filter — per-computer state
+        private readonly Dictionary<string, DateTime>              _lastDecideAt            = new();
+        private readonly Dictionary<string, Queue<double>>         _handDeltasWindow        = new();
+        private readonly Dictionary<string, (char Outcome, int Count)> _streakByComputer    = new();
+        private readonly Dictionary<string, bool>                  _prevSecFilterActive     = new();
+
         double _lastGlobalMargin = 0;
 
         int _globalAuthL6Counter = -1;
@@ -59,6 +65,14 @@ namespace Decisore.Engine
         public double STOP_EWMA = -0.15;
         public int PAUSE_PB = 20;
         public int COOLDOWN_PAUSE_PB = 20;
+
+        // Security Filter config
+        public int    SECURITY_FILTER_MAX_SHOE_HAND      = 20;
+        public int    SECURITY_FILTER_MIN_STREAK         = 5;
+        public double SECURITY_FILTER_MAX_AVG_SECONDS    = 23.5;
+        public double SECURITY_FILTER_VERY_FAST_SECONDS  = 21.0;
+        public int    SECURITY_FILTER_DELTA_WINDOW       = 8;
+        public int    SECURITY_FILTER_MIN_SCORE          = 3;
         
         private double _pbBaseMargin = 0;
         private int _pbBaseIndex = 0;
@@ -81,6 +95,9 @@ namespace Decisore.Engine
         
         private int totalPauseScalpingSoglieActivated = 0;
         private int totalPauseScalpingEWMAActivated = 0;
+
+        private int totalSecurityFilterActivated = 0;
+        private int totalSecurityFilterPreventedL6 = 0;
 
         private int spotID = 0;
         
@@ -132,6 +149,14 @@ namespace Decisore.Engine
             
             telemetry.TotalPauseScalpingSoglieActivated = totalPauseScalpingSoglieActivated;
             telemetry.TotalPauseScalpingEWMAActivated = totalPauseScalpingEWMAActivated;
+
+            telemetry.TotalSecurityFilterActivated   = totalSecurityFilterActivated;
+            telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
+            telemetry.LastAvgHandSeconds =
+                _handDeltasWindow.Values.Where(q => q.Count > 0)
+                    .Select(q => q.Average())
+                    .DefaultIfEmpty(0)
+                    .Average();
             
             /* Fine nuovi campi */
             
@@ -231,7 +256,8 @@ namespace Decisore.Engine
 
             if (martingalaCounter == 5)
             {
-                totalL5Played++;
+                if (esito != 'T')
+                    totalL5Played++;
                 
                 if (esito != 'T') {
                     if (esito != coloreGiocato)
@@ -296,6 +322,83 @@ namespace Decisore.Engine
             advice.GlobalAuthL6Counter = _globalAuthL6Counter;
             advice.GlobalL5Loss = _globalL5Loss;
             advice.GlobalPBHandsPlayed = _globalPBHandsPlayed;
+
+            #endregion
+
+            #region SECURITY FILTER
+            // Filtro sperimentale di compressione temporale per mitigazione rischio
+            // streak ad alta densità nelle prime mani dello shoe.
+
+            DateTime nowUtc = DateTime.UtcNow;
+            double lastHandDeltaSeconds = 0;
+            double avgHandSeconds       = 0;
+            int    currentStreak        = 0;
+
+            // — timing: misura il delta dall'arrivo della chiamata precedente —
+            if (_lastDecideAt.TryGetValue(computer, out var lastAt))
+            {
+                lastHandDeltaSeconds = (nowUtc - lastAt).TotalSeconds;
+
+                if (!_handDeltasWindow.TryGetValue(computer, out var win))
+                    _handDeltasWindow[computer] = win = new Queue<double>();
+
+                win.Enqueue(lastHandDeltaSeconds);
+                if (win.Count > SECURITY_FILTER_DELTA_WINDOW)
+                    win.Dequeue();
+
+                // media trimmata: rimuovi il minimo e il massimo per attenuare spike rete/OCR
+                if (win.Count >= 3)
+                {
+                    var sorted  = win.OrderBy(x => x).ToList();
+                    var trimmed = sorted.Skip(1).Take(Math.Max(1, sorted.Count - 2));
+                    avgHandSeconds = trimmed.Average();
+                }
+                else if (win.Count > 0)
+                {
+                    avgHandSeconds = win.Average();
+                }
+            }
+            _lastDecideAt[computer] = nowUtc;
+
+            // — streak colore USCITO (esito PBT), tie non resetta —
+            if (esito != 'T')
+            {
+                if (!_streakByComputer.TryGetValue(computer, out var s) || s.Outcome != esito)
+                    _streakByComputer[computer] = (esito, 1);
+                else
+                    _streakByComputer[computer] = (esito, s.Count + 1);
+            }
+            if (_streakByComputer.TryGetValue(computer, out var currentStreakEntry))
+                currentStreak = currentStreakEntry.Count;
+
+            // — score composito 0–4 —
+            int securityScore = 0;
+            if (currentStreak  >= SECURITY_FILTER_MIN_STREAK)                               securityScore++;
+            if (avgHandSeconds  > 0 && avgHandSeconds < SECURITY_FILTER_MAX_AVG_SECONDS)    securityScore++;
+            if (handIndexMazzo <= SECURITY_FILTER_MAX_SHOE_HAND)                             securityScore++;
+            if (avgHandSeconds  > 0 && avgHandSeconds < SECURITY_FILTER_VERY_FAST_SECONDS)  securityScore++;
+
+            bool securityFilterActive = securityScore >= SECURITY_FILTER_MIN_SCORE;
+
+            // — contatori transizione false→true —
+            bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
+            if (securityFilterActive && !prevActive)
+            {
+                totalSecurityFilterActivated++;
+                // KPI: filtro scatta a L5 con autorizzazione L6 disponibile → crossing prevenuto
+                if (martingalaCounter == 5 && !advice.StopL6)
+                    totalSecurityFilterPreventedL6++;
+            }
+            _prevSecFilterActive[computer] = securityFilterActive;
+
+            advice.SecurityRiskScore       = securityScore;
+            advice.SecurityFilterActive    = securityFilterActive;
+            advice.AvgHandSeconds          = avgHandSeconds;
+            advice.LastHandDeltaSeconds    = lastHandDeltaSeconds;
+            advice.CurrentStreak           = currentStreak;
+
+            if (securityFilterActive)
+                advice.Reason = $"SECURITY FILTER [score {securityScore}/4]: streak {currentStreak} | avg {avgHandSeconds:0.0}s | hand {handIndexMazzo}";
 
             #endregion
 
@@ -477,13 +580,18 @@ namespace Decisore.Engine
         int GetActionCode(Advice advice, string stato, int martingalaCounter)
         {
             int actionCode = 0;
-            
+
             if (advice.StopMission)
                 actionCode = 1;
-            
-            else if (advice.GlobalPauseScalping && (stato.ToLower().Equals("sculping") || stato.ToLower().Equals("scalping") && (martingalaCounter < PAUSE_SCALPING_MARTINGALA_RANGE_EXCLUDE[0] || martingalaCounter > PAUSE_SCALPING_MARTINGALA_RANGE_EXCLUDE[1])))
+
+            else if (advice.SecurityFilterActive)
                 actionCode = 3;
-            
+
+            else if (advice.GlobalPauseScalping &&
+                     (stato.ToLower().Equals("sculping") || stato.ToLower().Equals("scalping")) &&
+                     (martingalaCounter < PAUSE_SCALPING_MARTINGALA_RANGE_EXCLUDE[0] || martingalaCounter > PAUSE_SCALPING_MARTINGALA_RANGE_EXCLUDE[1]))
+                actionCode = 3;
+
             else if (advice.StopL6)
                 actionCode = 2;
 

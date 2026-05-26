@@ -37,6 +37,7 @@ const fetchDashboardData = async () => {
         if (telemetry) {
             statisticsData.value = [{
                 timestamp: telemetry.sessionStart ?? new Date().toISOString(),
+                sessionEnd: telemetry.sessionEnd ?? null,
                 margine: telemetry.margineTot ?? 0,
                 margineMin: telemetry.margineMin ?? 0,
                 margineMax: telemetry.margineMax ?? 0,
@@ -334,9 +335,8 @@ onMounted(async () => {
 });
 
 const latestStatisticData = computed(() => {
-    // Cerca la statistica con dataFine null (cioè ancora "aperta")
     if (statisticsData.value && statisticsData.value.length > 0) {
-        const openStat = statisticsData.value.find((stat) => stat.dataFine == null);
+        const openStat = statisticsData.value.find((stat) => stat.sessionEnd == null);
         if (openStat) return openStat;
         return statisticsData.value[statisticsData.value.length - 1];
     }

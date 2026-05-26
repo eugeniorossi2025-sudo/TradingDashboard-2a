@@ -198,6 +198,14 @@ public class DashboardTableRow
     public string? Ore { get; set; }
     public string? Note { get; set; }
     public string? Json { get; set; }
+    // Decisore lastAdvice — typed extracts
+    public bool? AdviceStopL6 { get; set; }
+    public int? AdviceGlobalL5Loss { get; set; }
+    public int? AdviceGlobalAuthL6Counter { get; set; }
+    public int? AdviceActionCode { get; set; }
+    public int? AdviceMartingala { get; set; }
+    public bool? AdviceHotZone { get; set; }
+    public string? AdviceHotZoneLabel { get; set; }
 }
 
 /// <summary>
@@ -236,7 +244,16 @@ public class DashboardTelemetry
     public int TotalL5Played { get; set; }
     public int TotalL5Won { get; set; }
     public int TotalL5Lost { get; set; }
+    public int TotalL8Played { get; set; }
+    public int TotalL8Won { get; set; }
+    public int TotalL8Lost { get; set; }
+    public int TotalAuthL6Authorized { get; set; }
+    public int TotalPauseScalpingSoglieActivated { get; set; }
+    public int TotalPauseScalpingEWMAActivated { get; set; }
     public int SpotId { get; set; }
+    public int SpotPbHandsPlayed { get; set; }
+    public int SpotAuthL6Counter { get; set; }
+    public int SpotL5Loss { get; set; }
     public DateTime? SessionStart { get; set; }
     public DateTime? SessionEnd { get; set; }
     public decimal MargineTot { get; set; }
@@ -245,4 +262,19 @@ public class DashboardTelemetry
     public decimal Elapsed { get; set; }
     /// <summary>Raw TELEMETRY JSON string from dbo.Statistiche — passed through to the frontend as-is.</summary>
     public string? RawTelemetry { get; set; }
+}
+
+/// <summary>
+/// Fields extracted from the Decisore lastAdvice JSON for a single bot row.
+/// </summary>
+public class LastAdviceFields
+{
+    public bool? StopL6 { get; set; }
+    public int? GlobalL5Loss { get; set; }
+    public int? GlobalAuthL6Counter { get; set; }
+    public int? ActionCode { get; set; }
+    public int? Martingala { get; set; }
+    public bool? HotZone { get; set; }
+    public string? HotZoneLabel { get; set; }
+    public string? Reason { get; set; }
 }

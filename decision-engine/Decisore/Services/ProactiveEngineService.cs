@@ -89,6 +89,30 @@ namespace Decisore.Services
                     _engine.HOT_ZONES = cfg.TryGetValue("HOT_ZONES", out var hotzones)
                         ? JsonSerializer.Deserialize<int[][]>(hotzones).Select(x => (from: x[0], to: x[1])).ToArray()
                         : _engine.HOT_ZONES;
+
+                    _engine.SECURITY_FILTER_MAX_SHOE_HAND = cfg.TryGetValue("SECURITY_FILTER_MAX_SHOE_HAND", out var sfMaxHand)
+                        ? int.Parse(sfMaxHand, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_MAX_SHOE_HAND;
+
+                    _engine.SECURITY_FILTER_MIN_STREAK = cfg.TryGetValue("SECURITY_FILTER_MIN_STREAK", out var sfMinStreak)
+                        ? int.Parse(sfMinStreak, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_MIN_STREAK;
+
+                    _engine.SECURITY_FILTER_MAX_AVG_SECONDS = cfg.TryGetValue("SECURITY_FILTER_MAX_AVG_SECONDS", out var sfMaxAvg)
+                        ? double.Parse(sfMaxAvg, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_MAX_AVG_SECONDS;
+
+                    _engine.SECURITY_FILTER_VERY_FAST_SECONDS = cfg.TryGetValue("SECURITY_FILTER_VERY_FAST_SECONDS", out var sfVeryFast)
+                        ? double.Parse(sfVeryFast, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_VERY_FAST_SECONDS;
+
+                    _engine.SECURITY_FILTER_DELTA_WINDOW = cfg.TryGetValue("SECURITY_FILTER_DELTA_WINDOW", out var sfWindow)
+                        ? int.Parse(sfWindow, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_DELTA_WINDOW;
+
+                    _engine.SECURITY_FILTER_MIN_SCORE = cfg.TryGetValue("SECURITY_FILTER_MIN_SCORE", out var sfMinScore)
+                        ? int.Parse(sfMinScore, CultureInfo.InvariantCulture)
+                        : _engine.SECURITY_FILTER_MIN_SCORE;
                 } catch (Exception ex) {
                     Console.WriteLine(ex.Message);
                 }

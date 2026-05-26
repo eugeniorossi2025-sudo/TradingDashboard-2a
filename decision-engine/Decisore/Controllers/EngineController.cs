@@ -363,6 +363,11 @@ namespace Decisore.Controllers
                 _log.Log($"--- FINE ADVICE ---");
                 _log.Log($"\n");
 
+                _log.Log($"--- SECURITY_FILTER_EVAL ---");
+                _log.Log($"computer={p.COMPUTER} hand={mazzo} streak={advice.CurrentStreak} avg={advice.AvgHandSeconds:0.00}s delta={advice.LastHandDeltaSeconds:0.00}s score={advice.SecurityRiskScore}/4 active={advice.SecurityFilterActive}");
+                _log.Log($"--- FINE SECURITY_FILTER_EVAL ---");
+                _log.Log($"\n");
+
                 var telemetry = _engine.getTelemetry();
                     
                 _log.Log($"--- INIZIO TELEMETRY ---");

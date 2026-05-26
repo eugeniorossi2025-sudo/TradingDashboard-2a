@@ -20,4 +20,11 @@ public class Advice
     public string ToolTipJson { get; set; }
     public bool StopMission { get; set; }
     public int ActionCode { get; set; }
+
+    // Security Filter — compressione temporale streak inizio shoe
+    public int    SecurityRiskScore       { get; set; }
+    public bool   SecurityFilterActive    { get; set; }
+    public double AvgHandSeconds          { get; set; }
+    public double LastHandDeltaSeconds    { get; set; }
+    public int    CurrentStreak           { get; set; }
 }

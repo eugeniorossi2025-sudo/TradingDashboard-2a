@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using WebApi.Controllers;
 using WebApi.Data;
+using WebApi.Services;
 
 namespace WebApi.Services.Implementations;
 
@@ -45,30 +46,41 @@ public class DashboardService : IDashboardService
     public async Task<DashboardResponse> GetDashboardDataAsync()
     {
         var rows = await GetCurrentStatusRowsAsync();
-        var tableRows = rows.Select(v => new DashboardTableRow
+        var tableRows = rows.Select(v =>
         {
-            MinutiPassati = ((int)(DateTime.Now - v.LastUpdate).TotalMinutes).ToString(),
-            Computer = v.Computer,
-            Account = v.Account,
-            Tavolo = v.Tavolo,
-            Mazzo = v.Mazzo,
-            Margine = v.Margine,
-            MediaOra = v.MediaOra,
-            Stato = v.Stato,
-            Colore = v.Colore,
-            Pbt = v.Pbt,
-            ColpoMartingala = v.ColpoMartingala.ToString(),
-            ValoreGiocato = v.ValoreGiocato.ToString(),
-            Valutazione = v.ValutazioneRisultato,
-            Reason = ExtractAdviceReason(v.LastAdvice),
-            LastAdvice = v.LastAdvice,
-            LastInfo = v.LastInfo,
-            Prediction = v.LastInfo,
-            Ore = v.Ore.ToString(),
-            SaldoIniziale = v.SaldoIniziale,
-            SaldoIstantaneo = v.SaldoIstantaneo,
-            DtUltimo = v.LastUpdate,
-            LastUpdate = v.LastUpdate
+            var adviceFields = ExtractAdviceFields(v.LastAdvice);
+            return new DashboardTableRow
+            {
+                MinutiPassati = ((int)(DateTime.Now - v.LastUpdate).TotalMinutes).ToString(),
+                Computer = v.Computer,
+                Account = v.Account,
+                Tavolo = v.Tavolo,
+                Mazzo = v.Mazzo,
+                Margine = v.Margine,
+                MediaOra = v.MediaOra,
+                Stato = v.Stato,
+                Colore = v.Colore,
+                Pbt = v.Pbt,
+                ColpoMartingala = v.ColpoMartingala.ToString(),
+                ValoreGiocato = v.ValoreGiocato.ToString(),
+                Valutazione = v.ValutazioneRisultato,
+                Reason = adviceFields?.Reason ?? ExtractAdviceReason(v.LastAdvice),
+                LastAdvice = v.LastAdvice,
+                LastInfo = v.LastInfo,
+                Prediction = v.LastInfo,
+                Ore = v.Ore.ToString(),
+                SaldoIniziale = v.SaldoIniziale,
+                SaldoIstantaneo = v.SaldoIstantaneo,
+                DtUltimo = v.LastUpdate,
+                LastUpdate = v.LastUpdate,
+                AdviceStopL6 = adviceFields?.StopL6,
+                AdviceGlobalL5Loss = adviceFields?.GlobalL5Loss,
+                AdviceGlobalAuthL6Counter = adviceFields?.GlobalAuthL6Counter,
+                AdviceActionCode = adviceFields?.ActionCode,
+                AdviceMartingala = adviceFields?.Martingala,
+                AdviceHotZone = adviceFields?.HotZone,
+                AdviceHotZoneLabel = adviceFields?.HotZoneLabel
+            };
         }).ToList();
 
         var chartData = tableRows
@@ -161,6 +173,24 @@ public class DashboardService : IDashboardService
                     result.TotalL5Lost = l5l.GetInt32();
                 if (root.TryGetProperty("SpotID", out var sid))
                     result.SpotId = sid.GetInt32();
+                if (root.TryGetProperty("TotalL8Played", out var l8p))
+                    result.TotalL8Played = l8p.GetInt32();
+                if (root.TryGetProperty("TotalL8Won", out var l8w))
+                    result.TotalL8Won = l8w.GetInt32();
+                if (root.TryGetProperty("TotalL8Lost", out var l8l))
+                    result.TotalL8Lost = l8l.GetInt32();
+                if (root.TryGetProperty("TotalAuthL6Authorized", out var tla))
+                    result.TotalAuthL6Authorized = tla.GetInt32();
+                if (root.TryGetProperty("TotalPauseScalpingSoglieActivated", out var tpss))
+                    result.TotalPauseScalpingSoglieActivated = tpss.GetInt32();
+                if (root.TryGetProperty("TotalPauseScalpingEWMAActivated", out var tpse))
+                    result.TotalPauseScalpingEWMAActivated = tpse.GetInt32();
+                if (root.TryGetProperty("SpotPBHandsPlayed", out var sphp))
+                    result.SpotPbHandsPlayed = sphp.GetInt32();
+                if (root.TryGetProperty("SpotAuthL6Counter", out var salc))
+                    result.SpotAuthL6Counter = salc.GetInt32();
+                if (root.TryGetProperty("SpotL5Loss", out var sl5l))
+                    result.SpotL5Loss = sl5l.GetInt32();
             }
             catch { /* telemetry JSON malformed — return partial result */ }
         }
@@ -193,5 +223,41 @@ public class DashboardService : IDashboardService
         }
 
         return lastAdvice.Length <= 64 ? lastAdvice : "Default";
+    }
+
+    private static LastAdviceFields? ExtractAdviceFields(string? lastAdvice)
+    {
+        if (string.IsNullOrWhiteSpace(lastAdvice))
+            return null;
+
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(lastAdvice);
+            var root = doc.RootElement;
+            var fields = new LastAdviceFields();
+
+            if (root.TryGetProperty("Reason", out var reason))
+                fields.Reason = reason.GetString();
+            if (root.TryGetProperty("StopL6", out var stopL6))
+                fields.StopL6 = stopL6.GetBoolean();
+            if (root.TryGetProperty("GlobalL5Loss", out var gl5l))
+                fields.GlobalL5Loss = gl5l.GetInt32();
+            if (root.TryGetProperty("GlobalAuthL6Counter", out var galc))
+                fields.GlobalAuthL6Counter = galc.GetInt32();
+            if (root.TryGetProperty("ActionCode", out var ac))
+                fields.ActionCode = ac.GetInt32();
+            if (root.TryGetProperty("Martingala", out var mart))
+                fields.Martingala = mart.GetInt32();
+            if (root.TryGetProperty("HotZone", out var hz))
+                fields.HotZone = hz.GetBoolean();
+            if (root.TryGetProperty("HotZoneLabel", out var hzl))
+                fields.HotZoneLabel = hzl.GetString();
+
+            return fields;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }
