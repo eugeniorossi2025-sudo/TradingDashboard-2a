@@ -71,8 +71,7 @@ Write-Host "Configuring runner '$RunnerName' with labels: $RunnerLabels"
     --name $RunnerName `
     --labels $RunnerLabels `
     --work '_work' `
-    --runasservice `
-    --windowslogonaccount 'NT AUTHORITY\NETWORK SERVICE'
+    --runasservice
 
 if ($LASTEXITCODE -ne 0) { throw "Runner configuration failed (exit $LASTEXITCODE)" }
 
