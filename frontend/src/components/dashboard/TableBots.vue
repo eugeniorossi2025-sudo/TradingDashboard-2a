@@ -134,6 +134,11 @@ const getPlayedColorClass = (row) => {
     }[color] ?? '';
 };
 
+const getPlayedColorLabel = (row) => {
+    const raw = getPlayedColor(row);
+    return normalizePlayedColor(raw) || raw;
+};
+
 function parseServerUtcDate(value) {
     if (!value) return null;
     if (value instanceof Date) return value;
@@ -295,7 +300,7 @@ const parseTooltipJson = (tooltipJson) => {
                             'border border-surface-300 dark:border-surface-700'
                         ]"
                     >
-                        {{ getPlayedColor(slotProps.data) || '-' }}
+                        {{ getPlayedColorLabel(slotProps.data) || '-' }}
                     </span>
                 </template>
             </Column>
