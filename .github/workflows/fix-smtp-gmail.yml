@@ -1,0 +1,64 @@
+name: FIX - DASH2A SMTP Gmail Runtime Config
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type FIX_SMTP_GMAIL to update runtime SMTP sender"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix-smtp:
+    name: Update shared and active SMTP config
+    if: ${{ github.event.inputs.confirm == 'FIX_SMTP_GMAIL' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+
+    steps:
+      - name: Update SMTP sender without changing password
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+
+          $email = 'eugeniorossi2025@gmail.com'
+          $siteName = 'demoapp'
+          $appPoolName = 'demoapp'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          $site = Get-Website -Name $siteName -ErrorAction Stop
+          $physicalPath = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+          $releaseConfig = Join-Path $physicalPath 'appsettings.Production.json'
+
+          foreach ($path in @($sharedConfig, $releaseConfig)) {
+            if (-not (Test-Path -LiteralPath $path)) {
+              throw "Config not found: $path"
+            }
+
+            $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            if (-not $json.Smtp) {
+              $json | Add-Member -MemberType NoteProperty -Name Smtp -Value ([pscustomobject]@{})
+            }
+
+            $json.Smtp.From = $email
+            $json.Smtp.Username = $email
+            $json.Smtp.Host = 'smtp.gmail.com'
+            $json.Smtp.Port = '587'
+            $json.Smtp.EnableSsl = 'true'
+
+            $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding UTF8
+            Write-Host "UPDATED=$path"
+          }
+
+          Restart-WebAppPool -Name $appPoolName
+          Start-Sleep -Seconds 5
+
+          $verify = Get-Content -LiteralPath $releaseConfig -Raw | ConvertFrom-Json
+          Write-Host "SMTP_HOST=$($verify.Smtp.Host)"
+          Write-Host "SMTP_PORT=$($verify.Smtp.Port)"
+          Write-Host "SMTP_FROM=$($verify.Smtp.From)"
+          Write-Host "SMTP_USERNAME=$($verify.Smtp.Username)"
+          Write-Host "SMTP_PASSWORD_PRESENT=$([bool]$verify.Smtp.Password)"
