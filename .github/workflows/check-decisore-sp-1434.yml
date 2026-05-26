@@ -1,0 +1,60 @@
+name: CHECK - Decisore stored procedures on SQLEXPRESS01 1434
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Verify Decisore SPs on SQLEXPRESS01
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Check stored procedures
+        shell: powershell
+        run: |
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=15;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
+          $conn.Open()
+          Write-Host "Connesso a SQLEXPRESS01:1434 / $($conn.Database)"
+
+          function SpExists($name) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT OBJECT_ID('dbo.$name','P')"
+            $id = $cmd.ExecuteScalar()
+            return ($id -ne $null -and $id -ne [DBNull]::Value)
+          }
+
+          $sps = @(
+            "UpS_Users_Api",
+            "upI_Values",
+            "Upsert_Pc_CurrentStatus_Simple",
+            "Upsert_Pc_CurrentStatus_Deck",
+            "Upsert_Pc_CurrentStatus",
+            "AggiornaStatistiche",
+            "InsertMargine"
+          )
+
+          Write-Host ""
+          Write-Host "=== CHECK STORED PROCEDURES ==="
+          foreach ($sp in $sps) {
+            $ok = SpExists $sp
+            Write-Host "  $sp : $(if($ok){'OK'}else{'MANCANTE !!'})"
+          }
+
+          Write-Host ""
+          Write-Host "=== TUTTE LE SP ESISTENTI ==="
+          $cmd2 = $conn.CreateCommand()
+          $cmd2.CommandText = "SELECT name FROM sys.objects WHERE type='P' ORDER BY name"
+          $r = $cmd2.ExecuteReader()
+          while ($r.Read()) { Write-Host "  $($r['name'])" }
+          $r.Close()
+
+          $conn.Close()
