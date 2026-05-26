@@ -40,52 +40,13 @@ jobs:
           Write-Host "PUBLISH_DIR=$out"
           echo "PUBLISH_DIR=$out" >> $env:GITHUB_ENV
 
-      - name: Deploy via SYSTEM scheduled task
+      - name: Deploy
         shell: powershell
         run: |
-          $ErrorActionPreference = 'Stop'
-          $taskName  = 'DecisoreDeployTask'
-          $workDir   = $env:GITHUB_WORKSPACE
-          $publish   = $env:PUBLISH_DIR
-          $tmpScript = "$env:TEMP\decisore-deploy-task.ps1"
-
-          $lines = @(
-            "Set-Location '$workDir'",
-            "& '.\ops\dash2a-readiness\deploy-decisore.ps1' ``",
-            "  -ArtifactPath '$publish' ``",
-            "  -SiteName default ``",
-            "  -AppPoolName Proactive ``",
-            "  -ReleaseRoot 'C:\inetpub\decisore\releases' ``",
-            "  -SharedConfigPath 'C:\inetpub\decisore\shared\appsettings.Production.json' ``",
-            "  -HealthUrl 'http://127.0.0.1/api/proactive/health'"
-          )
-          $lines -join "`n" | Set-Content -Path $tmpScript -Encoding UTF8
-          Write-Host "Script written to $tmpScript"
-
-          Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-
-          $action    = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NonInteractive -ExecutionPolicy Bypass -File ""$tmpScript"""
-          $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest -LogonType ServiceAccount
-          $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
-          Register-ScheduledTask -TaskName $taskName -Action $action -Principal $principal -Settings $settings -Force | Out-Null
-          Write-Host "Scheduled task registered. Starting..."
-
-          Start-ScheduledTask -TaskName $taskName
-          Start-Sleep -Seconds 5
-
-          $timeout = 600
-          $elapsed = 0
-          do {
-            Start-Sleep -Seconds 5
-            $elapsed += 5
-            $state = (Get-ScheduledTask -TaskName $taskName).State
-            Write-Host "[$elapsed s] Task state: $state"
-          } while ($state -eq 'Running' -and $elapsed -lt $timeout)
-
-          $finalResult = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
-          Write-Host "Task completed. LastTaskResult: $finalResult"
-          Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-          Remove-Item $tmpScript -Force -ErrorAction SilentlyContinue
-
-          if ($finalResult -ne 0) { throw "Deploy task failed with result code: $finalResult" }
-          Write-Host "Deploy completed successfully via SYSTEM task."
+          .\ops\dash2a-readiness\deploy-decisore.ps1 `
+            -ArtifactPath $env:PUBLISH_DIR `
+            -SiteName default `
+            -AppPoolName Proactive `
+            -ReleaseRoot C:\inetpub\decisore\releases `
+            -SharedConfigPath C:\inetpub\decisore\shared\appsettings.Production.json `
+            -HealthUrl http://127.0.0.1/api/proactive/health
