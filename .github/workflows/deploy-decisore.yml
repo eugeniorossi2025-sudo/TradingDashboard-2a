@@ -37,8 +37,8 @@ jobs:
       DOTNET_NOLOGO: "1"
       CONFIGURATION: Release
       PUBLISH_DIR: ${{ github.workspace }}\artifacts\decisore-publish
-      DECISORE_SITE_NAME: decisore
-      DECISORE_APP_POOL: decisore
+      DECISORE_SITE_NAME: default
+      DECISORE_APP_POOL: Proactive
       DECISORE_RELEASE_ROOT: C:\inetpub\decisore\releases
       DECISORE_SHARED_CONFIG: C:\inetpub\decisore\shared\appsettings.Production.json
       DECISORE_HEALTH_URL: http://127.0.0.1/api/proactive/health
