@@ -142,6 +142,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserGridConfigurationService, UserGridConfigurationService>();
         services.AddScoped<IUserAccessTracker, UserAccessTracker>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IMissionLifecycleService, MissionLifecycleService>();
         
         // Add Background Services
         services.AddHostedService<DashboardUpdateService>();

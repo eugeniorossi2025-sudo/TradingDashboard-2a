@@ -22,10 +22,40 @@ public class MissionController : ControllerBase
     private const string InvestedCapitalBaseKey = "REPORT_INVESTED_CAPITAL_BASE";
 
     private readonly AppDbContext _context;
+    private readonly IMissionLifecycleService _missionLifecycleService;
 
-    public MissionController(AppDbContext context)
+    public MissionController(AppDbContext context, IMissionLifecycleService missionLifecycleService)
     {
         _context = context;
+        _missionLifecycleService = missionLifecycleService;
+    }
+
+    [HttpGet("current")]
+    [ProducesResponseType(typeof(ApiResponse<MissionLifecycleState>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetCurrent(CancellationToken cancellationToken)
+    {
+        var current = await _missionLifecycleService.GetCurrentAsync(cancellationToken);
+        return Ok(ApiResponse<MissionLifecycleState>.SuccessResponse(current));
+    }
+
+    [HttpPost("start-current")]
+    [Authorize(Policy = AuthConstants.Policies.RequireAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<MissionLifecycleResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> StartCurrent(CancellationToken cancellationToken)
+    {
+        var result = await _missionLifecycleService.StartCurrentAsync(cancellationToken);
+        return result.Success
+            ? Ok(ApiResponse<MissionLifecycleResult>.SuccessResponse(result, result.Message))
+            : BadRequest(ApiResponse<MissionLifecycleResult>.ErrorResponse(result.Message));
+    }
+
+    [HttpPost("finalize-current")]
+    [Authorize(Policy = AuthConstants.Policies.RequireAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<MissionLifecycleResult>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> FinalizeCurrent([FromBody] FinalizeMissionRequest? request, CancellationToken cancellationToken)
+    {
+        var result = await _missionLifecycleService.FinalizeCurrentAsync(request?.Reason ?? "ManualFinalize", cancellationToken);
+        return Ok(ApiResponse<MissionLifecycleResult>.SuccessResponse(result, result.Message));
     }
 
     [HttpGet("report/range")]
@@ -501,6 +531,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
     {
         return string.Equals(value, Demo, StringComparison.OrdinalIgnoreCase) ? Demo : Production;
     }
+}
+
+public class FinalizeMissionRequest
+{
+    public string? Reason { get; set; }
 }
 
 public class MissionRangeReportResponse

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using WebApi.Options;
 using WebApi.Models;
+using WebApi.Services;
 
 namespace WebApi.Controllers;
 
@@ -18,11 +19,16 @@ public class DeciderController : ControllerBase
 {
     private readonly DeciderOptions _options;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IMissionLifecycleService _missionLifecycleService;
 
-    public DeciderController(IOptions<DeciderOptions> options, IHttpClientFactory httpClientFactory)
+    public DeciderController(
+        IOptions<DeciderOptions> options,
+        IHttpClientFactory httpClientFactory,
+        IMissionLifecycleService missionLifecycleService)
     {
         _options = options.Value;
         _httpClientFactory = httpClientFactory;
+        _missionLifecycleService = missionLifecycleService;
     }
 
     [HttpGet("config")]
@@ -50,9 +56,10 @@ public class DeciderController : ControllerBase
         client.Timeout = TimeSpan.FromSeconds(15);
         try
         {
+            var missionResult = await _missionLifecycleService.FinalizeCurrentAsync("ResetDashboard", cancellationToken);
             var response = await client.GetAsync(url, cancellationToken);
             return response.IsSuccessStatusCode
-                ? Ok(ApiResponse<object>.SuccessResponse(new { url }, "Reset inviato al Decisore"))
+                ? Ok(ApiResponse<object>.SuccessResponse(new { url, mission = missionResult }, "Reset inviato al Decisore"))
                 : StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore ha risposto {(int)response.StatusCode}"));
         }
         catch (Exception ex)

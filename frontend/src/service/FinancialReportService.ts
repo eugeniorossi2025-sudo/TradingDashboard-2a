@@ -61,6 +61,32 @@ export interface RuntimeModeInfo {
     isDemoMode: boolean;
 }
 
+export interface MissionLifecycleState {
+    hasOpenMission: boolean;
+    sessionId?: number | null;
+    runtimeMode: string;
+    startTime?: string | null;
+    endTime?: string | null;
+    currentMargin: number;
+    totalMargin: number;
+    globalTarget: number;
+    activeTables: number;
+    realHandsCount: number;
+    samplesCount: number;
+    completed: boolean;
+    finalizationReason?: string | null;
+}
+
+export interface MissionLifecycleResult {
+    success: boolean;
+    message: string;
+    missionStarted: boolean;
+    missionFinalized: boolean;
+    missionSessionId?: number | null;
+    emailSent: number;
+    mission?: MissionLifecycleState | null;
+}
+
 function unwrap<T>(response: { data: T | { data?: T } }): T {
     const body = response.data as T | { data?: T };
     if (body && typeof body === 'object' && 'data' in body) {
@@ -85,6 +111,21 @@ export const FinancialReportService = {
     async setRuntimeMode(runtimeMode: 'Production' | 'Demo'): Promise<RuntimeModeInfo> {
         const response = await apiClient.put('/api/runtime-mode', { runtimeMode });
         return unwrap<RuntimeModeInfo>(response);
+    },
+
+    async getCurrentMission(): Promise<MissionLifecycleState> {
+        const response = await apiClient.get('/api/mission/current');
+        return unwrap<MissionLifecycleState>(response);
+    },
+
+    async startCurrentMission(): Promise<MissionLifecycleResult> {
+        const response = await apiClient.post('/api/mission/start-current', {});
+        return unwrap<MissionLifecycleResult>(response);
+    },
+
+    async finalizeCurrentMission(reason = 'ManualFinalize'): Promise<MissionLifecycleResult> {
+        const response = await apiClient.post('/api/mission/finalize-current', { reason });
+        return unwrap<MissionLifecycleResult>(response);
     },
 
     async getRangeReport(runtimeMode: 'Production' | 'Demo', from: string, to: string): Promise<MissionRangeReport> {

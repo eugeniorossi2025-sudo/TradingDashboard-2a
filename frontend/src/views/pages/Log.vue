@@ -6,8 +6,10 @@ import { InputGroup } from 'primevue';
 import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import InputText from 'primevue/inputtext';
+import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
 
+const toast = useToast();
 const logs = ref([]);
 const totalRecords = ref(0);
 const page = ref(1);
@@ -38,6 +40,8 @@ const missionRuntimeMode = ref('All');
 const missionSessionId = ref('');
 const missionReportSkip = ref(0);
 const missionReportLimit = ref(100);
+const currentMission = ref(null);
+const missionActionLoading = ref(false);
 const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
@@ -46,6 +50,7 @@ const missionModeOptions = [{ label: 'Tutte', value: 'All' }, ...reportModeOptio
 
 onMounted(() => {
     fetchLogs();
+    loadCurrentMission();
     loadMissionReports();
 });
 
@@ -145,6 +150,38 @@ async function loadMissionReports() {
     }
 }
 
+async function loadCurrentMission() {
+    currentMission.value = await FinancialReportService.getCurrentMission();
+}
+
+async function startMission() {
+    missionActionLoading.value = true;
+    try {
+        const result = await FinancialReportService.startCurrentMission();
+        toast.add({ severity: 'success', summary: 'Missione avviata', detail: `Missione #${result.missionSessionId}. Email inviate: ${result.emailSent}`, life: 3000 });
+        await loadCurrentMission();
+        await loadMissionReports();
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Errore missione', detail: error?.response?.data?.message || 'Avvio missione fallito', life: 3000 });
+    } finally {
+        missionActionLoading.value = false;
+    }
+}
+
+async function finalizeMission() {
+    missionActionLoading.value = true;
+    try {
+        const result = await FinancialReportService.finalizeCurrentMission('ManualLogFinalize');
+        toast.add({ severity: 'success', summary: 'Missione finalizzata', detail: result.missionFinalized ? `Report #${result.missionSessionId}. Email inviate: ${result.emailSent}` : result.message, life: 3000 });
+        await loadCurrentMission();
+        await loadMissionReports();
+    } catch (error) {
+        toast.add({ severity: 'error', summary: 'Errore missione', detail: 'Finalizzazione missione fallita', life: 3000 });
+    } finally {
+        missionActionLoading.value = false;
+    }
+}
+
 function loadMissionReportsRelative(direction) {
     const limit = Math.max(1, Number(missionReportLimit.value) || 100);
     missionReportSkip.value = Math.max(0, Number(missionReportSkip.value || 0) + (direction < 0 ? -limit : limit));
@@ -239,6 +276,22 @@ function formatLocalDate(date) {
                         <p class="text-muted-color mt-2 mb-0">Seleziona le missioni contabili e apri il report singolo, come nella pagina log originale.</p>
                     </div>
                     <div class="md:ml-auto text-sm text-muted-color">Totale: {{ missionReportsTotal }}</div>
+                </div>
+
+                <div class="flex flex-col md:flex-row md:items-center gap-3 p-3 rounded bg-surface-50 dark:bg-surface-800">
+                    <div>
+                        <div class="font-semibold">
+                            {{ currentMission?.hasOpenMission ? `Missione #${currentMission.sessionId} aperta (${currentMission.runtimeMode})` : 'Nessuna missione aperta' }}
+                        </div>
+                        <div class="text-sm text-muted-color">
+                            Margine corrente: {{ formatMoney(currentMission?.currentMargin || 0) }} · Tavoli attivi: {{ currentMission?.activeTables || 0 }}
+                        </div>
+                    </div>
+                    <div class="md:ml-auto flex gap-2">
+                        <Button v-if="!currentMission?.hasOpenMission" label="Avvia missione" icon="pi pi-play" severity="success" :loading="missionActionLoading" @click="startMission" />
+                        <Button v-else label="Finalizza missione" icon="pi pi-flag" severity="warn" :loading="missionActionLoading" @click="finalizeMission" />
+                        <Button label="Aggiorna" icon="pi pi-refresh" severity="secondary" outlined :disabled="missionActionLoading" @click="loadCurrentMission" />
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-7 gap-3 items-end">

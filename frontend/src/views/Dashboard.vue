@@ -7,6 +7,7 @@ import TableBots from '@/components/dashboard/TableBots.vue';
 import { useAuth } from '@/composables/useAuth';
 import { ConfigurationService } from '@/service/ConfigurationService';
 import { DashboardService } from '@/service/DashboardService';
+import { FinancialReportService } from '@/service/FinancialReportService';
 import Dialog from 'primevue/dialog';
 import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, onUnmounted, ref } from 'vue';
@@ -24,8 +25,15 @@ const marginiChartData = ref([]);
 const statisticsData = ref([]);
 const isConnected = ref(false);
 const decisionMethod = ref(null);
+const missionState = ref(null);
+const missionLoading = ref(false);
 
 const { isAdmin } = useAuth();
+
+const missionStatusLabel = computed(() => {
+    if (!missionState.value?.hasOpenMission) return 'Nessuna missione aperta';
+    return `Missione #${missionState.value.sessionId} aperta (${missionState.value.runtimeMode})`;
+});
 
 function parseServerUtcDate(value) {
     if (!value) return null;
@@ -43,6 +51,7 @@ const fetchDashboardData = async () => {
         chartData.value = await DashboardService.getChartData();
         marginiChartData.value = await DashboardService.getMarginiChart();
         await refreshTelemetry();
+        await refreshMissionState();
         if (data) {
             dashboardData.value = data;
             const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
@@ -140,6 +149,15 @@ const fetchDashboardData = async () => {
     }
 };
 
+const refreshMissionState = async () => {
+    try {
+        missionState.value = await FinancialReportService.getCurrentMission();
+    } catch (error) {
+        console.error('❌ Error loading mission state:', error);
+        missionState.value = null;
+    }
+};
+
 const refreshTelemetry = async () => {
     const telemetry = await DashboardService.getTelemetry();
     if (!telemetry) return;
@@ -161,11 +179,12 @@ const resetLoading = ref(false);
 const confirmResetDashboard = async () => {
     resetLoading.value = true;
     try {
-        await DashboardService.resetDashboard();
+        const result = await DashboardService.resetDashboard();
+        const mission = result?.mission;
         toast.add({
             severity: 'success',
             summary: 'Reset effettuato',
-            detail: 'La dashboard è stata resettata',
+            detail: mission?.missionFinalized ? `Report missione #${mission.missionSessionId} finalizzato e reset inviato` : 'Reset inviato al Decisore',
             life: 2000
         });
         await fetchDashboardData();
@@ -180,6 +199,54 @@ const confirmResetDashboard = async () => {
         });
     } finally {
         resetLoading.value = false;
+    }
+};
+
+const startMission = async () => {
+    missionLoading.value = true;
+    try {
+        const result = await FinancialReportService.startCurrentMission();
+        toast.add({
+            severity: 'success',
+            summary: 'Missione avviata',
+            detail: `Missione #${result.missionSessionId} avviata. Email inviate: ${result.emailSent}`,
+            life: 3000
+        });
+        await refreshMissionState();
+    } catch (error) {
+        console.error('❌ Error starting mission:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Errore missione',
+            detail: error?.response?.data?.message || 'Avvio missione fallito',
+            life: 3000
+        });
+    } finally {
+        missionLoading.value = false;
+    }
+};
+
+const finalizeMission = async () => {
+    missionLoading.value = true;
+    try {
+        const result = await FinancialReportService.finalizeCurrentMission('ManualDashboardFinalize');
+        toast.add({
+            severity: 'success',
+            summary: 'Missione finalizzata',
+            detail: result.missionFinalized ? `Report missione #${result.missionSessionId} creato. Email inviate: ${result.emailSent}` : result.message,
+            life: 3000
+        });
+        await fetchDashboardData();
+    } catch (error) {
+        console.error('❌ Error finalizing mission:', error);
+        toast.add({
+            severity: 'error',
+            summary: 'Errore missione',
+            detail: 'Finalizzazione missione fallita',
+            life: 3000
+        });
+    } finally {
+        missionLoading.value = false;
     }
 };
 const showStopEmergencyDialog = ref(false);
@@ -384,6 +451,17 @@ onUnmounted(async () => {
             <Stats :tableData="tableData || []" :chartData="statisticsData || []" v-if="statisticsData" />
 
             <div class="col-span-12 flex justify-end mb-2 gap-2" v-if="isAdmin">
+                <div class="mr-auto flex items-center text-sm text-muted-color">
+                    {{ missionStatusLabel }}
+                </div>
+                <Button v-if="!missionState?.hasOpenMission" severity="success" class="p-button p-component" :loading="missionLoading" @click="startMission">
+                    <span class="pi pi-play mr-2"></span>
+                    Avvia missione
+                </Button>
+                <Button v-else severity="warn" class="p-button p-component" :loading="missionLoading" @click="finalizeMission">
+                    <span class="pi pi-flag mr-2"></span>
+                    Finalizza missione
+                </Button>
                 <Button severity="danger" class="p-button p-component" @click="showStopEmergencyDialog = true">
                     <span class="pi pi-power-off mr-2"></span>
                     Arresto di emergenza
@@ -412,7 +490,12 @@ onUnmounted(async () => {
                 <template #header>
                     <span>Conferma Reset</span>
                 </template>
-                <div class="mb-4">Sei sicuro di voler resettare la dashboard?</div>
+                <div class="mb-4">
+                    Sei sicuro di voler resettare la dashboard?
+                    <div v-if="missionState?.hasOpenMission" class="mt-2 text-sm text-muted-color">
+                        Prima del reset verra finalizzata la missione #{{ missionState.sessionId }} e generato il report contabile.
+                    </div>
+                </div>
                 <div class="flex justify-end gap-2">
                     <Button class="p-button p-component" @click="showResetDialog = false" :disabled="resetLoading">Annulla</Button>
                     <Button severity="danger" class="p-button p-component p-button-danger" @click="confirmResetDashboard" :disabled="resetLoading">

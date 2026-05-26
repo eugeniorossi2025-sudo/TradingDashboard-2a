@@ -26,8 +26,9 @@ export const DashboardService = {
         return unwrap<any[]>(response);
     },
 
-    async resetDashboard(): Promise<void> {
-        await apiClient.post('/api/decider/reset');
+    async resetDashboard(): Promise<any> {
+        const response = await apiClient.post('/api/decider/reset');
+        return unwrap<any>(response);
     },
 
     async stopDashboard(): Promise<void> {

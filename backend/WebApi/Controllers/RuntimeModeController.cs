@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using WebApi.Data;
 using WebApi.Models;
+using WebApi.Services;
 
 namespace WebApi.Controllers;
 
@@ -18,10 +19,12 @@ public class RuntimeModeController : ControllerBase
     private const string Demo = "Demo";
 
     private readonly AppDbContext _context;
+    private readonly IMissionLifecycleService _missionLifecycleService;
 
-    public RuntimeModeController(AppDbContext context)
+    public RuntimeModeController(AppDbContext context, IMissionLifecycleService missionLifecycleService)
     {
         _context = context;
+        _missionLifecycleService = missionLifecycleService;
     }
 
     [HttpGet]
@@ -38,6 +41,12 @@ public class RuntimeModeController : ControllerBase
     public async Task<IActionResult> SetRuntimeMode([FromBody] RuntimeModeRequest request)
     {
         var mode = NormalizeMode(request.RuntimeMode ?? (request.IsDemoMode == true ? Demo : Production));
+        var currentMission = await _missionLifecycleService.GetCurrentAsync();
+        if (currentMission.HasOpenMission)
+        {
+            return Conflict(ApiResponse<object>.ErrorResponse(
+                $"Runtime mode bloccato: missione aperta #{currentMission.SessionId} in modalita {currentMission.RuntimeMode}. Finalizza la missione prima di cambiarlo."));
+        }
 
         var setting = await _context.Configurations.FirstOrDefaultAsync(c => c.Key == RuntimeModeKey);
         if (setting == null)
