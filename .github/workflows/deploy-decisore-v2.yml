@@ -40,13 +40,56 @@ jobs:
           Write-Host "PUBLISH_DIR=$out"
           echo "PUBLISH_DIR=$out" >> $env:GITHUB_ENV
 
-      - name: Deploy
+      - name: Deploy via SYSTEM scheduled task
         shell: powershell
         run: |
-          .\ops\dash2a-readiness\deploy-decisore.ps1 `
-            -ArtifactPath $env:PUBLISH_DIR `
-            -SiteName default `
-            -AppPoolName Proactive `
-            -ReleaseRoot C:\inetpub\decisore\releases `
-            -SharedConfigPath C:\inetpub\decisore\shared\appsettings.Production.json `
-            -HealthUrl http://127.0.0.1/api/proactive/health
+          $ErrorActionPreference = 'Stop'
+          $taskName = 'DecisoreDeployTask'
+          $workDir  = $env:GITHUB_WORKSPACE
+          $publish  = $env:PUBLISH_DIR
+
+          $scriptBlock = @"
+          cd '$workDir'
+          & '.\ops\dash2a-readiness\deploy-decisore.ps1' ``
+            -ArtifactPath '$publish' ``
+            -SiteName default ``
+            -AppPoolName Proactive ``
+            -ReleaseRoot 'C:\inetpub\decisore\releases' ``
+            -SharedConfigPath 'C:\inetpub\decisore\shared\appsettings.Production.json' ``
+            -HealthUrl 'http://127.0.0.1/api/proactive/health'
+"@
+          $tempScript = "$env:TEMP\decisore-deploy-task.ps1"
+          $scriptBlock | Set-Content -Path $tempScript -Encoding UTF8
+
+          Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+
+          $action    = New-ScheduledTaskAction -Execute 'powershell.exe' `
+            -Argument "-NonInteractive -ExecutionPolicy Bypass -File `"$tempScript`""
+          $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -RunLevel Highest -LogonType ServiceAccount
+          $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 15)
+          Register-ScheduledTask -TaskName $taskName -Action $action `
+            -Principal $principal -Settings $settings -Force | Out-Null
+
+          Write-Host "Scheduled task registered. Starting..."
+          Start-ScheduledTask -TaskName $taskName
+          Start-Sleep -Seconds 5
+
+          $timeout = 600
+          $elapsed = 0
+          do {
+            Start-Sleep -Seconds 5
+            $elapsed += 5
+            $info = Get-ScheduledTaskInfo -TaskName $taskName
+            Write-Host "[$elapsed s] State: $($info.LastTaskResult) / $($(Get-ScheduledTask -TaskName $taskName).State)"
+          } while ($(Get-ScheduledTask -TaskName $taskName).State -eq 'Running' -and $elapsed -lt $timeout)
+
+          $finalResult = (Get-ScheduledTaskInfo -TaskName $taskName).LastTaskResult
+          Write-Host "Task completed. LastTaskResult: $finalResult"
+
+          Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+          Remove-Item $tempScript -Force -ErrorAction SilentlyContinue
+
+          if ($finalResult -ne 0) {
+            throw "Deploy task failed with result code: $finalResult"
+          }
+          Write-Host "Deploy completed successfully via SYSTEM task."
