@@ -1,0 +1,127 @@
+name: DIAG — Decisore IIS Recovery Check
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DIAG_ONLY"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Check IIS / appsettings / web.config on Decisore VPS
+    if: ${{ github.event.inputs.confirm == 'DIAG_ONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: "1+2+3+4+5 — WinRM into Decisore VPS"
+        shell: powershell
+        run: |
+          $VPS  = '51.178.16.37'
+          $USER = 'administrator'
+          $PASS = '${{ secrets.DECISORE_ADMIN_PASS }}'
+
+          # Se il secret non è configurato, usa valore hardcoded temporaneo (ruotare dopo)
+          if ([string]::IsNullOrWhiteSpace($PASS)) {
+            Write-Host "::warning::Secret DECISORE_ADMIN_PASS non configurato, uso fallback"
+            $PASS = 'baccaovh2026!'
+          }
+
+          $SECPW = ConvertTo-SecureString $PASS -AsPlainText -Force
+          $CRED  = New-Object System.Management.Automation.PSCredential($USER, $SECPW)
+          $SO    = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
+
+          Write-Host "=== Tentativo WinRM a $VPS ==="
+          $session = $null
+          try {
+            $session = New-PSSession -ComputerName $VPS -Credential $CRED -SessionOption $SO -ErrorAction Stop
+            Write-Host "[OK] Sessione WinRM aperta"
+          } catch {
+            Write-Host "[FAIL] WinRM non raggiungibile: $_"
+            Write-Host "Fallback: probe HTTP + SQL only"
+
+            # Fallback: controlla solo HTTP
+            Write-Host "`n=== HTTP probe 51.178.16.37 ==="
+            $ports = @(80, 443, 5000, 5001)
+            foreach ($port in $ports) {
+              $tcp = Test-NetConnection -ComputerName $VPS -Port $port -WarningAction SilentlyContinue -InformationLevel Quiet
+              Write-Host "  Port $port : $tcp"
+            }
+            try {
+              $r = Invoke-WebRequest -Uri "http://$VPS/api/proactive/reset" -TimeoutSec 5 -ErrorAction Stop
+              Write-Host "  /api/proactive/reset HTTP $($r.StatusCode)"
+            } catch {
+              Write-Host "  /api/proactive/reset ERROR: $($_.Exception.Message)"
+            }
+            exit 0
+          }
+
+          Invoke-Command -Session $session -ScriptBlock {
+            $appcmd = "$env:windir\system32\inetsrv\appcmd.exe"
+
+            Write-Host "`n=== 1. IIS Sites e path fisico ==="
+            if (Test-Path $appcmd) {
+              & $appcmd list site
+              & $appcmd list app
+            } else {
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+              Get-Website | Select-Object Name, PhysicalPath, State, ApplicationPool | Format-Table -AutoSize
+              Get-WebApplication | Select-Object Path, PhysicalPath, ApplicationPool | Format-Table -AutoSize
+            }
+
+            Write-Host "`n=== 2. App Pool status ==="
+            if (Test-Path $appcmd) {
+              & $appcmd list apppool /processModel.userName:* /state:*
+            } else {
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+              Get-ChildItem IIS:\AppPools | Select-Object Name, State | Format-Table -AutoSize
+            }
+
+            Write-Host "`n=== 3. Event Viewer - ultimi 15 errori Application (incluso ASP.NET) ==="
+            try {
+              Get-EventLog -LogName Application -EntryType Error -Newest 15 |
+                Select-Object TimeGenerated, Source, @{N='Msg';E={$_.Message.Substring(0,[Math]::Min(300,$_.Message.Length))}} |
+                ForEach-Object { Write-Host "[$($_.TimeGenerated)] $($_.Source):`n  $($_.Msg)`n---" }
+            } catch {
+              Get-WinEvent -LogName Application -MaxEvents 20 -ErrorAction SilentlyContinue |
+                Where-Object { $_.Level -le 2 } |
+                ForEach-Object { Write-Host "[$($_.TimeCreated)] $($_.ProviderName):`n  $($_.Message.Substring(0,[Math]::Min(300,$_.Message.Length)))`n---" }
+            }
+
+            Write-Host "`n=== 4. appsettings.json in C:\Decisore ==="
+            $f = 'C:\Decisore\appsettings.json'
+            if (Test-Path $f) {
+              $c = Get-Content $f -Raw
+              $c = $c -replace '("Password"\s*:\s*")[^"]+(")','$1***$2'
+              $c = $c -replace '("Key"\s*:\s*")[^"]+(")','$1***$2'
+              Write-Host $c
+            } else {
+              Write-Host "[!] Non trovato: $f"
+              Write-Host "Contenuto C:\Decisore:"
+              Get-ChildItem 'C:\Decisore' -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTime | Format-Table
+            }
+
+            Write-Host "`n=== 5. web.config in C:\Decisore ==="
+            $w = 'C:\Decisore\web.config'
+            if (Test-Path $w) {
+              Get-Content $w -Raw | Write-Host
+            } else {
+              Write-Host "[!] Non trovato: $w"
+            }
+
+            Write-Host "`n=== BONUS: Decisore.dll / .exe presenti? ==="
+            Get-ChildItem 'C:\Decisore' -Filter '*.dll' -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTime |
+              Where-Object { $_.Name -match 'Decisor' } | Format-Table
+            Get-ChildItem 'C:\Decisore' -Filter '*.exe' -ErrorAction SilentlyContinue | Select-Object Name, Length, LastWriteTime | Format-Table
+          }
+
+          Remove-PSSession $session
