@@ -41,7 +41,7 @@ jobs:
       DECISORE_APP_POOL: decisore
       DECISORE_RELEASE_ROOT: C:\inetpub\decisore\releases
       DECISORE_SHARED_CONFIG: C:\inetpub\decisore\shared\appsettings.Production.json
-      DECISORE_HEALTH_URL: http://127.0.0.1/api/proactive/reset
+      DECISORE_HEALTH_URL: http://127.0.0.1/api/proactive/health
 
     steps:
       - name: Check prerequisites

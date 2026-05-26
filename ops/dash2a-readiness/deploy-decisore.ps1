@@ -17,7 +17,7 @@ param(
     [string]$AppPoolName        = 'decisore',
     [string]$ReleaseRoot        = 'C:\inetpub\decisore\releases',
     [string]$SharedConfigPath   = 'C:\inetpub\decisore\shared\appsettings.Production.json',
-    [string]$HealthUrl          = 'http://127.0.0.1/api/proactive/reset',
+    [string]$HealthUrl          = 'http://127.0.0.1/api/proactive/health',
     [int]   $HealthTimeoutSec   = 30,
     [int]   $StartupWaitSec     = 12,
     [string]$RepoRoot           = ''          # auto-detected if empty
@@ -162,7 +162,7 @@ try {
     Write-Ok "Runtime started — waiting ${StartupWaitSec}s for process warm-up"
     Start-Sleep -Seconds $StartupWaitSec
 
-    # Step 9: Health check
+    # Step 9: Health check — GET /api/proactive/health, no side-effects
     Write-Step "Health check: $HealthUrl"
     $response = Invoke-WebRequest -Uri $HealthUrl -UseBasicParsing `
         -TimeoutSec $HealthTimeoutSec -MaximumRedirection 0 -ErrorAction Stop
@@ -170,11 +170,18 @@ try {
     if ($response.StatusCode -ne 200) {
         throw "Health check returned HTTP $($response.StatusCode)"
     }
-    $body = ($response.Content -as [string]).Trim()
-    if ($body -ne '1') {
-        throw "Health check body unexpected: '$body' (expected '1')"
+
+    try {
+        $json = $response.Content | ConvertFrom-Json -ErrorAction Stop
+        if ($json.status -ne 'ok') {
+            throw "Health check JSON status unexpected: '$($json.status)' (expected 'ok')"
+        }
+        Write-Ok "Health check OK (HTTP 200, status='$($json.status)', service='$($json.service)')"
+    } catch [System.Management.Automation.RuntimeException] {
+        throw
+    } catch {
+        throw "Health check response is not valid JSON: '$($response.Content)'"
     }
-    Write-Ok "Health check OK (HTTP 200, body='1')"
 
 } catch {
     Write-Host ""

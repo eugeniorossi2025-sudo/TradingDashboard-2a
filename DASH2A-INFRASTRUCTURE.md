@@ -67,7 +67,7 @@
 | Repo path sorgente | `decision-engine/Decisore/` |
 | Framework | .NET 10, ASP.NET Core |
 | DB engine | `Server=51.178.16.37,1433;Database=Eugenio-Demo10;User Id=sa` (locale al VPS) |
-| Health endpoint | `GET /api/proactive/reset` → `1` |
+| Health endpoint | `GET /api/proactive/health` → `{"status":"ok","service":"decisore"}` |
 | Runner CI/CD | `dash2a-decisore-runner-01` — label `DASH2A-DECISORE` — **da installare una volta** |
 | Deploy script | `ops/dash2a-readiness/deploy-decisore.ps1` |
 | Runner install | `ops/dash2a-readiness/install-decisore-runner.ps1` (eseguire una volta via RDP) |
@@ -384,8 +384,12 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 ### Comandi verifica rapida post-deploy
 
 ```powershell
-# Backend
+# Backend WebApi
 Invoke-WebRequest -Uri "http://51.83.159.175/api/Auth/test" -UseBasicParsing
+
+# Decisore (health — no side-effects)
+Invoke-WebRequest -Uri "http://51.178.16.37/api/proactive/health" -UseBasicParsing
+# Expected: {"status":"ok","service":"decisore"}
 
 # Frontend
 Invoke-WebRequest -Uri "https://eugenio-dashboard-2a.web.app/" -UseBasicParsing
