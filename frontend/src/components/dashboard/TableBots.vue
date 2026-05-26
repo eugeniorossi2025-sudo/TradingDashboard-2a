@@ -112,12 +112,20 @@ const getStatusSeverity = (status) => {
     return map[status?.toUpperCase()] ?? 'info';
 };
 
+function parseServerUtcDate(value) {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value !== 'string') return new Date(value);
+
+    const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+    return new Date(normalized);
+}
+
 function isOnline(timestamp) {
     if (!timestamp) return false;
     const now = Date.now();
-    // Aggiungi un'ora (3600000 ms) al timestamp
-    const ts = new Date(timestamp).getTime() + 3600000;
-    // console.log((now - ts));
+    const ts = parseServerUtcDate(timestamp)?.getTime();
+    if (!ts || Number.isNaN(ts)) return false;
     return now - ts <= 300 * 1000;
 }
 const getLastAdviceField = (lastAdvice, field) => {

@@ -27,6 +27,15 @@ const decisionMethod = ref(null);
 
 const { isAdmin } = useAuth();
 
+function parseServerUtcDate(value) {
+    if (!value) return null;
+    if (value instanceof Date) return value;
+    if (typeof value !== 'string') return new Date(value);
+
+    const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+    return new Date(normalized);
+}
+
 // 🔹 FETCH INITIAL DASHBOARD DATA
 const fetchDashboardData = async () => {
     try {
@@ -50,8 +59,8 @@ const fetchDashboardData = async () => {
             const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
             if (rows.length > 0) {
                 const mostRecent = rows.reduce((a, b) => {
-                    const aTime = new Date(a.lastUpdate || a.last_update || 0).getTime();
-                    const bTime = new Date(b.lastUpdate || b.last_update || 0).getTime();
+                    const aTime = parseServerUtcDate(a.lastUpdate || a.last_update)?.getTime() ?? 0;
+                    const bTime = parseServerUtcDate(b.lastUpdate || b.last_update)?.getTime() ?? 0;
                     return bTime > aTime ? b : a;
                 });
                 if (mostRecent.lastInfo) {
