@@ -1,0 +1,65 @@
+name: FIX - Open firewall port 1434 for Decisore VPS
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type OPEN_1434"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  fix:
+    name: Add firewall rule port 1434 for Decisore
+    if: ${{ github.event.inputs.confirm == 'OPEN_1434' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Add inbound firewall rule for SQLEXPRESS01 port 1434
+        shell: powershell
+        run: |
+          Write-Host "=== STATO ATTUALE FIREWALL porta 1434 ==="
+          Get-NetFirewallRule | Where-Object { $_.DisplayName -match '1434|SQLEXPRESS01|Decisore' } | Select-Object DisplayName, Enabled, Direction, Action | Format-List
+
+          Write-Host ""
+          Write-Host "=== AGGIUNGO REGOLA FIREWALL ==="
+
+          $ruleName = "SQLEXPRESS01-1434-Decisore"
+
+          if (Get-NetFirewallRule -DisplayName $ruleName -ErrorAction SilentlyContinue) {
+            Write-Host "Regola gia esistente, aggiorno..."
+            Remove-NetFirewallRule -DisplayName $ruleName
+          }
+
+          New-NetFirewallRule `
+            -DisplayName $ruleName `
+            -Direction Inbound `
+            -Protocol TCP `
+            -LocalPort 1434 `
+            -RemoteAddress "51.178.16.37" `
+            -Action Allow `
+            -Enabled True `
+            -Profile Any `
+            -Description "Allow Decisore VPS to connect to SQLEXPRESS01"
+
+          Write-Host "Regola aggiunta OK"
+
+          Write-Host ""
+          Write-Host "=== VERIFICA PORTA 1434 IN ASCOLTO ==="
+          netstat -ano | findstr ":1434"
+
+          Write-Host ""
+          Write-Host "=== TEST CONNESSIONE SQL DA RUNNER ==="
+          $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=LionGest123@;Encrypt=False;TrustServerCertificate=True;Connect Timeout=5;"
+          $conn = New-Object System.Data.SqlClient.SqlConnection($cs)
+          $conn.Open()
+          Write-Host "SQL locale OK: $($conn.ServerVersion)"
+          $conn.Close()
