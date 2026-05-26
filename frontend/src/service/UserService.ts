@@ -199,6 +199,18 @@ export const UserService = {
         return unwrap<UserAccessEvent[]>(response);
     },
 
+    async disableUser(userId: number): Promise<void> {
+        await apiClient.post(`/api/admin/users/${encodeURIComponent(String(userId))}/disable`);
+    },
+
+    async enableUser(userId: number): Promise<void> {
+        await apiClient.post(`/api/admin/users/${encodeURIComponent(String(userId))}/enable`);
+    },
+
+    async deleteAdminUser(userId: number): Promise<void> {
+        await apiClient.delete(`/api/admin/users/${encodeURIComponent(String(userId))}`);
+    },
+
     async trackAccessEvent(eventType: string, page?: string): Promise<void> {
         await apiClient.post('/api/admin/access-events', {
             eventType,

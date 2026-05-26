@@ -204,6 +204,78 @@ public class AdminUsersController : ControllerBase
         return Ok(ApiResponse<List<UserAccessEventDto>>.SuccessResponse(events));
     }
 
+    [HttpPost("users/{userId:int}/disable")]
+    public async Task<IActionResult> DisableUser(int userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
+
+        if (IsCurrentUser(user.Id))
+            return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi disattivare l'utente con cui sei loggato"));
+
+        if (await IsLastEnabledAdminAsync(user))
+            return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi disattivare l'ultimo amministratore attivo"));
+
+        user.LockoutEnabled = true;
+        user.LockoutEnd = DateTimeOffset.UtcNow.AddYears(100);
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(ApiResponse<object>.ErrorResponse(FormatIdentityErrors(result)));
+
+        await TrackAdminActionAsync("DISABLE_USER", user);
+        return Ok(ApiResponse<object>.SuccessResponse(new object(), "User disabled"));
+    }
+
+    [HttpPost("users/{userId:int}/enable")]
+    public async Task<IActionResult> EnableUser(int userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
+
+        user.LockoutEnabled = true;
+        user.LockoutEnd = null;
+
+        var result = await _userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(ApiResponse<object>.ErrorResponse(FormatIdentityErrors(result)));
+
+        await TrackAdminActionAsync("ENABLE_USER", user);
+        return Ok(ApiResponse<object>.SuccessResponse(new object(), "User enabled"));
+    }
+
+    [HttpDelete("users/{userId:int}")]
+    public async Task<IActionResult> DeleteAdminUser(int userId)
+    {
+        var user = await _userManager.FindByIdAsync(userId.ToString());
+        if (user == null)
+            return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
+
+        if (IsCurrentUser(user.Id))
+            return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi eliminare l'utente con cui sei loggato"));
+
+        if (await IsLastAdminAsync(user))
+            return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi eliminare l'ultimo amministratore"));
+
+        var notificationSetting = await _context.UserNotificationSettings.FirstOrDefaultAsync(row => row.UserId == user.Id);
+        if (notificationSetting != null)
+            _context.UserNotificationSettings.Remove(notificationSetting);
+
+        var accessEvents = await _context.UserAccessEvents.Where(row => row.UserId == user.Id).ToListAsync();
+        foreach (var accessEvent in accessEvents)
+            accessEvent.UserId = null;
+
+        var result = await _userManager.DeleteAsync(user);
+        if (!result.Succeeded)
+            return BadRequest(ApiResponse<object>.ErrorResponse(FormatIdentityErrors(result)));
+
+        await _context.SaveChangesAsync();
+        await TrackAdminActionAsync("DELETE_USER", user.UserName ?? user.Id.ToString());
+        return Ok(ApiResponse<object>.SuccessResponse(new object(), "User deleted"));
+    }
+
     [HttpPost("access-events")]
     public async Task<IActionResult> TrackAccessEvent([FromBody] TrackAccessEventRequest request)
     {
@@ -215,6 +287,54 @@ public class AdminUsersController : ControllerBase
 
         await _accessTracker.TrackAsync(userId == 0 ? null : userId, username, request.EventType, request.Page, HttpContext);
         return Ok(ApiResponse<object>.SuccessResponse(new object(), "Access event tracked"));
+    }
+
+    private bool IsCurrentUser(int userId)
+    {
+        var userIdValue = User.FindFirst(AuthConstants.Claims.UserId)?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        return int.TryParse(userIdValue, out var currentUserId) && currentUserId == userId;
+    }
+
+    private async Task<bool> IsLastEnabledAdminAsync(User user)
+    {
+        if (!await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin))
+            return false;
+
+        var admins = await _userManager.GetUsersInRoleAsync(AuthConstants.Roles.Admin);
+        return admins.Count(admin => !admin.LockoutEnd.HasValue || admin.LockoutEnd <= DateTimeOffset.UtcNow) <= 1;
+    }
+
+    private async Task<bool> IsLastAdminAsync(User user)
+    {
+        if (!await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin))
+            return false;
+
+        var admins = await _userManager.GetUsersInRoleAsync(AuthConstants.Roles.Admin);
+        return admins.Count <= 1;
+    }
+
+    private async Task TrackAdminActionAsync(string eventType, User targetUser)
+    {
+        await TrackAdminActionAsync(eventType, targetUser.UserName ?? targetUser.Id.ToString());
+    }
+
+    private async Task TrackAdminActionAsync(string eventType, string targetUsername)
+    {
+        var userIdValue = User.FindFirst(AuthConstants.Claims.UserId)?.Value ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        int.TryParse(userIdValue, out var currentUserId);
+        var username = User.FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value ?? User.Identity?.Name;
+
+        await _accessTracker.TrackAsync(
+            currentUserId == 0 ? null : currentUserId,
+            username,
+            eventType,
+            $"/pages/user:{targetUsername}",
+            HttpContext);
+    }
+
+    private static string FormatIdentityErrors(IdentityResult result)
+    {
+        return string.Join(", ", result.Errors.Select(error => error.Description));
     }
 
     private static bool IsRecentlyActive(DateTime? occurredAtUtc)

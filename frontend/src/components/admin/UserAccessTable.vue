@@ -5,7 +5,7 @@ defineProps({
     adminBlock: { type: Boolean, default: false }
 });
 
-defineEmits(['details', 'save', 'report', 'disable', 'delete']);
+defineEmits(['details', 'report', 'toggle-enabled', 'delete']);
 
 function formatDate(value) {
     if (!value) return '-';
@@ -39,9 +39,8 @@ function formatDate(value) {
             <template #body="{ data }">
                 <div class="flex flex-wrap gap-2">
                     <Button label="Dettagli" size="small" severity="secondary" outlined @click="$emit('details', data)" />
-                    <Button label="Salva" size="small" severity="secondary" outlined @click="$emit('save', data)" />
                     <Button v-if="!adminBlock" label="Report accessi" size="small" severity="secondary" outlined @click="$emit('report', data)" />
-                    <Button label="Disattiva" size="small" severity="warn" outlined @click="$emit('disable', data)" />
+                    <Button :label="data.enabled ? 'Disattiva' : 'Riattiva'" size="small" :severity="data.enabled ? 'warn' : 'success'" outlined @click="$emit('toggle-enabled', data)" />
                     <Button label="Elimina" size="small" severity="danger" outlined @click="$emit('delete', data)" />
                 </div>
             </template>

@@ -101,16 +101,37 @@ function showDetails(row) {
     toast.add({ severity: 'info', summary: row.username, detail: `${row.accountType} · ${row.role} · ${row.status}`, life: 4000 });
 }
 
-function saveRow(row) {
-    toast.add({ severity: 'info', summary: 'Salva', detail: `Gestione stato per ${row.username} pronta lato report`, life: 3000 });
+async function toggleEnabled(row) {
+    const action = row.enabled ? 'disattivare' : 'riattivare';
+    const confirmed = window.confirm(`Confermi di voler ${action} ${row.username}?`);
+    if (!confirmed) return;
+
+    try {
+        if (row.enabled) {
+            await UserService.disableUser(row.userId);
+        } else {
+            await UserService.enableUser(row.userId);
+        }
+        toast.add({ severity: 'success', summary: 'Utente aggiornato', detail: `${row.username} ${row.enabled ? 'disattivato' : 'riattivato'}`, life: 3000 });
+        await loadPage();
+    } catch (error) {
+        const detail = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Operazione non riuscita';
+        toast.add({ severity: 'error', summary: 'Errore', detail, life: 6000 });
+    }
 }
 
-function disableRow(row) {
-    toast.add({ severity: 'warn', summary: 'Disattiva', detail: `Disattivazione ${row.username} non applicata automaticamente`, life: 4000 });
-}
+async function deleteRow(row) {
+    const confirmed = window.confirm(`Eliminare definitivamente ${row.username}? Questa azione non si annulla.`);
+    if (!confirmed) return;
 
-function deleteRow(row) {
-    toast.add({ severity: 'warn', summary: 'Elimina', detail: `Eliminazione ${row.username} da confermare in flusso dedicato`, life: 4000 });
+    try {
+        await UserService.deleteAdminUser(row.userId);
+        toast.add({ severity: 'success', summary: 'Utente eliminato', detail: `${row.username} rimosso`, life: 3000 });
+        await loadPage();
+    } catch (error) {
+        const detail = error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Eliminazione non riuscita';
+        toast.add({ severity: 'error', summary: 'Errore', detail, life: 6000 });
+    }
 }
 
 function formatDate(value) {
@@ -193,19 +214,19 @@ function formatDate(value) {
             <section class="mb-5">
                 <h4 class="m-0">Utenti — accessi operative</h4>
                 <p class="text-muted-color mt-2">Colonne sintetiche; fonti registrazione e flag account in Dettagli. Report accessi nella colonna Azioni.</p>
-                <UserAccessTable :rows="overview.operative" :loading="loading" @details="showDetails" @save="saveRow" @report="openAccessReport" @disable="disableRow" @delete="deleteRow" />
+                <UserAccessTable :rows="overview.operative" :loading="loading" @details="showDetails" @report="openAccessReport" @toggle-enabled="toggleEnabled" @delete="deleteRow" />
             </section>
 
             <section class="mb-5">
                 <h4 class="m-0">Bot — telemetria account servizio</h4>
                 <p class="text-muted-color mt-2">Profili di servizio; stesso layout compatto degli operative.</p>
-                <UserAccessTable :rows="overview.bots" :loading="loading" @details="showDetails" @save="saveRow" @report="openAccessReport" @disable="disableRow" @delete="deleteRow" />
+                <UserAccessTable :rows="overview.bots" :loading="loading" @details="showDetails" @report="openAccessReport" @toggle-enabled="toggleEnabled" @delete="deleteRow" />
             </section>
 
             <section>
                 <h4 class="m-0">Amministratori — gestione account</h4>
                 <p class="text-muted-color mt-2">Senza report accessi operative da questo blocco (solo gestione ruoli/stato).</p>
-                <UserAccessTable :rows="overview.admins" :loading="loading" admin-block @details="showDetails" @save="saveRow" @report="openAccessReport" @disable="disableRow" @delete="deleteRow" />
+                <UserAccessTable :rows="overview.admins" :loading="loading" admin-block @details="showDetails" @report="openAccessReport" @toggle-enabled="toggleEnabled" @delete="deleteRow" />
             </section>
         </div>
 
