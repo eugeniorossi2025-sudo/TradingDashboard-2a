@@ -75,4 +75,4 @@ Questa configurazione è intenzionalmente ottimizzata per applicazioni **statefu
 
 Qualsiasi modifica alla configurazione IIS potrebbe impattare direttamente la persistenza dello stato applicativo.
 
-<!-- deploy trigger: 2026-05-26 -->
+<!-- deploy trigger: 2026-05-26 v2 -->
