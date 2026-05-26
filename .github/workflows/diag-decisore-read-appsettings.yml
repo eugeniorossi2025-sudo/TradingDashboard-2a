@@ -1,0 +1,73 @@
+name: DIAG - Read Decisore appsettings and Event Viewer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Read Decisore appsettings.json live
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 5
+
+    steps:
+      - name: Try WinRM to Decisore VPS and read appsettings + Event Viewer
+        shell: powershell
+        run: |
+          Write-Host "=== PING Decisore VPS ==="
+          Test-NetConnection -ComputerName 51.178.16.37 -Port 80 -InformationLevel Quiet
+          Test-NetConnection -ComputerName 51.178.16.37 -Port 5985 -InformationLevel Quiet
+
+          Write-Host ""
+          Write-Host "=== HEALTH CHECK via HTTP ==="
+          try {
+            $r = Invoke-WebRequest -Uri "http://51.178.16.37/api/proactive/health" -TimeoutSec 5 -UseBasicParsing
+            Write-Host "STATUS: $($r.StatusCode)"
+            Write-Host $r.Content
+          } catch {
+            Write-Host "HEALTH: $($_.Exception.Message)"
+          }
+
+          Write-Host ""
+          Write-Host "=== TENTATIVO WinRM ==="
+          $cred = New-Object PSCredential("administrator", (ConvertTo-SecureString "LionGest.2024@Decisore" -AsPlainText -Force))
+          try {
+            $s = New-PSSession -ComputerName 51.178.16.37 -Credential $cred -Authentication Negotiate -ErrorAction Stop
+            Write-Host "WinRM OK"
+
+            Invoke-Command -Session $s -ScriptBlock {
+              Write-Host "=== appsettings.json ==="
+              Get-Content "C:\Decisore\appsettings.json" | Select-String "Server|Connection|Database"
+
+              Write-Host ""
+              Write-Host "=== EVENT VIEWER ULTIMI 5 MIN ==="
+              Get-WinEvent -FilterHashtable @{LogName='Application'; StartTime=(Get-Date).AddMinutes(-5)} -ErrorAction SilentlyContinue |
+                Where-Object { $_.ProviderName -match 'IIS|AspNetCore|.NET Runtime|Application Error' } |
+                Select-Object TimeCreated, ProviderName, @{N='Msg';E={$_.Message.Substring(0,[Math]::Min(400,$_.Message.Length))}} |
+                Format-List
+
+              Write-Host ""
+              Write-Host "=== APP POOL STATUS ==="
+              Import-Module WebAdministration -ErrorAction SilentlyContinue
+              Get-WebConfiguration "system.applicationHost/applicationPools/add" | Where-Object { $_.name -match 'Decisore|decis' } | Select-Object name, state
+            }
+
+            Remove-PSSession $s
+          } catch {
+            Write-Host "WinRM FALLITO: $($_.Exception.Message)"
+
+            Write-Host ""
+            Write-Host "=== FALLBACK: lettura via UNC path ==="
+            try {
+              $content = Get-Content "\\51.178.16.37\c$\Decisore\appsettings.json" -ErrorAction Stop
+              Write-Host $content
+            } catch {
+              Write-Host "UNC FALLITO: $($_.Exception.Message)"
+            }
+          }
