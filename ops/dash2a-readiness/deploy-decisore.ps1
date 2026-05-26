@@ -57,21 +57,19 @@ if (-not $ArtifactPath) {
     if (-not (Test-Path $ArtifactPath)) { throw "ArtifactPath not found: $ArtifactPath" }
 }
 
-# Step 2: Detect runtime (IIS or Windows Service)
+# Step 2: Detect runtime (IIS via appcmd.exe or Windows Service)
 Write-Step 'Detecting Decisore runtime'
 
 $useIIS      = $false
 $useService  = $false
 $serviceName = 'Decisore'
+$appcmd      = "$env:SystemRoot\System32\inetsrv\appcmd.exe"
 
-$iisAvailable = $null -ne (Get-Module -ListAvailable WebAdministration -ErrorAction SilentlyContinue)
-
-if ($iisAvailable) {
-    Import-Module WebAdministration
-    $site = Get-Website -Name $SiteName -ErrorAction SilentlyContinue
-    if ($site) {
+if (Test-Path $appcmd) {
+    $poolList = & $appcmd list apppool $AppPoolName 2>&1
+    if ($poolList -match $AppPoolName) {
         $useIIS = $true
-        Write-Ok "Runtime: IIS site '$SiteName' found at $($site.PhysicalPath)"
+        Write-Ok "Runtime: IIS app pool '$AppPoolName' found via appcmd.exe"
     }
 }
 
@@ -84,7 +82,7 @@ if (-not $useIIS) {
 }
 
 if (-not $useIIS -and -not $useService) {
-    throw "Cannot find IIS site '$SiteName' or Windows Service '$serviceName'. Check -SiteName / -AppPoolName or verify IIS/service setup."
+    throw "Cannot find IIS app pool '$AppPoolName' or Windows Service '$serviceName'. Verify IIS/service setup."
 }
 
 # Step 3: Prepare release folder
@@ -107,10 +105,17 @@ if (Test-Path $SharedConfigPath) {
     Write-Warn "Shared config NOT found at $SharedConfigPath - using binaries config as-is"
 }
 
-# Step 5: Record current path for rollback
+# Step 5: Record current path for rollback (appcmd-based)
 $previousPath = ''
 if ($useIIS) {
-    $previousPath = (Get-Website -Name $SiteName).PhysicalPath
+    $vdirInfo = & $appcmd list vdir "$SiteName/" 2>&1
+    if ($vdirInfo -match 'physicalPath:([^,\)]+)') {
+        $previousPath = $Matches[1].Trim()
+    }
+    if (-not $previousPath) {
+        $previousPath = "C:\Decisore"
+        Write-Warn "Could not read previous path from appcmd - using fallback: $previousPath"
+    }
 } else {
     $svcObj = Get-WmiObject Win32_Service -Filter "Name='$serviceName'" -ErrorAction SilentlyContinue
     if ($svcObj) {
@@ -123,15 +128,17 @@ Write-Ok "Previous path recorded: $previousPath"
 try {
     # Step 6: Stop runtime
     if ($useIIS) {
-        Write-Step "Stopping IIS app pool '$AppPoolName'"
-        Stop-WebAppPool -Name $AppPoolName
+        Write-Step "Stopping IIS app pool '$AppPoolName' via appcmd.exe"
+        & $appcmd stop apppool /apppool.name:$AppPoolName | Out-Host
         $waited = 0
         do {
             Start-Sleep -Seconds 2
             $waited += 2
-            $state = (Get-WebAppPoolState -Name $AppPoolName).Value
-        } while ($state -ne 'Stopped' -and $waited -lt 30)
-        if ($state -ne 'Stopped') { throw "App pool did not stop within 30s (state: $state)" }
+            $poolState = (& $appcmd list apppool $AppPoolName /text:state 2>&1)
+        } while ($poolState -notmatch 'Stopped' -and $waited -lt 30)
+        if ($poolState -notmatch 'Stopped') {
+            throw "App pool did not stop within 30s (state: $poolState)"
+        }
         Write-Ok "App pool stopped after ${waited}s"
     } else {
         Write-Step "Stopping Windows Service '$serviceName'"
@@ -140,13 +147,11 @@ try {
         Write-Ok 'Service stopped'
     }
 
-    # Step 7: Swap to new release
+    # Step 7: Swap to new release via appcmd.exe
     Write-Step "Swapping to new release: $releasePath"
     if ($useIIS) {
-        Set-WebConfigurationProperty `
-            -Filter "system.applicationHost/sites/site[@name='$SiteName']/application[@path='/']/virtualDirectory[@path='/']" `
-            -Name 'physicalPath' `
-            -Value $releasePath
+        & $appcmd set vdir "$SiteName/" /physicalPath:$releasePath | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "appcmd set vdir failed (exit $LASTEXITCODE)" }
     } else {
         $exePath = Join-Path $releasePath 'Decisore.exe'
         if (Test-Path $exePath) {
@@ -160,8 +165,8 @@ try {
 
     # Step 8: Start runtime
     if ($useIIS) {
-        Write-Step "Starting IIS app pool '$AppPoolName'"
-        Start-WebAppPool -Name $AppPoolName
+        Write-Step "Starting IIS app pool '$AppPoolName' via appcmd.exe"
+        & $appcmd start apppool /apppool.name:$AppPoolName | Out-Host
     } else {
         Write-Step "Starting Windows Service '$serviceName'"
         Start-Service -Name $serviceName
@@ -191,11 +196,8 @@ try {
     if ($previousPath -and (Test-Path $previousPath)) {
         Write-Step "ROLLBACK: restoring to $previousPath"
         if ($useIIS) {
-            Set-WebConfigurationProperty `
-                -Filter "system.applicationHost/sites/site[@name='$SiteName']/application[@path='/']/virtualDirectory[@path='/']" `
-                -Name 'physicalPath' `
-                -Value $previousPath
-            Start-WebAppPool -Name $AppPoolName
+            & $appcmd set vdir "$SiteName/" /physicalPath:$previousPath | Out-Host
+            & $appcmd start apppool /apppool.name:$AppPoolName | Out-Host
         } else {
             $oldExe = Join-Path $previousPath 'Decisore.exe'
             if (Test-Path $oldExe) {
