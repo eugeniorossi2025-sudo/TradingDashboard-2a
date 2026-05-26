@@ -1,4 +1,4 @@
-name: TEST - Bot E2E chain (Decisore → DB → Dashboard)
+name: TEST - Bot E2E chain v2 (Decisore -> DB -> Dashboard)
 
 on:
   workflow_dispatch:
