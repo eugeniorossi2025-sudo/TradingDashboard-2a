@@ -112,6 +112,28 @@ const getStatusSeverity = (status) => {
     return map[status?.toUpperCase()] ?? 'info';
 };
 
+const getPlayedColor = (row) => {
+    const value = row?.colore ?? row?.chosenColor ?? row?.chosen_color ?? '';
+    return String(value).trim();
+};
+
+const normalizePlayedColor = (value) => {
+    const color = String(value || '').trim().toUpperCase();
+    if (color === 'GREEN' || color === 'TIE') return 'T';
+    if (color === 'RED' || color === 'BANKER') return 'B';
+    if (color === 'BLUE' || color === 'PLAYER') return 'P';
+    return color;
+};
+
+const getPlayedColorClass = (row) => {
+    const color = normalizePlayedColor(getPlayedColor(row));
+    return {
+        T: 'bg-green-800 text-white',
+        B: 'bg-red-800 text-white',
+        P: 'bg-blue-800 text-white'
+    }[color] ?? '';
+};
+
 function parseServerUtcDate(value) {
     if (!value) return null;
     if (value instanceof Date) return value;
@@ -264,18 +286,16 @@ const parseTooltipJson = (tooltipJson) => {
                 </template>
             </Column>
 
-            <Column field="chosenColor" header="Colore Giocato" sortable frozen style="min-width: 120px" class="hidden md:table-cell">
+            <Column field="colore" header="Colore Giocato" sortable frozen style="min-width: 120px" class="hidden md:table-cell">
                 <template #body="slotProps">
                     <span
                         :class="[
                             'd-flex p-1.5 rounded text-xs font-bold flex items-center justify-center w-fit',
-                            slotProps.data.chosenColor === 'T' ? 'bg-green-800 text-white' : '',
-                            slotProps.data.chosenColor === 'B' ? 'bg-red-800 text-white' : '',
-                            slotProps.data.chosenColor === 'P' ? 'bg-blue-800 text-white' : '',
+                            getPlayedColorClass(slotProps.data),
                             'border border-surface-300 dark:border-surface-700'
                         ]"
                     >
-                        {{ slotProps.data.colore }}
+                        {{ getPlayedColor(slotProps.data) || '-' }}
                     </span>
                 </template>
             </Column>
