@@ -243,14 +243,6 @@ namespace Decisore.Controllers
             }
         }
 
-        /* ---------------- HEALTH (no side-effects, deploy probe) ------------ */
-
-        [HttpGet("health")]
-        public IActionResult Health()
-        {
-            return Ok(new { status = "ok", service = "decisore" });
-        }
-
         /* ---------------- RESET ---------------- */
 
         [HttpGet("reset")]

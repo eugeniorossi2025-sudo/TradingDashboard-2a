@@ -60,17 +60,8 @@
 | Nome servizio | **Decisore Proattivo / Logica Multi-tavolo** |
 | API runtime | `http://51.178.16.37/api/proactive` (es. `/reset`, engine proactive) |
 | Web Server | IIS 10 — *validato 2026-05-25* |
-| IIS site | `decisore` (porta 80) |
-| IIS app pool | `decisore` |
-| Release root | `C:\inetpub\decisore\releases` |
-| Shared config | `C:\inetpub\decisore\shared\appsettings.Production.json` |
 | Repo path sorgente | `decision-engine/Decisore/` |
-| Framework | .NET 10, ASP.NET Core |
-| DB engine | `Server=51.178.16.37,1433;Database=Eugenio-Demo10;User Id=sa` (locale al VPS) |
-| Health endpoint | `GET /api/proactive/health` → `{"status":"ok","service":"decisore"}` |
-| Runner CI/CD | `dash2a-decisore-runner-01` — label `DASH2A-DECISORE` — **da installare una volta** |
-| Deploy script | `ops/dash2a-readiness/deploy-decisore.ps1` |
-| Runner install | `ops/dash2a-readiness/install-decisore-runner.ps1` (eseguire una volta via RDP) |
+| DB engine | Istanza SQL separata (credenziali in secret/local config del Decisore) |
 
 > Il Decisore è **completamente separato** dalla WebApi dashboard. Scrive sul proprio DB; la dashboard Vue consuma dati dalla WebApi → DB `51.83.159.175`.
 
@@ -195,16 +186,14 @@ File: `backend/WebApi/appsettings.json` + override IIS `appsettings.Production.j
 
 ### Workflows attivi
 
-| File | Trigger | Azione | Runner |
-|---|---|---|---|
-| `deploy-backend-dash2a.yml` | `workflow_dispatch` | Build + deploy backend IIS | `DASH2A-BACKEND` (`51.83.159.175`) |
-| `deploy-decisore.yml` | **push `main` → `decision-engine/**`** + `workflow_dispatch` | Build + deploy Decisore IIS | `DASH2A-DECISORE` (`51.178.16.37`) |
-| `enable-backend-https.yml` | `workflow_dispatch` | IIS 443 + cert Let's Encrypt | `DASH2A-BACKEND` |
-| `firebase-hosting-merge.yml` | `workflow_dispatch` | Deploy frontend Firebase live | `ubuntu-latest` |
-| `firebase-hosting-pull-request.yml` | PR | Build frontend (no deploy live) | `ubuntu-latest` |
+| File | Trigger | Azione |
+|---|---|---|
+| `deploy-backend-dash2a.yml` | `workflow_dispatch` | Build + deploy backend IIS |
+| `enable-backend-https.yml` | `workflow_dispatch` | IIS 443 + cert Let's Encrypt |
+| `firebase-hosting-merge.yml` | `workflow_dispatch` | Deploy frontend Firebase live |
+| `firebase-hosting-pull-request.yml` | PR | Build frontend (no deploy live) |
 
-> **Decisore**: auto-deploy su ogni push a `main` che tocca `decision-engine/**`. Nessun `workflow_dispatch` richiesto.
-> **Backend + Frontend**: richiedono `workflow_dispatch` manuale (o direttamente dalla web UI GitHub Actions).
+> **Nessun auto-deploy su push `main`** — backend e frontend richiedono entrambi `workflow_dispatch` manuale.
 
 ### Segreti GitHub (repository secrets — verificati 2026-05-25)
 
@@ -384,12 +373,8 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 ### Comandi verifica rapida post-deploy
 
 ```powershell
-# Backend WebApi
+# Backend
 Invoke-WebRequest -Uri "http://51.83.159.175/api/Auth/test" -UseBasicParsing
-
-# Decisore (health — no side-effects)
-Invoke-WebRequest -Uri "http://51.178.16.37/api/proactive/health" -UseBasicParsing
-# Expected: {"status":"ok","service":"decisore"}
 
 # Frontend
 Invoke-WebRequest -Uri "https://eugenio-dashboard-2a.web.app/" -UseBasicParsing
