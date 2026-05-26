@@ -1,11 +1,11 @@
-name: Decisore Deploy
+name: Decisore Deploy V2
 
 on:
   push:
     branches: [main]
     paths:
       - 'decision-engine/**'
-      - '.github/workflows/deploy-decisore.yml'
+      - '.github/workflows/deploy-decisore-v2.yml'
   workflow_dispatch:
 
 permissions:
