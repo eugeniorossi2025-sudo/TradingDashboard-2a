@@ -40,6 +40,16 @@ jobs:
           $CRED  = New-Object System.Management.Automation.PSCredential($USER, $SECPW)
           $SO    = New-PSSessionOption -SkipCACheck -SkipCNCheck -SkipRevocationCheck
 
+          # Aggiungi il Decisore VPS ai TrustedHosts (necessario per WinRM non-domain)
+          $current = (Get-Item WSMan:\localhost\Client\TrustedHosts).Value
+          if ($current -notmatch [regex]::Escape($VPS)) {
+            $newVal = if ($current) { "$current,$VPS" } else { $VPS }
+            Set-Item WSMan:\localhost\Client\TrustedHosts -Value $newVal -Force
+            Write-Host "TrustedHosts aggiornato: $newVal"
+          } else {
+            Write-Host "TrustedHosts già contiene $VPS"
+          }
+
           Write-Host "=== Tentativo WinRM a $VPS ==="
           $session = $null
           try {
