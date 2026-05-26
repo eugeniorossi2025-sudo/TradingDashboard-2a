@@ -31,6 +31,7 @@ public class MissionLifecycleService : IMissionLifecycleService
     public async Task<MissionLifecycleState> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
+        await EnsureMissionStartedFromFirstPbtAsync(cancellationToken);
 
         var open = await _context.MissionSessions
             .AsNoTracking()
@@ -331,6 +332,107 @@ public class MissionLifecycleService : IMissionLifecycleService
         return string.Equals(value, Demo, StringComparison.OrdinalIgnoreCase) ? Demo : Production;
     }
 
+    private async Task EnsureMissionStartedFromFirstPbtAsync(CancellationToken cancellationToken)
+    {
+        var hasOpenMission = await _context.MissionSessions
+            .AsNoTracking()
+            .AnyAsync(session => !session.Completed, cancellationToken);
+        if (hasOpenMission)
+            return;
+
+        var telemetry = await GetLatestPbtTelemetryAsync(cancellationToken);
+        if (telemetry == null || telemetry.TotalPbHandsPlayed <= 0)
+            return;
+
+        var alreadyTracked = await _context.MissionSessions
+            .AsNoTracking()
+            .AnyAsync(session => session.StartTime >= telemetry.SessionStart, cancellationToken);
+        if (alreadyTracked)
+            return;
+
+        await StartMissionFromPbtAsync(telemetry, cancellationToken);
+    }
+
+    private async Task StartMissionFromPbtAsync(PbtTelemetry telemetry, CancellationToken cancellationToken)
+    {
+        var startPoint = await _context.Margini
+            .AsNoTracking()
+            .Where(point => point.Data.HasValue && point.Data.Value >= telemetry.SessionStart)
+            .OrderBy(point => point.Data)
+            .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var startTime = startPoint?.Timestamp ?? now;
+        var startMargin = startPoint?.Margin ?? await GetCurrentMarginAsync(cancellationToken);
+        var runtimeMode = await GetCurrentModeAsync(cancellationToken);
+        var activeTables = await GetActiveTablesAsync(cancellationToken);
+
+        var session = new MissionSession
+        {
+            MissionKey = $"pbt-{telemetry.SessionStart:yyyyMMddHHmmss}",
+            StartTime = startTime,
+            TotalMargin = startMargin,
+            LastTotalMarginForRealHands = startMargin,
+            GlobalTarget = await GetStopWinTargetAsync(cancellationToken),
+            ActiveTables = activeTables,
+            RuntimeMode = runtimeMode,
+            Completed = false,
+            CreatedAt = now
+        };
+
+        _context.MissionSessions.Add(session);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        _context.MissionMarginSamples.Add(new MissionMarginSample
+        {
+            SessionId = session.Id,
+            Timestamp = startTime,
+            TotalMargin = startMargin,
+            ActiveTables = activeTables,
+            VmCurrent = startMargin,
+            RuntimeMode = runtimeMode
+        });
+        await _context.SaveChangesAsync(cancellationToken);
+
+        await SendMissionEmailAsync(session.Id, "started", cancellationToken);
+    }
+
+    private async Task<PbtTelemetry?> GetLatestPbtTelemetryAsync(CancellationToken cancellationToken)
+    {
+        var latest = await _context.Statistiche
+            .AsNoTracking()
+            .Where(row => row.Telemetry != null)
+            .OrderByDescending(row => row.DataInizio)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (latest?.Telemetry == null)
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(latest.Telemetry);
+            var totalPbHandsPlayed = GetInt32Property(doc.RootElement, "TotalPBHandsPlayed", "totalPbHandsPlayed");
+            return new PbtTelemetry(latest.DataInizio, totalPbHandsPlayed);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Unable to parse latest PBT telemetry for mission auto-start");
+            return null;
+        }
+    }
+
+    private static int GetInt32Property(JsonElement root, params string[] propertyNames)
+    {
+        foreach (var propertyName in propertyNames)
+        {
+            if (root.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number)
+                return property.GetInt32();
+        }
+
+        return 0;
+    }
+
     private async Task<decimal> GetCurrentMarginAsync(CancellationToken cancellationToken)
     {
         var latestMargin = await _context.Margini
@@ -454,3 +556,5 @@ END
 """, cancellationToken);
     }
 }
+
+internal sealed record PbtTelemetry(DateTime SessionStart, int TotalPbHandsPlayed);

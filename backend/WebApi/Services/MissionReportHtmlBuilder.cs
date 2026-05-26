@@ -48,6 +48,7 @@ public static class MissionReportHtmlBuilder
         sb.AppendLine("<div class=\"summaryGrid\">");
         AddCard(sb, "Invested Capital", "€ •••••••", "neutral");
         AddCard(sb, "Net P&L", FormatEuro(report.Totals.TotalMarginEuro), Tone(report.Totals.TotalMarginEuro), true);
+        AddCard(sb, "Final Margin", FormatEuro(report.Totals.FinalMarginEuro), Tone(report.Totals.FinalMarginEuro));
         AddCard(sb, "Period Return", FormatPercent(report.Totals.PeriodReturnPct), Tone(report.Totals.PeriodReturnPct));
         AddCard(sb, "Annualised Return", FormatPercent(report.Totals.AnnualisedReturnPct), Tone(report.Totals.AnnualisedReturnPct));
         AddCard(sb, "Average Daily P&L", FormatEuro(report.Totals.AverageDailyPnl), Tone(report.Totals.AverageDailyPnl));
@@ -91,10 +92,10 @@ public static class MissionReportHtmlBuilder
 
         if (report.Sessions.Count > 0)
         {
-            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>Margin</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
+            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>Net P&amp;L</th><th>Final Margin</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
             foreach (var session in report.Sessions)
             {
-                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
+                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td class=\"ledgerAmount {Tone(session.FinalMarginEuro)}\">{FormatEuro(session.FinalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
             }
             sb.AppendLine("</tbody></table></div>");
         }

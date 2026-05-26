@@ -6,10 +6,8 @@ import { InputGroup } from 'primevue';
 import Button from 'primevue/button';
 import DatePicker from 'primevue/datepicker';
 import InputText from 'primevue/inputtext';
-import { useToast } from 'primevue/usetoast';
 import { computed, onMounted, ref } from 'vue';
 
-const toast = useToast();
 const logs = ref([]);
 const totalRecords = ref(0);
 const page = ref(1);
@@ -41,7 +39,6 @@ const missionSessionId = ref('');
 const missionReportSkip = ref(0);
 const missionReportLimit = ref(100);
 const currentMission = ref(null);
-const missionActionLoading = ref(false);
 const reportModeOptions = [
     { label: 'Production', value: 'Production' },
     { label: 'Demo', value: 'Demo' }
@@ -154,34 +151,6 @@ async function loadCurrentMission() {
     currentMission.value = await FinancialReportService.getCurrentMission();
 }
 
-async function startMission() {
-    missionActionLoading.value = true;
-    try {
-        const result = await FinancialReportService.startCurrentMission();
-        toast.add({ severity: 'success', summary: 'Missione avviata', detail: `Missione #${result.missionSessionId}. Email inviate: ${result.emailSent}`, life: 3000 });
-        await loadCurrentMission();
-        await loadMissionReports();
-    } catch (error) {
-        toast.add({ severity: 'error', summary: 'Errore missione', detail: error?.response?.data?.message || 'Avvio missione fallito', life: 3000 });
-    } finally {
-        missionActionLoading.value = false;
-    }
-}
-
-async function finalizeMission() {
-    missionActionLoading.value = true;
-    try {
-        const result = await FinancialReportService.finalizeCurrentMission('ManualLogFinalize');
-        toast.add({ severity: 'success', summary: 'Missione finalizzata', detail: result.missionFinalized ? `Report #${result.missionSessionId}. Email inviate: ${result.emailSent}` : result.message, life: 3000 });
-        await loadCurrentMission();
-        await loadMissionReports();
-    } catch (error) {
-        toast.add({ severity: 'error', summary: 'Errore missione', detail: 'Finalizzazione missione fallita', life: 3000 });
-    } finally {
-        missionActionLoading.value = false;
-    }
-}
-
 function loadMissionReportsRelative(direction) {
     const limit = Math.max(1, Number(missionReportLimit.value) || 100);
     missionReportSkip.value = Math.max(0, Number(missionReportSkip.value || 0) + (direction < 0 ? -limit : limit));
@@ -288,9 +257,7 @@ function formatLocalDate(date) {
                         </div>
                     </div>
                     <div class="md:ml-auto flex gap-2">
-                        <Button v-if="!currentMission?.hasOpenMission" label="Avvia missione" icon="pi pi-play" severity="success" :loading="missionActionLoading" @click="startMission" />
-                        <Button v-else label="Finalizza missione" icon="pi pi-flag" severity="warn" :loading="missionActionLoading" @click="finalizeMission" />
-                        <Button label="Aggiorna" icon="pi pi-refresh" severity="secondary" outlined :disabled="missionActionLoading" @click="loadCurrentMission" />
+                        <Button label="Aggiorna" icon="pi pi-refresh" severity="secondary" outlined @click="loadCurrentMission" />
                     </div>
                 </div>
 
@@ -354,9 +321,14 @@ function formatLocalDate(date) {
                         </Column>
                         <Column field="kFactor" header="K" />
                         <Column field="activeTables" header="Tavoli" />
-                        <Column field="totalMarginEuro" header="Margin €">
+                        <Column field="totalMarginEuro" header="P&L €">
                             <template #body="{ data }">
                                 <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro) }}</span>
+                            </template>
+                        </Column>
+                        <Column field="finalMarginEuro" header="Margine finale">
+                            <template #body="{ data }">
+                                {{ formatMoney(data.finalMarginEuro || 0) }}
                             </template>
                         </Column>
                         <Column field="globalTargetEuro" header="Target" />

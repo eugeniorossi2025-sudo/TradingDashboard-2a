@@ -26,7 +26,6 @@ const statisticsData = ref([]);
 const isConnected = ref(false);
 const decisionMethod = ref(null);
 const missionState = ref(null);
-const missionLoading = ref(false);
 
 const { isAdmin } = useAuth();
 
@@ -202,53 +201,6 @@ const confirmResetDashboard = async () => {
     }
 };
 
-const startMission = async () => {
-    missionLoading.value = true;
-    try {
-        const result = await FinancialReportService.startCurrentMission();
-        toast.add({
-            severity: 'success',
-            summary: 'Missione avviata',
-            detail: `Missione #${result.missionSessionId} avviata. Email inviate: ${result.emailSent}`,
-            life: 3000
-        });
-        await refreshMissionState();
-    } catch (error) {
-        console.error('❌ Error starting mission:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'Errore missione',
-            detail: error?.response?.data?.message || 'Avvio missione fallito',
-            life: 3000
-        });
-    } finally {
-        missionLoading.value = false;
-    }
-};
-
-const finalizeMission = async () => {
-    missionLoading.value = true;
-    try {
-        const result = await FinancialReportService.finalizeCurrentMission('ManualDashboardFinalize');
-        toast.add({
-            severity: 'success',
-            summary: 'Missione finalizzata',
-            detail: result.missionFinalized ? `Report missione #${result.missionSessionId} creato. Email inviate: ${result.emailSent}` : result.message,
-            life: 3000
-        });
-        await fetchDashboardData();
-    } catch (error) {
-        console.error('❌ Error finalizing mission:', error);
-        toast.add({
-            severity: 'error',
-            summary: 'Errore missione',
-            detail: 'Finalizzazione missione fallita',
-            life: 3000
-        });
-    } finally {
-        missionLoading.value = false;
-    }
-};
 const showStopEmergencyDialog = ref(false);
 
 const confirmStopEmergency = async () => {
@@ -454,14 +406,6 @@ onUnmounted(async () => {
                 <div class="mr-auto flex items-center text-sm text-muted-color">
                     {{ missionStatusLabel }}
                 </div>
-                <Button v-if="!missionState?.hasOpenMission" severity="success" class="p-button p-component" :loading="missionLoading" @click="startMission">
-                    <span class="pi pi-play mr-2"></span>
-                    Avvia missione
-                </Button>
-                <Button v-else severity="warn" class="p-button p-component" :loading="missionLoading" @click="finalizeMission">
-                    <span class="pi pi-flag mr-2"></span>
-                    Finalizza missione
-                </Button>
                 <Button severity="danger" class="p-button p-component" @click="showStopEmergencyDialog = true">
                     <span class="pi pi-power-off mr-2"></span>
                     Arresto di emergenza

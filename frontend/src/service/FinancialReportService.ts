@@ -41,6 +41,7 @@ export interface MissionReportIndexItem {
     completed: boolean;
     runtimeMode: string;
     totalMarginEuro: number;
+    finalMarginEuro?: number;
     globalTargetEuro: number;
     kFactor: number;
     activeTables: number;

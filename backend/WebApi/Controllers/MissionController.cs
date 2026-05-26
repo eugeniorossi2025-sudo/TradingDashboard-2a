@@ -169,6 +169,7 @@ public class MissionController : ControllerBase
                 .GroupBy(sample => sample.SessionId)
                 .Select(group => new { SessionId = group.Key, Count = group.Count() })
                 .ToDictionaryAsync(row => row.SessionId, row => row.Count);
+        var sampleSummaries = await GetSampleSummariesAsync(ids);
 
         var response = new MissionReportsIndexResponse
         {
@@ -176,19 +177,24 @@ public class MissionController : ControllerBase
             Total = total,
             Skip = skip,
             Limit = limit,
-            Items = sessions.Select(session => new MissionReportsIndexItem
+            Items = sessions.Select(session =>
             {
-                SessionId = session.Id,
-                StartUtc = session.StartTime,
-                EndUtc = session.EndTime,
-                Completed = session.Completed,
-                RuntimeMode = session.RuntimeMode,
-                TotalMarginEuro = session.TotalMargin,
-                GlobalTargetEuro = session.GlobalTarget,
-                KFactor = session.KFactor,
-                ActiveTables = session.ActiveTables,
-                RealHandsCount = session.RealHandsCount,
-                SamplesCount = sampleCounts.TryGetValue(session.Id, out var count) ? count : 0
+                var summary = sampleSummaries.GetValueOrDefault(session.Id);
+                return new MissionReportsIndexItem
+                {
+                    SessionId = session.Id,
+                    StartUtc = session.StartTime,
+                    EndUtc = session.EndTime,
+                    Completed = session.Completed,
+                    RuntimeMode = session.RuntimeMode,
+                    TotalMarginEuro = summary?.NetPnl ?? 0m,
+                    FinalMarginEuro = summary?.FinalMargin ?? session.TotalMargin,
+                    GlobalTargetEuro = session.GlobalTarget,
+                    KFactor = session.KFactor,
+                    ActiveTables = session.ActiveTables,
+                    RealHandsCount = session.RealHandsCount,
+                    SamplesCount = sampleCounts.TryGetValue(session.Id, out var count) ? count : 0
+                };
             }).ToList()
         };
 
@@ -218,6 +224,7 @@ public class MissionController : ControllerBase
         var reportingDays = Math.Max(1, ((session.EndTime ?? session.StartTime).Date.AddDays(1) - session.StartTime.Date).Days);
         var workingDays = report.DailyRows.Count(row => row.SampleCount > 0);
         report.Totals.TotalMarginEuro = report.DailyRows.Sum(row => row.NetPnl);
+        report.Totals.FinalMarginEuro = report.Samples.LastOrDefault()?.Margine ?? report.Sessions.Sum(row => row.FinalMarginEuro);
         report.Totals.GlobalTargetEuro = report.Sessions.Sum(row => row.GlobalTargetEuro);
         report.Totals.ProgressPct = report.Totals.GlobalTargetEuro == 0 ? 0 : Math.Round(report.Totals.TotalMarginEuro / report.Totals.GlobalTargetEuro * 100, 2);
         report.Totals.SampleCount = report.Samples.Count;
@@ -342,6 +349,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
                     ActiveTables = sample.ActiveTables
                 })
                 .ToListAsync();
+        var sampleSummaries = BuildSampleSummaries(samples);
 
         var dailyRows = BuildDailyRows(samples, fromDate, toDateExclusive, await GetInvestedCapitalBaseAsync());
         var totalMargin = dailyRows.Sum(row => row.NetPnl);
@@ -365,6 +373,7 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             Totals = new MissionRangeTotals
             {
                 TotalMarginEuro = totalMargin,
+                FinalMarginEuro = sampleSummaries.Count == 0 ? sessions.Sum(s => s.TotalMargin) : sampleSummaries.Values.Sum(row => row.FinalMargin),
                 GlobalTargetEuro = target,
                 ProgressPct = target == 0 ? 0 : Math.Round(totalMargin / target * 100, 2),
                 SampleCount = samples.Count,
@@ -382,19 +391,60 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             },
             QualityMetrics = qualityMetrics,
             DailyRows = dailyRows,
-            Sessions = sessions.Select(s => new MissionReportSession
+            Sessions = sessions.Select(s =>
             {
-                SessionId = s.Id,
-                StartTime = s.StartTime,
-                EndTime = s.EndTime,
-                RuntimeMode = s.RuntimeMode,
-                TotalMarginEuro = s.TotalMargin,
-                GlobalTargetEuro = s.GlobalTarget,
-                ActiveTables = s.ActiveTables,
-                RealHandsCount = s.RealHandsCount
+                var summary = sampleSummaries.GetValueOrDefault(s.Id);
+                return new MissionReportSession
+                {
+                    SessionId = s.Id,
+                    StartTime = s.StartTime,
+                    EndTime = s.EndTime,
+                    RuntimeMode = s.RuntimeMode,
+                    TotalMarginEuro = summary?.NetPnl ?? 0m,
+                    FinalMarginEuro = summary?.FinalMargin ?? s.TotalMargin,
+                    GlobalTargetEuro = s.GlobalTarget,
+                    ActiveTables = s.ActiveTables,
+                    RealHandsCount = s.RealHandsCount
+                };
             }).ToList(),
             Samples = samples
         };
+    }
+
+    private async Task<Dictionary<int, MissionSampleSummary>> GetSampleSummariesAsync(int[] sessionIds)
+    {
+        if (sessionIds.Length == 0)
+            return new Dictionary<int, MissionSampleSummary>();
+
+        var samples = await _context.MissionMarginSamples
+            .AsNoTracking()
+            .Where(sample => sessionIds.Contains(sample.SessionId))
+            .OrderBy(sample => sample.Timestamp)
+            .Select(sample => new MissionReportSample
+            {
+                SessionId = sample.SessionId,
+                DateTime = sample.Timestamp,
+                Margine = sample.TotalMargin,
+                ActiveTables = sample.ActiveTables
+            })
+            .ToListAsync();
+
+        return BuildSampleSummaries(samples);
+    }
+
+    private static Dictionary<int, MissionSampleSummary> BuildSampleSummaries(IEnumerable<MissionReportSample> samples)
+    {
+        return samples
+            .GroupBy(sample => sample.SessionId)
+            .ToDictionary(
+                group => group.Key,
+                group =>
+                {
+                    var ordered = group.OrderBy(sample => sample.DateTime).ToList();
+                    var first = ordered.First().Margine;
+                    var last = ordered.Last().Margine;
+                    return new MissionSampleSummary(last - first, last);
+                });
     }
 
     private static int CountMarginMoves(IEnumerable<decimal> margins)
@@ -555,6 +605,7 @@ public class MissionRangeReportResponse
 public class MissionRangeTotals
 {
     public decimal TotalMarginEuro { get; set; }
+    public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
     public decimal ProgressPct { get; set; }
     public int SampleCount { get; set; }
@@ -606,6 +657,7 @@ public class MissionReportSession
     public DateTime? EndTime { get; set; }
     public string RuntimeMode { get; set; } = "Production";
     public decimal TotalMarginEuro { get; set; }
+    public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
     public int ActiveTables { get; set; }
     public int RealHandsCount { get; set; }
@@ -628,9 +680,12 @@ public class MissionReportsIndexItem
     public bool Completed { get; set; }
     public string RuntimeMode { get; set; } = "Production";
     public decimal TotalMarginEuro { get; set; }
+    public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
     public decimal KFactor { get; set; }
     public int ActiveTables { get; set; }
     public int RealHandsCount { get; set; }
     public int SamplesCount { get; set; }
 }
+
+public sealed record MissionSampleSummary(decimal NetPnl, decimal FinalMargin);
