@@ -27,24 +27,6 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           persist-credentials: false
 
-      - name: DB Migration
-        shell: powershell
-        run: |
-          $sqlFile  = ".\ops\dash2a-readiness\migrate-decisore-schema-v1.sql"
-          $connStr  = "Server=127.0.0.1,1433;Database=Eugenio-Demo10;User Id=sa;Password=${{ secrets.DECISORE_DB_PASSWORD }};Encrypt=False;TrustServerCertificate=True;"
-          $sqlcmd   = Get-Command sqlcmd -ErrorAction SilentlyContinue
-          if (-not $sqlcmd) {
-            $sqlcmd = "C:\Program Files\Microsoft SQL Server\Client SDK\ODBC\170\Tools\Binn\sqlcmd.exe"
-            if (-not (Test-Path $sqlcmd)) {
-              $sqlcmd = (Get-ChildItem "C:\Program Files\Microsoft SQL Server" -Recurse -Filter sqlcmd.exe -ErrorAction SilentlyContinue | Select-Object -First 1).FullName
-            }
-          } else { $sqlcmd = $sqlcmd.Source }
-          if (-not $sqlcmd -or -not (Test-Path $sqlcmd)) { throw "sqlcmd.exe non trovato sul runner" }
-          Write-Host "sqlcmd: $sqlcmd"
-          & $sqlcmd -S "127.0.0.1,1433" -d "Eugenio-Demo10" -U "sa" -P "${{ secrets.DECISORE_DB_PASSWORD }}" -i $sqlFile -l 30
-          if ($LASTEXITCODE -ne 0) { throw "DB migration failed (exit $LASTEXITCODE)" }
-          Write-Host "DB migration OK"
-
       - name: Restore
         shell: powershell
         run: dotnet restore decision-engine\Decisore\Decisore.csproj
