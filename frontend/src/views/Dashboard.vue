@@ -42,18 +42,7 @@ const fetchDashboardData = async () => {
         const data = await DashboardService.getDashboardData();
         chartData.value = await DashboardService.getChartData();
         marginiChartData.value = await DashboardService.getMarginiChart();
-        const telemetry = await DashboardService.getTelemetry();
-        if (telemetry) {
-            statisticsData.value = [{
-                timestamp: telemetry.sessionStart ?? new Date().toISOString(),
-                sessionEnd: telemetry.sessionEnd ?? null,
-                margine: telemetry.margineTot ?? 0,
-                margineMin: telemetry.margineMin ?? 0,
-                margineMax: telemetry.margineMax ?? 0,
-                elapsed: telemetry.elapsed ?? 0,
-                telemetry: telemetry.rawTelemetry ?? null
-            }];
-        }
+        await refreshTelemetry();
         if (data) {
             dashboardData.value = data;
             const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
@@ -149,6 +138,21 @@ const fetchDashboardData = async () => {
             life: 3000
         });
     }
+};
+
+const refreshTelemetry = async () => {
+    const telemetry = await DashboardService.getTelemetry();
+    if (!telemetry) return;
+
+    statisticsData.value = [{
+        timestamp: telemetry.sessionStart ?? new Date().toISOString(),
+        sessionEnd: telemetry.sessionEnd ?? null,
+        margine: telemetry.margineTot ?? 0,
+        margineMin: telemetry.margineMin ?? 0,
+        margineMax: telemetry.margineMax ?? 0,
+        elapsed: telemetry.elapsed ?? 0,
+        telemetry: telemetry.rawTelemetry ?? null
+    }];
 };
 
 const showResetDialog = ref(false);
@@ -300,6 +304,10 @@ const onDashboardUpdate = (jsonPayload) => {
     } catch (error) {
         console.error('❌ Error parsing SignalR payload:', error);
     }
+
+    refreshTelemetry().catch((error) => {
+        console.error('❌ Error refreshing telemetry:', error);
+    });
 };
 
 onMounted(async () => {
