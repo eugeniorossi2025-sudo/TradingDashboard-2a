@@ -2,7 +2,7 @@
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-27** — produzione consolidata su DB runtime unico `51.83.159.175,1434`: WebApi live (`appsettings.Production.json`) e Decisore puntano entrambi alla stessa istanza SQLEXPRESS01. Vedi §3 e §11.
+> **Ultimo aggiornamento: 2026-05-27 02:52 CEST** — produzione consolidata su DB runtime unico `51.83.159.175,1434`; WebApi, Frontend e Decisore deployati da GitHub Actions. Runner backend e runner Decisore verificati online. Vedi §3, §6 e §11.
 
 ---
 
@@ -66,8 +66,9 @@
 | Repo path sorgente | `decision-engine/Decisore/` |
 | DB engine | **`51.83.159.175,1434`** (SQLEXPRESS01 sul VPS backend) / `Eugenio-Demo10` / login `sa3` |
 | appsettings.json live | `Server=51.83.159.175,1434;Database=Eugenio-Demo10;...` — **NON modificare** |
-| Deploy Decisore | **Manuale / non automatizzato** |
-| Stato 2026-05-26 | **OPERATIVO** — HTTP 200 su `/api/proactive/reset` e `/api/proactive/decide` |
+| Deploy Decisore | GitHub Actions → `deploy-decisore-safe.yml` (`workflow_dispatch`, runner `DASH2A-DECISORE`) |
+| Backup Decisore | `C:\DecisoreBackups\decisore-YYYYMMDD-HHmmss` |
+| Stato 2026-05-27 | **OPERATIVO** — IIS `default`, app pool `Proactive`, binario deployato da workflow safe |
 
 > **ATTENZIONE:** il Decisore usa il DB sul **VPS backend** (`51.83.159.175,1434`), NON un DB locale a se stesso. La WebApi live usa la stessa porta `1434` tramite `appsettings.Production.json`.
 
@@ -85,7 +86,7 @@
 | `/api/proactive/get-global-profit` | POST form | Legge margine/saldo da DB |
 | `/api/proactive/bot-app-config` | POST JSON | Salva config bot su DB |
 
-> **Non esiste `/health`** — usare `/reset` solo per test manuali (ha side effect: svuota tabelle).
+> **Non esiste `/health`** — `/api/proactive/health` restituisce 404 anche con app viva. Usare TCP 80 + inventory IIS come smoke neutro; usare `/reset` solo per test manuali perché ha side effect: svuota `Pc_CurrentStatus`.
 
 **Locale:** la WebApi in `LocalProdLike` espone `/api/decider/config` e `/api/decider/health` come **sonda diagnostica** verso `51.178.16.37`. **Non** sincronizza `Pc_CurrentStatus` né alimenta la dashboard locale.
 
@@ -150,7 +151,7 @@
 | Account Firebase | `ak47129898@gmail.com` |
 | API target (prod) | `https://vps-b0942869.vps.ovh.net` (`VITE_API_BASE_URL` in CI — **obbligatorio HTTPS** da Firebase) |
 | API target (locale) | `http://localhost:5299` (`frontend/.env.example`) |
-| Deploy ufficiale | GitHub Actions → `firebase-hosting-merge.yml` (`workflow_dispatch`) |
+| Deploy ufficiale | GitHub Actions → `firebase-hosting-merge.yml` (`workflow_dispatch`, nome workflow: `Firebase Hosting Live`) |
 | Config repo | `frontend/.firebaserc` → default `eugenio-dashboard-2a` |
 
 > **Attenzione:** il project ID Firebase corretto è **`eugenio-dashboard-2a`**, non `eugenio-dashboard-2` (vecchio riferimento errato nel repo, corretto commit `bd6c322`).
@@ -204,22 +205,28 @@ File runtime: override IIS `appsettings.Production.json` sul server. Non usare i
 |---|---|
 | Repo | `github.com/eugeniorossi2025-sudo/TradingDashboard-2a` |
 | Branch principale | `main` |
-| Runner self-hosted | **`dash2a-backend-runner-01`** |
-| Runner labels | `self-hosted`, `Windows`, `X64`, `DASH2A`, `DASH2A-BACKEND` |
-| Runner host | **`51.83.159.175`** (VPS backend) |
-| Runner stato | **online** — *validato GitHub API 2026-05-25* |
+| Runner backend | **`dash2a-backend-runner-01`** |
+| Runner backend labels | `self-hosted`, `Windows`, `X64`, `DASH2A`, `DASH2A-BACKEND` |
+| Runner backend host | **`51.83.159.175`** (VPS backend, machine `WIN-P8JPV1DNSB6`) |
+| Runner Decisore | **`dash2a-decisore-runner-01`** |
+| Runner Decisore labels | `self-hosted`, `Windows`, `X64`, `DASH2A`, `DASH2A-DECISORE` |
+| Runner Decisore host | **`51.178.16.37`** (VPS Decisore, machine `WIN-05FHTP223IE`) |
+| Runner stato | **online** — *validato GitHub API 2026-05-27* |
 
 ### Workflows attivi
 
 | File | Trigger | Azione |
 |---|---|---|
-| `deploy-backend-dash2a.yml` | `workflow_dispatch` | Build + deploy backend IIS |
+| `deploy-backend-dash2a.yml` | `workflow_dispatch` | Build + deploy backend IIS (`demoapp`) |
 | `enable-backend-https.yml` | `workflow_dispatch` | IIS 443 + cert Let's Encrypt |
 | `firebase-hosting-merge.yml` | `workflow_dispatch` | Deploy frontend Firebase live |
 | `firebase-hosting-pull-request.yml` | PR | Build frontend (no deploy live) |
+| `deploy-decisore-safe.yml` | `workflow_dispatch` | Build + backup + deploy Decisore su `C:\Decisore` |
+| `diag-runtime-config-readonly.yml` | `workflow_dispatch` | Verifica read-only WebApi IIS + SQL `1434` |
+| `diag-decisore-runner-readonly.yml` | `workflow_dispatch` | Verifica read-only runner Decisore, IIS, `C:\Decisore`, appsettings |
 
-> **Nessun auto-deploy su push `main`** — backend e frontend richiedono entrambi `workflow_dispatch` manuale.
-> **Decisore:** nessun workflow deploy attivo nel repo dopo il rollback infra `b104502`. Il workflow sperimentale `deploy-decisore-v2.yml` è stato rimosso dal repo e disabilitato lato GitHub durante la stabilizzazione.
+> **Nessun auto-deploy su push `main`** — backend, frontend e Decisore richiedono tutti `workflow_dispatch` manuale con input di conferma.
+> **Decisore:** usare solo `DASH2A Decisore Deploy Safe`. Il vecchio `deploy-decisore-v2.yml` resta storico/obsoleto e non va ripristinato.
 
 ### Segreti GitHub (repository secrets — verificati 2026-05-25)
 
@@ -260,6 +267,32 @@ Shell:
 gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm_frontend_deploy=DEPLOY_FRONTEND
 ```
 
+### Procedura deploy Decisore
+
+```text
+1. Verificare `dash2a-decisore-runner-01` online.
+2. GitHub Actions → DASH2A Decisore Deploy Safe → Run workflow.
+3. Input: DEPLOY_DECISORE.
+4. Il workflow pubblica `decision-engine/Decisore/Decisore.csproj`, crea backup in `C:\DecisoreBackups`, preserva `C:\Decisore\appsettings.json`, riavvia app pool `Proactive`.
+5. Smoke neutro: TCP `127.0.0.1:80=True`; `/api/proactive/health` può dare 404 ed è accettato perché la route non esiste.
+```
+
+Shell:
+
+```powershell
+gh workflow run "DASH2A Decisore Deploy Safe" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=DEPLOY_DECISORE
+```
+
+### Diagnostiche read-only post-deploy
+
+```powershell
+# WebApi runtime + SQL 1434
+gh workflow run "DASH2A Runtime Config Readonly Diagnostic" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=RUNTIME_CONFIG_READONLY
+
+# Decisore IIS + C:\Decisore + appsettings
+gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=DECISORE_READONLY
+```
+
 ---
 
 ## 7. CREDENZIALI RIEPILOGO (senza valori)
@@ -268,8 +301,7 @@ gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDash
 |---|---|---|
 | OVH VPS Backend RDP | `administrator` | GitHub Secret `DASH2A_RDP_PASSWORD` |
 | OVH VPS Decisore RDP | `administrator` | Secret / vault operativo |
-| SQL Server WebApi | `sa3` | `appsettings.json` locale, secret server IIS |
-| SQL Server Decisore | `sa` (o equivalente) | `decision-engine/Decisore/appsettings.json`, secret VPS Decisore |
+| SQL Server runtime WebApi + Decisore | `sa3` | `C:\inetpub\wwwroot\shared\appsettings.Production.json` e `C:\Decisore\appsettings.json` live; non documentare password |
 | Dashboard Web App admin | `admin` | DB `Users_v2` prod / seed locale |
 | Gmail SMTP | `eugeniorosii2025@gmail.com` | App password in secret server |
 | Firebase | `ak47129898@gmail.com` | Console Firebase `eugenio-dashboard-2a` |
@@ -346,13 +378,13 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 6. Deploy backend solo via workflow manuale con conferma.
 7. Smoke `/api/Auth/test` → 200 obbligatorio post-deploy.
 8. **NON** usare `51.210.181.37` per Decider — obsoleto.
-9. **NON** deployare il Decisore via GitHub Actions finché non esiste un piano approvato.
+9. Deploy Decisore solo via workflow `DASH2A Decisore Deploy Safe`, con backup automatico e `appsettings.json` live preservato.
 10. **NON** applicare migration/script SQL sul DB Decisore senza audit read-only e backup/diff delle stored procedure esistenti.
 11. **NON** usare `/api/proactive/reset` come healthcheck neutro: ha side effect.
 
 ---
 
-## 11. DECISORE — STATO OPERATIVO (2026-05-26)
+## 11. DECISORE — STATO OPERATIVO (2026-05-27)
 
 ### Stato produzione verificato
 
@@ -362,9 +394,11 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 | IIS site | `default` |
 | App pool | `Proactive` (Started) |
 | DB configurato | **`51.83.159.175,1434`** / `Eugenio-Demo10` / login `sa3` |
-| Deploy CI/CD | **Non attivo** — solo manuale |
-| HTTP status | **200 OK** — `/api/proactive/reset` risponde da interno e da internet |
-| Ultimo fix | 2026-05-26 sera — vedere log sotto |
+| Deploy CI/CD | **Attivo** — `DASH2A Decisore Deploy Safe` su runner `dash2a-decisore-runner-01` |
+| Backup deploy | `C:\DecisoreBackups\decisore-YYYYMMDD-HHmmss` |
+| Binario live verificato | `C:\Decisore\Decisore.dll` aggiornato al deploy `2026-05-27 02:47` |
+| HTTP status neutro | TCP 80 OK; `/api/proactive/health` = 404 atteso perché route non esiste |
+| Ultimo deploy | 2026-05-27 — patch Security Filter per-bot |
 
 ### Cronologia fix 2026-05-26
 
@@ -415,28 +449,29 @@ Stato: Enabled
 
 **Non rimuovere questa regola** — senza di essa il Decisore non si avvia.
 
-### Riavvio manuale app pool (dal VNC del VPS Decisore)
+### Riavvio manuale app pool (dal VNC/RDP del VPS Decisore)
 
 ```powershell
 C:\Windows\System32\inetsrv\appcmd stop apppool /apppool.name:"Proactive"
 C:\Windows\System32\inetsrv\appcmd start apppool /apppool.name:"Proactive"
 Start-Sleep 6
-Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
+Test-NetConnection 127.0.0.1 -Port 80
 ```
 
 ---
 
-## 12. STATO VALIDATO (2026-05-26)
+## 12. STATO VALIDATO (2026-05-27)
 
 | # | Controllo | Esito | Note |
 |---|---|---|---|
 | 1 | Runner `dash2a-backend-runner-01` online | **OK** | labels: self-hosted, Windows, X64, DASH2A, DASH2A-BACKEND |
 | 2 | Runner su VPS backend `51.83.159.175` | **OK** | self-hosted deploy workflow |
+| 2b | Runner `dash2a-decisore-runner-01` online | **OK** | labels: self-hosted, Windows, X64, DASH2A, DASH2A-DECISORE |
 | 3 | WebApi prod `/api/Auth/test` | **OK** | HTTP 200, IIS 10 |
 | 4 | SQL prod runtime porta `1434` | **OK** | WebApi live e Decisore puntano a `51.83.159.175,1434` |
 | 5 | SQL login `sa3` / `Eugenio-Demo10` | **OK** | read-only diagnostic su runtime |
 | 6 | Frontend prod Firebase | **OK** | HTTP 200, build da GitHub Actions |
-| 7 | Decider `51.178.16.37/api/proactive/reset` | **OK** | HTTP 200 (verificato 2026-05-26 sera) — side effect: non usare come healthcheck neutro |
+| 7 | Decider `51.178.16.37` | **OK** | TCP 80 OK; `C:\Decisore`, IIS `default`, app pool `Proactive` verificati |
 | 8 | Decider obsoleto `51.210.181.37` | **404** | non usare |
 | 9 | Stack locale `:5299` / `:5001` | **OK** | smoke sessione corrente |
 | 10 | Decider locale health/config | **OK** | diagnostica only, no sync DB |
@@ -451,28 +486,29 @@ Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
 | SP `upI_Values` mancante su `1434` | **Da creare** — non critica per startup; blocca solo `SaveRequestValue` (fire & forget) |
 | SignalR / push VAPID in locale | Opzionale — 404 atteso se non configurato |
 | `MissionSessions` prod vuota vs locale ricca | Locale ha dati demo/import; prod 0 al check — non allineare automaticamente |
-| Allineamento binario live `C:\Decisore` vs codice repo | Da verificare prima di qualsiasi nuovo deploy |
+| Allineamento binario live `C:\Decisore` vs codice repo | **OK** dopo deploy `454becd`; verificare di nuovo prima di ogni release |
 
 ---
 
-## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-05-26)
+## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-05-27)
 
 | Componente | Stato | Branch / run | Dettaglio |
 |---|---|---|---|
-| **Backend WebApi IIS** | **DEPLOY OK** | `main` run `26400202381` | Workflow `DASH2A Backend Deploy Safe` |
+| **Backend WebApi IIS** | **DEPLOY OK** | `main` run `26483836820` | Workflow `DASH2A Backend Deploy Safe`; release `backend-20260527-024817` |
 | **Backend HTTPS IIS** | **OK** | run `26404743108` | `enable-backend-https.yml` — cert LE su hostname OVH |
-| **Frontend Firebase** | **DEPLOY OK** | run `26404807343` | `VITE_API_BASE_URL=https://vps-b0942869.vps.ovh.net` |
+| **Frontend Firebase** | **DEPLOY OK** | run `26483836854` | `VITE_API_BASE_URL=https://vps-b0942869.vps.ovh.net` |
 | **Login UI + /pages/user** | **OK** | smoke 2026-05-25 | Mixed Content risolto (HTTPS end-to-end) |
 | **Frontend live URL** | **OK** | — | `https://eugenio-dashboard-2a.web.app` |
 | **Backend live URL HTTPS** | **OK** | — | `https://vps-b0942869.vps.ovh.net` |
 | **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175,1434` |
-| **Decisore live** | **OPERATIVO** | fix 2026-05-26 sera | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; HTTP 200 |
+| **Decisore live** | **DEPLOY OK** | run `26483836856` | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; `Decisore.dll` 2026-05-27 02:47 |
 
 ### Run fallite (storico sessione — risolte)
 
 | Run | Workflow | Causa | Risoluzione |
 |---|---|---|---|
 | `26400373057` | Firebase Hosting Live | Secret Firebase assente + project ID errato | Secret creato + fix `bd6c322` → run `26402801288` OK |
+| `26483556956` | DASH2A Decisore Deploy Safe | `robocopy` exit code 1 trattato come failure anche se backup OK | Fix workflow `36e4947`, run successivi OK |
 
 ### Comandi verifica rapida post-deploy
 
@@ -488,6 +524,9 @@ gh secret list --repo eugeniorossi2025-sudo/TradingDashboard-2a
 
 # Ultimi deploy Actions
 gh run list --repo eugeniorossi2025-sudo/TradingDashboard-2a --limit 5
+
+# Decisore read-only inventory
+gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=DECISORE_READONLY
 ```
 
 ---
@@ -495,8 +534,10 @@ gh run list --repo eugeniorossi2025-sudo/TradingDashboard-2a --limit 5
 ## 14. CHECKLIST INIZIO SESSIONE
 
 - [ ] Runner `dash2a-backend-runner-01` online (GitHub → Actions → Runners)
+- [ ] Runner `dash2a-decisore-runner-01` online se si lavora sul Decisore
 - [ ] `http://51.83.159.175/api/Auth/test` → 200
 - [ ] `https://eugenio-dashboard-2a.web.app/` carica
 - [ ] `git branch` = `main`, `git status` pulito
 - [ ] `git log --oneline -5`
 - [ ] Decider prod = `51.178.16.37` (non `51.210.181.37`)
+- [ ] Decisore live path = `C:\Decisore`, app pool = `Proactive`, backup root = `C:\DecisoreBackups`

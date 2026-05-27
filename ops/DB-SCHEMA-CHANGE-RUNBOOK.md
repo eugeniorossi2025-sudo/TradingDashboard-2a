@@ -2,7 +2,7 @@
 
 > **Documento operativo vincolante.**
 > Seguire ogni passo nell'ordine indicato. Nessun DDL in produzione senza aver completato la fase di verifica.
-> **Ultimo aggiornamento: 2026-05-27**
+> **Ultimo aggiornamento: 2026-05-27 02:52 CEST** — target DB unico `51.83.159.175,1434`; runner backend e runner Decisore verificati.
 
 ---
 
@@ -13,6 +13,18 @@
 | SQLEXPRESS01 | `51.83.159.175` | **1434** | WebApi dashboard + Decisore Proattivo (`sa3`) |
 
 > **Regola:** il target operativo produzione è `51.83.159.175,1434` / `Eugenio-Demo10`. Non usare `1433` per nuove modifiche DASH2A: è uno storico/deriva di vecchie configurazioni e non va considerato runtime senza nuova diagnostica esplicita.
+
+### Runner e path operativi
+
+| Ambito | Runner / path |
+|---|---|
+| Workflow DB e WebApi | `dash2a-backend-runner-01` (`DASH2A-BACKEND`) su `51.83.159.175`, machine `WIN-P8JPV1DNSB6` |
+| Workflow Decisore | `dash2a-decisore-runner-01` (`DASH2A-DECISORE`) su `51.178.16.37`, machine `WIN-05FHTP223IE` |
+| WebApi release root | `C:\inetpub\wwwroot\releases` |
+| WebApi config live | `C:\inetpub\wwwroot\shared\appsettings.Production.json` |
+| Decisore root | `C:\Decisore` |
+| Decisore backup root | `C:\DecisoreBackups` |
+| Decisore app pool | `Proactive` |
 
 ---
 
@@ -205,8 +217,9 @@ Dopo ogni migrazione DB:
    C:\Windows\System32\inetsrv\appcmd stop apppool /apppool.name:"Proactive"
    C:\Windows\System32\inetsrv\appcmd start apppool /apppool.name:"Proactive"
    Start-Sleep 6
-   Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
+   Test-NetConnection 127.0.0.1 -Port 80
    ```
+   Non usare `/api/proactive/reset` come healthcheck neutro: svuota `Pc_CurrentStatus`.
 
 2. **WebApi** — smoke test:
    ```powershell
@@ -237,14 +250,15 @@ CREATE TABLE [dbo].[Pc_CurrentStatus_PBT_History] (
     CONSTRAINT [PK_Pc_CurrentStatus_PBT_History] PRIMARY KEY ([ID])
 );
 
--- Statistiche (creata 2026-05-26)
+-- Statistiche (runtime verificato 2026-05-27)
 CREATE TABLE dbo.Statistiche (
-    ID           INT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    DATA_INIZIO  DATETIME NULL,
-    DATA_FINE    DATETIME NULL,
+    ID           BIGINT NOT NULL,
+    DATA_INIZIO  DATETIME2 NULL,
+    DATA_FINE    DATETIME2 NULL,
     MARGINE_TOT  DECIMAL(18,2) NULL DEFAULT 0,
     MARGINE_MIN  DECIMAL(18,2) NULL DEFAULT 0,
     MARGINE_MAX  DECIMAL(18,2) NULL DEFAULT 0,
+    CREATED_AT   DATETIME2 NOT NULL,
     ELAPSED      DECIMAL(18,4) NULL DEFAULT 0,
     TELEMETRY    NVARCHAR(MAX) NULL
 );
