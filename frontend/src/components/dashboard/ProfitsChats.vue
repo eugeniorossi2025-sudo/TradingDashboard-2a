@@ -156,6 +156,9 @@ onMounted(async () => {
 <template>
     <div class="card">
         <div class="font-semibold text-xl mb-4">{{ title }}</div>
+        <div v-if="title === 'Profits Chart'" class="mb-3 text-xs text-muted-color">
+            Fonte: MissionMarginSamples + Margini. Ritmo/L6/L8 leggono dalla Telemetry; nessun doppio scaling rilevato.
+        </div>
         <Chart type="line" :data="chartDataRef" :options="chartOptions" />
     </div>
 </template>

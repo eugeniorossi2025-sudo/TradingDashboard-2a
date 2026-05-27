@@ -320,96 +320,25 @@ namespace Decisore.Engine
             {
                 _globalPBHandsPlayed++;
                 totalPBHandsPlayed++;
-                
+
                 UpdatePBIndicators(globalMargin);
             }
 
             if (_globalPBHandsPlayed >= L6_AUTH_PB_RESET_COUNTER)
             {
                 spotID++;
-                
+
                 _globalPBHandsPlayed = 0;
                 _globalAuthL6Counter = INITIAL_L6_AUTH;
                 _globalL5Loss = 0;
             }
 
-            bool l6AuthorizedThisCall = false;
-
-            if (martingalaCounter == 5)
-            {
-                if (esito != 'T')
-                    totalL5Played++;
-                
-                if (esito != 'T') {
-                    if (esito != coloreGiocato)
-                    {
-                        _globalL5Loss++;
-                        totalL5Lost++;
-
-                        if (_globalL5Loss >= L6_AUTH_LOSS)
-                        {
-                            _globalL5Loss = 0;
-                            _globalAuthL6Counter += L6_AUTH_INCREMENT;
-                        }
-
-                        if (_globalAuthL6Counter > 0 && !isHotZone)
-                        {
-                            advice.StopL6 = false;
-                            _globalAuthL6Counter--;
-                            totalAuthL6Authorized++;
-                            l6AuthorizedThisCall = true;
-                            
-                            advice.Reason = $"L6 Autorizzato";
-                        }
-                        else
-                        {
-                            advice.StopL6 = true;
-
-                            if (isHotZone)
-                            {
-                                advice.Reason = $"L6 Bloccato (Hot Zone)";
-                            }
-                            else
-                            {
-                                advice.Reason = $"L6 Bloccato (0 Autorizzazioni L6 residue)";
-                            }
-                        }
-                    }
-                    else
-                    {
-                        totalL5Won++;
-                    }
-                }
-            } else if (martingalaCounter >= 6)
-            {
-                if (martingalaCounter == 8)
-                {
-                    totalL8Played++;
-                
-                    if (esito != 'T') {
-                        if (esito != coloreGiocato)
-                        {
-                            totalL8Lost++;
-                        }
-                        else
-                        {
-                            totalL8Won++;
-                        }
-                    }
-                }
-                
-                advice.Reason = "Autorizzazione [L6 - L8] concessa";
-            }
-
-            advice.GlobalAuthL6Counter = _globalAuthL6Counter;
-            advice.GlobalL5Loss = _globalL5Loss;
-            advice.GlobalPBHandsPlayed = _globalPBHandsPlayed;
-
             #endregion
 
             #region SECURITY FILTER
             // Filtro sperimentale di compressione temporale per mitigazione rischio
-            // streak ad alta densità nelle prime mani dello shoe.
+            // streak ad alta densità nelle prime mani dello shoe. Deve essere calcolato
+            // prima del gate L6, così può bloccare senza consumare credito.
 
             DateTime nowUtc = DateTime.UtcNow;
             double lastHandDeltaSeconds = 0;
@@ -480,6 +409,96 @@ namespace Decisore.Engine
 
             bool securityFilterActive = SECURITY_FILTER_ENABLED && securityScore >= SECURITY_FILTER_MIN_SCORE;
 
+            #endregion
+
+            #region L6 SYSTEM
+
+            bool l6AuthorizedThisCall = false;
+            bool securityFilterPreventedL6ThisCall = false;
+
+            if (martingalaCounter == 5)
+            {
+                if (esito != 'T')
+                    totalL5Played++;
+
+                if (esito != 'T') {
+                    if (esito != coloreGiocato)
+                    {
+                        _globalL5Loss++;
+                        totalL5Lost++;
+
+                        if (_globalL5Loss >= L6_AUTH_LOSS)
+                        {
+                            _globalL5Loss = 0;
+                            _globalAuthL6Counter += L6_AUTH_INCREMENT;
+                        }
+
+                        if (_globalAuthL6Counter > 0 && !isHotZone)
+                        {
+                            if (securityFilterActive)
+                            {
+                                advice.StopL6 = true;
+                                securityFilterPreventedL6ThisCall = true;
+                                advice.Reason = $"L6 Bloccato (Security Filter)";
+                            }
+                            else
+                            {
+                                advice.StopL6 = false;
+                                _globalAuthL6Counter--;
+                                totalAuthL6Authorized++;
+                                l6AuthorizedThisCall = true;
+
+                                advice.Reason = $"L6 Autorizzato";
+                            }
+                        }
+                        else
+                        {
+                            advice.StopL6 = true;
+
+                            if (isHotZone)
+                            {
+                                advice.Reason = $"L6 Bloccato (Hot Zone)";
+                            }
+                            else
+                            {
+                                advice.Reason = $"L6 Bloccato (0 Autorizzazioni L6 residue)";
+                            }
+                        }
+                    }
+                    else
+                    {
+                        totalL5Won++;
+                    }
+                }
+            } else if (martingalaCounter >= 6)
+            {
+                if (martingalaCounter == 8)
+                {
+                    totalL8Played++;
+
+                    if (esito != 'T') {
+                        if (esito != coloreGiocato)
+                        {
+                            totalL8Lost++;
+                        }
+                        else
+                        {
+                            totalL8Won++;
+                        }
+                    }
+                }
+
+                advice.Reason = "Autorizzazione [L6 - L8] concessa";
+            }
+
+            advice.GlobalAuthL6Counter = _globalAuthL6Counter;
+            advice.GlobalL5Loss = _globalL5Loss;
+            advice.GlobalPBHandsPlayed = _globalPBHandsPlayed;
+
+            #endregion
+
+            #region SECURITY FILTER
+
             // — contatori transizione false→true —
             bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
             if (pbHandPlayedThisCall)
@@ -489,12 +508,11 @@ namespace Decisore.Engine
             {
                 totalSecurityFilterActivated++;
                 botSecurity.Activations++;
-                // KPI: filtro scatta a L5 con autorizzazione L6 disponibile → crossing prevenuto
-                if (martingalaCounter == 5 && !advice.StopL6)
-                {
-                    totalSecurityFilterPreventedL6++;
-                    botSecurity.PreventedL6++;
-                }
+            }
+            if (securityFilterPreventedL6ThisCall)
+            {
+                totalSecurityFilterPreventedL6++;
+                botSecurity.PreventedL6++;
             }
             _prevSecFilterActive[computer] = securityFilterActive;
 

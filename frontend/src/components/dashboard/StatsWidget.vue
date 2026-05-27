@@ -418,7 +418,8 @@ function getScoreClass(row) {
                                     <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(row))">{{ getScorePoint(isVeryFast(row)) }}</span>
                                 </div>
                                 <div class="text-xs text-muted-color">Ult {{ formatSeconds(row.LastHandDeltaSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
-                                <div class="text-xs text-muted-color">Range bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                                <div class="text-xs text-muted-color">Range storico bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                                <div class="text-xs text-muted-color">Non usato direttamente nella media attuale</div>
                                 <div class="text-xs text-muted-color">Mani bot {{ formatHands(row.PBHandsPlayed) }}</div>
                             </div>
                         </div>
@@ -452,7 +453,8 @@ function getScoreClass(row) {
                                     <span><strong>Sintesi filtro</strong> {{ row.SecurityRiskScore ?? 0 }}/4</span>
                                     <span class="text-xs text-muted-color">Pausa da {{ securityFilterSetup.minScore }}/4</span>
                                     <span class="text-xs text-muted-color">Stato {{ getSecurityFilterStatus(row) }}</span>
-                                    <span class="text-xs text-muted-color">Scope {{ row.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ row.Martingala ?? '-' }}</span>
+                                    <span class="text-xs text-muted-color">Scope corrente {{ row.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ row.Martingala ?? '-' }}</span>
+                                    <span class="text-xs text-muted-color">Stato corrente bot, non storico L6/L8</span>
                                 </div>
                             </div>
                         </div>
