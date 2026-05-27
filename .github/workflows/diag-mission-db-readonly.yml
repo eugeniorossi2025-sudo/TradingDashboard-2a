@@ -1,0 +1,147 @@
+name: DASH2A Mission DB Readonly Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type MISSION_DB_READONLY to run read-only mission DB checks"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Read-only MissionSessions and MissionMarginSamples diagnostic
+    if: ${{ github.event.inputs.confirm == 'MISSION_DB_READONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Guard read-only scope
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'MISSION_DB_READONLY') {
+            throw 'Manual confirmation input is invalid.'
+          }
+
+          Write-Host 'Mission DB readonly diagnostic confirmed.'
+          Write-Host 'READ ONLY: no INSERT, UPDATE, DELETE, MERGE, ALTER, DROP, TRUNCATE, or EF migrations.'
+
+      - name: Read mission DB state from production runtime config
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            throw 'DefaultConnection missing from shared production config.'
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          Write-Host "SQL_CONFIG_USER=$($parts['User Id'])"
+          Write-Host "SQL_CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
+
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing diagnostic: runtime SQL server is not the expected 1434 endpoint. Server=$($parts['Server'])"
+          }
+
+          $connection = New-Object System.Data.SqlClient.SqlConnection($connString)
+          $connection.Open()
+
+          function Invoke-ScalarQuery([string] $label, [string] $sql) {
+            $cmd = $connection.CreateCommand()
+            $cmd.CommandText = $sql
+            $cmd.CommandTimeout = 60
+            $value = $cmd.ExecuteScalar()
+            Write-Host "$label=$value"
+          }
+
+          function Invoke-TableQuery([string] $title, [string] $sql) {
+            Write-Host ""
+            Write-Host "=== $title ==="
+            $cmd = $connection.CreateCommand()
+            $cmd.CommandText = $sql
+            $cmd.CommandTimeout = 60
+            $reader = $cmd.ExecuteReader()
+            $schema = $reader.GetSchemaTable()
+            $columns = @()
+            foreach ($row in $schema.Rows) { $columns += [string]$row.ColumnName }
+            Write-Host ($columns -join "`t")
+            while ($reader.Read()) {
+              $values = @()
+              foreach ($column in $columns) {
+                $values += if ($reader[$column] -eq [DBNull]::Value) { '<null>' } else { [string]$reader[$column] }
+              }
+              Write-Host ($values -join "`t")
+            }
+            $reader.Close()
+          }
+
+          Invoke-ScalarQuery 'DB_NAME' 'SELECT DB_NAME();'
+          Invoke-ScalarQuery 'MISSION_SESSIONS_ROWS' 'SELECT COUNT_BIG(*) FROM dbo.MissionSessions;'
+          Invoke-ScalarQuery 'MISSION_MARGIN_SAMPLES_ROWS' 'SELECT COUNT_BIG(*) FROM dbo.MissionMarginSamples;'
+          Invoke-ScalarQuery 'DUPLICATE_MISSION_KEYS' "SELECT COUNT_BIG(*) FROM (SELECT MissionKey FROM dbo.MissionSessions WHERE MissionKey IS NOT NULL GROUP BY MissionKey HAVING COUNT_BIG(*) > 1) d;"
+          Invoke-ScalarQuery 'ORPHAN_SAMPLES' 'SELECT COUNT_BIG(*) FROM dbo.MissionMarginSamples s LEFT JOIN dbo.MissionSessions m ON m.ID = s.SessionId WHERE m.ID IS NULL;'
+          Invoke-ScalarQuery 'SESSIONS_WITHOUT_SAMPLES' 'SELECT COUNT_BIG(*) FROM dbo.MissionSessions m WHERE NOT EXISTS (SELECT 1 FROM dbo.MissionMarginSamples s WHERE s.SessionId = m.ID);'
+
+          Invoke-TableQuery 'Sessions by runtime/completed' @"
+          SELECT
+            RuntimeMode,
+            Completed,
+            COUNT_BIG(*) AS Sessions,
+            MIN(StartTime) AS MinStart,
+            MAX(ISNULL(EndTime, StartTime)) AS MaxEnd
+          FROM dbo.MissionSessions
+          GROUP BY RuntimeMode, Completed
+          ORDER BY RuntimeMode, Completed;
+          "@
+
+          Invoke-TableQuery 'Latest mission sessions' @"
+          SELECT TOP (20)
+            ID,
+            MissionKey,
+            StartTime,
+            EndTime,
+            RuntimeMode,
+            Completed,
+            TotalMargin,
+            RealHandsCount,
+            FinalizationReason
+          FROM dbo.MissionSessions
+          ORDER BY ID DESC;
+          "@
+
+          Invoke-TableQuery 'Sample coverage by latest sessions' @"
+          SELECT TOP (20)
+            m.ID,
+            m.MissionKey,
+            COUNT_BIG(s.ID) AS Samples,
+            MIN(s.Timestamp) AS FirstSample,
+            MAX(s.Timestamp) AS LastSample
+          FROM dbo.MissionSessions m
+          LEFT JOIN dbo.MissionMarginSamples s ON s.SessionId = m.ID
+          GROUP BY m.ID, m.MissionKey
+          ORDER BY m.ID DESC;
+          "@
+
+          $connection.Close()
