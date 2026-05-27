@@ -109,6 +109,43 @@ public class DashboardService : IDashboardService
 
     public async Task<List<ChartDataPoint>> GetMarginiChartAsync(int limit = 200)
     {
+        var openMission = await _context.MissionSessions
+            .AsNoTracking()
+            .Where(session => !session.Completed)
+            .OrderByDescending(session => session.StartTime)
+            .Select(session => new { session.Id, session.StartTime })
+            .FirstOrDefaultAsync();
+
+        if (openMission != null)
+        {
+            var missionSamples = await _context.MissionMarginSamples
+                .AsNoTracking()
+                .Where(sample => sample.SessionId == openMission.Id)
+                .Select(sample => new ChartDataPoint
+                {
+                    DateTime = sample.Timestamp,
+                    Margine = sample.TotalMargin
+                })
+                .ToListAsync();
+
+            var liveMargins = await _context.Margini
+                .AsNoTracking()
+                .Where(m => m.Data != null && m.Data.Value >= openMission.StartTime)
+                .Select(m => new ChartDataPoint
+                {
+                    DateTime = m.Data!.Value,
+                    Margine = m.MargineValue ?? 0m
+                })
+                .ToListAsync();
+
+            return missionSamples
+                .Concat(liveMargins)
+                .GroupBy(point => point.DateTime)
+                .Select(group => group.Last())
+                .OrderBy(point => point.DateTime)
+                .ToList();
+        }
+
         var items = await _context.Margini
             .AsNoTracking()
             .Where(m => m.Data != null)

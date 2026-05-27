@@ -137,6 +137,15 @@ watch(margine, () => {
     chartDataRef.value = formattedChartData.value;
 });
 
+watch(
+    () => props.chartData,
+    (value) => {
+        sourceChartData.value = Array.isArray(value) ? value : [];
+        chartDataRef.value = formattedChartData.value;
+    },
+    { deep: true }
+);
+
 onMounted(async () => {
     sourceChartData.value = props.chartData;
     chartDataRef.value = formattedChartData.value;

@@ -422,10 +422,20 @@ function getScoreClass(row) {
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
                             <div class="mb-2 font-semibold">Pausa</div>
-                            <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
-                                {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
-                            </span>
-                            <div class="text-xs text-muted-color mt-1">L6 prevenuti: {{ row.PreventedL6 ?? 0 }}</div>
+                            <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
+                                        {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                                    </span>
+                                    <span class="text-xs text-muted-color">L6 prevenuti: {{ row.PreventedL6 ?? 0 }}</span>
+                                </div>
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <span><strong>Sintesi filtro</strong> {{ row.SecurityRiskScore ?? 0 }}/4</span>
+                                    <span class="text-xs text-muted-color">Pausa da {{ securityFilterSetup.minScore }}/4</span>
+                                    <span class="text-xs text-muted-color">Stato {{ getSecurityFilterStatus(row) }}</span>
+                                    <span class="text-xs text-muted-color">Scope {{ row.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ row.Martingala ?? '-' }}</span>
+                                </div>
+                            </div>
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">

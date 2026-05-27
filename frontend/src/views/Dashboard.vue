@@ -48,9 +48,9 @@ const fetchDashboardData = async () => {
     try {
         const data = await DashboardService.getDashboardData();
         chartData.value = await DashboardService.getChartData();
-        marginiChartData.value = await DashboardService.getMarginiChart();
         await refreshTelemetry();
         await refreshMissionState();
+        await refreshProfitChart();
         if (data) {
             dashboardData.value = data;
             const rows = Array.isArray(data) ? data : data.rows || data.tables || [];
@@ -154,6 +154,14 @@ const refreshMissionState = async () => {
     } catch (error) {
         console.error('❌ Error loading mission state:', error);
         missionState.value = null;
+    }
+};
+
+const refreshProfitChart = async () => {
+    try {
+        marginiChartData.value = await DashboardService.getMarginiChart();
+    } catch (error) {
+        console.error('❌ Error loading profits chart:', error);
     }
 };
 
@@ -324,8 +332,8 @@ const onDashboardUpdate = (jsonPayload) => {
         console.error('❌ Error parsing SignalR payload:', error);
     }
 
-    refreshTelemetry().catch((error) => {
-        console.error('❌ Error refreshing telemetry:', error);
+    Promise.all([refreshTelemetry(), refreshMissionState(), refreshProfitChart()]).catch((error) => {
+        console.error('❌ Error refreshing dashboard live data:', error);
     });
 };
 
@@ -344,6 +352,9 @@ onMounted(async () => {
             try {
                 chartData.value = chartPayload.points || [];
                 statisticsData.value = chartPayload.histories || [];
+                refreshProfitChart().catch((error) => {
+                    console.error('❌ Error refreshing profits chart:', error);
+                });
             } catch (error) {
                 console.error('❌ Error parsing Chart SignalR payload:', error);
             }
