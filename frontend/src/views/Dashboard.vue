@@ -158,11 +158,45 @@ const refreshMissionState = async () => {
 };
 
 const refreshProfitChart = async () => {
+    if (!missionState.value?.hasOpenMission) {
+        marginiChartData.value = [];
+        return;
+    }
+
     try {
         marginiChartData.value = await DashboardService.getMarginiChart();
     } catch (error) {
         console.error('❌ Error loading profits chart:', error);
     }
+};
+
+const appendLiveProfitPoint = (payload) => {
+    const rows = Array.isArray(payload) ? payload : payload?.tables || payload?.rows || [];
+    if (!Array.isArray(rows) || !rows.length) return;
+
+    const payloadMargin = payload?.statistics?.margineAttuale ?? payload?.statistics?.totalMargine;
+    const liveMargin = Number(payloadMargin ?? rows.reduce((sum, row) => sum + Number(row.margine ?? row.Margine ?? 0), 0));
+    if (!Number.isFinite(liveMargin)) return;
+
+    const latestTimestamp = rows
+        .map((row) => parseServerUtcDate(row.lastUpdate || row.last_update || row.dtUltimo || row.DtUltimo))
+        .filter((date) => date && !Number.isNaN(date.getTime()))
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? new Date();
+
+    const dateTime = latestTimestamp.toISOString();
+    const nextPoint = { dateTime, margine: Number(liveMargin.toFixed(2)) };
+    const points = Array.isArray(marginiChartData.value) ? [...marginiChartData.value] : [];
+    const lastPoint = points[points.length - 1];
+
+    if (lastPoint && (lastPoint.dateTime ?? lastPoint.timestamp) === dateTime) {
+        points[points.length - 1] = nextPoint;
+        marginiChartData.value = points;
+        return;
+    }
+
+    if (lastPoint && Number(lastPoint.margine) === nextPoint.margine) return;
+
+    marginiChartData.value = [...points, nextPoint].slice(-200);
 };
 
 const refreshTelemetry = async () => {
@@ -332,7 +366,8 @@ const onDashboardUpdate = (jsonPayload) => {
         console.error('❌ Error parsing SignalR payload:', error);
     }
 
-    Promise.all([refreshTelemetry(), refreshMissionState(), refreshProfitChart()]).catch((error) => {
+    appendLiveProfitPoint(data);
+    Promise.all([refreshTelemetry(), refreshMissionState()]).catch((error) => {
         console.error('❌ Error refreshing dashboard live data:', error);
     });
 };
@@ -352,9 +387,6 @@ onMounted(async () => {
             try {
                 chartData.value = chartPayload.points || [];
                 statisticsData.value = chartPayload.histories || [];
-                refreshProfitChart().catch((error) => {
-                    console.error('❌ Error refreshing profits chart:', error);
-                });
             } catch (error) {
                 console.error('❌ Error parsing Chart SignalR payload:', error);
             }
