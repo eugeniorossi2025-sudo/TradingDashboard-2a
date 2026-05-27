@@ -53,12 +53,12 @@ const managementMenuItems = computed(() => {
         const dataItems = [];
 
         if (canViewLogs.value) {
-            dataItems.push({ label: 'LOG JSON', icon: 'pi pi-fw pi-file', to: '/pages/log' });
+            dataItems.push({ label: 'Report e Log', icon: 'pi pi-fw pi-file', to: '/pages/log' });
         }
 
         if (dataItems.length > 0) {
             items.push({
-                label: 'Log',
+                label: 'Operatività',
                 icon: 'pi pi-fw pi-briefcase',
                 items: dataItems
             });

@@ -1,4 +1,5 @@
 <script setup>
+import { useAuth } from '@/composables/useAuth';
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { LogService } from '@/service/LogService';
 import { FilterMatchMode } from '@primevue/core/api';
@@ -44,6 +45,7 @@ const reportModeOptions = [
     { label: 'Demo', value: 'Demo' }
 ];
 const missionModeOptions = [{ label: 'Tutte', value: 'All' }, ...reportModeOptions];
+const { isAdmin } = useAuth();
 
 onMounted(() => {
     fetchLogs();
@@ -71,6 +73,7 @@ async function deleteLogs() {
     try {
         await LogService.resetLogs();
         logs.value = [];
+        totalRecords.value = 0;
     } catch (error) {
         console.error('Error deleting logs:', error);
     } finally {
@@ -80,6 +83,7 @@ async function deleteLogs() {
 }
 
 function onSearch() {
+    page.value = 1;
     fetchLogs();
 }
 
@@ -168,22 +172,14 @@ function formatMoney(value) {
 }
 
 async function onExportCSV() {
-    // Chiamata fetchLogs con pageSize -1 per ottenere tutti i dati
-    const res = await LogService.getLogs(from.value || undefined, to.value || undefined, pc.value || undefined, action.value || undefined, description.value || undefined, 1, 1000000000);
-    const exportLogs = res.items || [];
-    // Genera CSV dai dati
-    exportCSV(exportLogs);
+    exportCSV(logs.value);
 }
 
 function exportCSV(data) {
     if (!data.length) return;
-    // Intestazioni
-    const headers = ['ID', 'Datetime', 'Descrizione', 'Action Code', 'PC'];
-    // Righe
+    const headers = ['ID', 'Ora locale', 'Descrizione evento', 'Action code grezzo', 'PC / Categoria'];
     const rows = data.map((log) => [log.id, formatLocalDate(log.createdAt), log.description || '-', log.action, log.category || '-']);
-    // CSV string
     const csvContent = [headers, ...rows].map((e) => e.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
-    // Download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
@@ -212,7 +208,7 @@ function formatLocalDate(date) {
             <div class="flex flex-col gap-4">
                 <div>
                     <h4 class="m-0 text-lg">Report finanziario</h4>
-                    <p class="text-muted-color mt-2 mb-0">Seleziona periodo e modalità contabile per aprire il report stampabile come PDF.</p>
+                    <p class="text-muted-color mt-2 mb-0">Seleziona periodo e modalità contabile per aprire o scaricare i report contabili reali.</p>
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
@@ -242,7 +238,7 @@ function formatLocalDate(date) {
                 <div class="flex flex-col md:flex-row md:items-center gap-2">
                     <div>
                         <h4 class="m-0 text-lg">Missioni</h4>
-                        <p class="text-muted-color mt-2 mb-0">Seleziona le missioni contabili e apri il report singolo, come nella pagina log originale.</p>
+                        <p class="text-muted-color mt-2 mb-0">Consulta le missioni contabili salvate e apri il report singolo.</p>
                     </div>
                     <div class="md:ml-auto text-sm text-muted-color">Totale: {{ missionReportsTotal }}</div>
                 </div>
@@ -354,17 +350,17 @@ function formatLocalDate(date) {
         <div class="card">
             <div class="mb-4">
                 <h4 class="m-0 text-lg">Log runtime tecnici</h4>
-                <p class="text-muted-color mt-2 mb-0">Supporto operativo separato dai report finanziari. Queste righe non entrano nei PDF contabili.</p>
+                <p class="text-muted-color mt-2 mb-0">Queste righe arrivano dalla tabella ApiLogs e non entrano nei report contabili. Action code e PC / Categoria sono dati tecnici grezzi.</p>
             </div>
             <Toolbar class="mb-6">
                 <template #start>
                     <div class="flex flex-col sm:flex-row gap-2">
-                        <Button label="Delete Logs" icon="pi pi-trash" severity="danger" @click="showResetDialog = true" class="w-full sm:w-auto" />
+                        <Button v-if="isAdmin" label="Cancella tutti i log tecnici" icon="pi pi-trash" severity="danger" @click="showResetDialog = true" class="w-full sm:w-auto" />
                         <Dialog v-model:visible="showResetDialog" :closable="!resetLoading" :modal="true" :dismissableMask="!resetLoading" :style="{ width: '350px' }">
                             <template #header>
-                                <span>Conferma Reset</span>
+                                <span>Conferma cancellazione log</span>
                             </template>
-                            <div class="mb-4">Sei sicuro di voler cancellare i log?</div>
+                            <div class="mb-4">Questa azione cancella tutti i log tecnici ApiLogs in produzione. I report finanziari e le missioni non vengono cancellati.</div>
                             <div class="flex justify-end gap-2">
                                 <button class="p-button p-component" @click="showResetDialog = false" :disabled="resetLoading">Annulla</button>
                                 <button class="p-button p-component p-button-danger" @click="deleteLogs" :disabled="resetLoading">
@@ -378,22 +374,22 @@ function formatLocalDate(date) {
                 </template>
 
                 <template #end>
-                    <Button label="Export" icon="pi pi-upload" severity="secondary" @click="onExportCSV()" class="w-full sm:w-auto" />
+                    <Button label="Export pagina corrente" icon="pi pi-upload" severity="secondary" @click="onExportCSV()" class="w-full sm:w-auto" />
                 </template>
             </Toolbar>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" :style="{ margin: '20px 0px' }">
                 <!-- Date range -->
                 <InputGroup class="flex flex-col md:flex-row gap-2">
-                    <DatePicker v-model="from" dateFormat="yyyy-MM-dd HH:mm" showTime showIcon placeholder="From" :style="{ width: '100%' }" />
-                    <DatePicker v-model="to" dateFormat="yyyy-MM-dd HH:mm" showTime showIcon placeholder="To" :style="{ width: '100%' }" />
+                    <DatePicker v-model="from" dateFormat="yyyy-MM-dd HH:mm" showTime showIcon placeholder="Da" :style="{ width: '100%' }" />
+                    <DatePicker v-model="to" dateFormat="yyyy-MM-dd HH:mm" showTime showIcon placeholder="A" :style="{ width: '100%' }" />
                 </InputGroup>
 
                 <!-- PC + Description -->
                 <InputGroup class="flex flex-col md:flex-row gap-2">
-                    <InputText v-model="pc" placeholder="PC" :style="{ width: '100%' }" />
-                    <InputNumber v-model="action" placeholder="Action" :style="{ width: '100%' }" />
-                    <InputText v-model="description" placeholder="Description" :style="{ width: '100%' }" />
-                    <Button label="Search" icon="pi pi-search" @click="onSearch" class="p-button-sm w-full md:w-auto" :style="{ width: '100%' }" />
+                    <InputText v-model="pc" placeholder="PC / Categoria" :style="{ width: '100%' }" />
+                    <InputNumber v-model="action" placeholder="Action code grezzo" :style="{ width: '100%' }" />
+                    <InputText v-model="description" placeholder="Descrizione evento" :style="{ width: '100%' }" />
+                    <Button label="Cerca" icon="pi pi-search" @click="onSearch" class="p-button-sm w-full md:w-auto" :style="{ width: '100%' }" />
                 </InputGroup>
             </div>
 
@@ -411,7 +407,7 @@ function formatLocalDate(date) {
                 breakpoint="960px"
                 paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
                 :rowsPerPageOptions="[5, 10, 25]"
-                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} Logs"
+                currentPageReportTemplate="Mostra {first} - {last} di {totalRecords} log"
                 @page="onPageChange"
                 :lazy="true"
             >
@@ -420,13 +416,13 @@ function formatLocalDate(date) {
                         {{ data.id }}
                     </template>
                 </Column>
-                <Column field="createdAt" header="Datetime" sortable :style="{ minWidth: '180px' }">
+                <Column field="createdAt" header="Ora locale" sortable :style="{ minWidth: '180px' }">
                     <template #body="{ data }">
                         {{ formatLocalDate(data.createdAt) }}
                     </template>
                 </Column>
 
-                <Column field="description" header="Descrizione" :style="{ minWidth: '150px' }">
+                <Column field="description" header="Descrizione evento" :style="{ minWidth: '150px' }">
                     <template #body="{ data }">
                         <span style="white-space: pre">
                             {{ data.description || '-' }}
@@ -434,12 +430,12 @@ function formatLocalDate(date) {
                     </template>
                 </Column>
 
-                <Column field="action" header="Action Code" :style="{ minWidth: '150px' }">
+                <Column field="action" header="Action code grezzo" :style="{ minWidth: '150px' }">
                     <template #body="{ data }">
                         <span class="line-clamp-1">{{ data.action }}</span>
                     </template>
                 </Column>
-                <Column field="category" header="PC" :style="{ minWidth: '150px' }">
+                <Column field="category" header="PC / Categoria" :style="{ minWidth: '150px' }">
                     <template #body="{ data }">
                         <span class="line-clamp-1">{{ data.category || '-' }}</span>
                     </template>
@@ -448,7 +444,7 @@ function formatLocalDate(date) {
                 <template #empty>
                     <div class="text-center py-6">
                         <i class="pi pi-inbox text-4xl text-gray-400 mb-3"></i>
-                        <p class="text-gray-500">No logs found.</p>
+                        <p class="text-gray-500">Nessun log trovato.</p>
                     </div>
                 </template>
             </DataTable>

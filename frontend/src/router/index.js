@@ -1,8 +1,9 @@
 import AppLayout from '@/layout/AppLayout.vue';
+import { AuthConstants } from '@/constants/AuthConstants';
 import { TokenService } from '@/service/TokenService';
 import { UserService } from '@/service/UserService';
 import { createRouter, createWebHistory } from 'vue-router';
-import { adminGuard, authGuard, guestGuard } from './middleware';
+import { adminGuard, authGuard, guestGuard, permissionGuard } from './middleware';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -106,7 +107,7 @@ const router = createRouter({
                     name: 'empty',
                     component: () => import('@/views/pages/Empty.vue')
                 },
-                // Admin only routes
+                // Protected management routes
                 {
                     path: '/pages/pc-configuration',
                     name: 'pc-configuration',
@@ -117,8 +118,8 @@ const router = createRouter({
                 {
                     path: '/pages/log',
                     name: 'log',
-                    beforeEnter: adminGuard,
-                    meta: { requiresAdmin: true },
+                    beforeEnter: permissionGuard(AuthConstants.Permissions.LogsView),
+                    meta: { requiresPermission: AuthConstants.Permissions.LogsView },
                     component: () => import('@/views/pages/Log.vue')
                 },
                 {

@@ -2,6 +2,7 @@ using Contracts.Log;
 using Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using WebApi.Constants;
 using WebApi.Services;
 
 namespace WebApi.Controllers;
@@ -73,7 +74,7 @@ public class LogController : ControllerBase
     /// Deletes ApiLogs matching the given filters.
     /// </summary>
     [HttpDelete]
-    [Authorize]
+    [Authorize(Policy = AuthConstants.Policies.RequireAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     public async Task<ActionResult> DeleteFiltered(
         [FromQuery] DateTime? from,
@@ -86,7 +87,7 @@ public class LogController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize]
+    [Authorize(Policy = AuthConstants.Policies.RequireAdmin)]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult> Delete(int id)
