@@ -30,5 +30,7 @@ public class Advice
     public string SecurityFilterPauseComputer { get; set; } = "";
     public double AvgHandSeconds          { get; set; }
     public double LastHandDeltaSeconds    { get; set; }
+    public double MinHandDeltaSeconds     { get; set; }
+    public double MaxHandDeltaSeconds     { get; set; }
     public int    CurrentStreak           { get; set; }
 }

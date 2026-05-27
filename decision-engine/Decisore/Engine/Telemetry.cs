@@ -41,6 +41,8 @@ public class SecurityFilterBotTelemetry
     public string Computer { get; set; } = "";
     public double AvgHandSeconds { get; set; }
     public double LastHandDeltaSeconds { get; set; }
+    public double MinHandDeltaSeconds { get; set; }
+    public double MaxHandDeltaSeconds { get; set; }
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }

@@ -265,6 +265,8 @@ function getScoreClass(row) {
                             <th class="py-2 pr-3">Bot</th>
                             <th class="py-2 pr-3">Avg mano</th>
                             <th class="py-2 pr-3">Ultimo delta</th>
+                            <th class="py-2 pr-3">Min delta missione</th>
+                            <th class="py-2 pr-3">Max delta missione</th>
                             <th class="py-2 pr-3">Streak</th>
                             <th class="py-2 pr-3">Score</th>
                             <th class="py-2 pr-3">Filtro</th>
@@ -284,6 +286,8 @@ function getScoreClass(row) {
                             </td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.AvgHandSeconds) }}</td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.LastHandDeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.MinHandDeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.MaxHandDeltaSeconds) }}</td>
                             <td class="py-2 pr-3">{{ row.CurrentStreak ?? 0 }}</td>
                             <td class="py-2 pr-3">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">

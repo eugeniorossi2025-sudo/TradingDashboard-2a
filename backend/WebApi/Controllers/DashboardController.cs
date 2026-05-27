@@ -278,6 +278,8 @@ public class SecurityFilterBotTelemetryDto
     public string Computer { get; set; } = "";
     public decimal AvgHandSeconds { get; set; }
     public decimal LastHandDeltaSeconds { get; set; }
+    public decimal MinHandDeltaSeconds { get; set; }
+    public decimal MaxHandDeltaSeconds { get; set; }
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }

@@ -168,6 +168,8 @@ namespace Decisore.Engine
                     Computer = x.Value.Computer,
                     AvgHandSeconds = x.Value.AvgHandSeconds,
                     LastHandDeltaSeconds = x.Value.LastHandDeltaSeconds,
+                    MinHandDeltaSeconds = x.Value.MinHandDeltaSeconds,
+                    MaxHandDeltaSeconds = x.Value.MaxHandDeltaSeconds,
                     CurrentStreak = x.Value.CurrentStreak,
                     SecurityRiskScore = x.Value.SecurityRiskScore,
                     SecurityFilterActive = x.Value.SecurityFilterActive,
@@ -429,6 +431,13 @@ namespace Decisore.Engine
 
             botSecurity.AvgHandSeconds = avgHandSeconds;
             botSecurity.LastHandDeltaSeconds = lastHandDeltaSeconds;
+            if (lastHandDeltaSeconds > 0)
+            {
+                botSecurity.MinHandDeltaSeconds = botSecurity.MinHandDeltaSeconds <= 0
+                    ? lastHandDeltaSeconds
+                    : Math.Min(botSecurity.MinHandDeltaSeconds, lastHandDeltaSeconds);
+                botSecurity.MaxHandDeltaSeconds = Math.Max(botSecurity.MaxHandDeltaSeconds, lastHandDeltaSeconds);
+            }
             botSecurity.CurrentStreak = currentStreak;
             botSecurity.SecurityRiskScore = securityScore;
             botSecurity.SecurityFilterActive = securityFilterActive;
@@ -454,6 +463,8 @@ namespace Decisore.Engine
             advice.SecurityFilterPauseComputer = securityFilterActive ? computer : "";
             advice.AvgHandSeconds          = avgHandSeconds;
             advice.LastHandDeltaSeconds    = lastHandDeltaSeconds;
+            advice.MinHandDeltaSeconds     = botSecurity.MinHandDeltaSeconds;
+            advice.MaxHandDeltaSeconds     = botSecurity.MaxHandDeltaSeconds;
             advice.CurrentStreak           = currentStreak;
 
             if (securityFilterActive)
