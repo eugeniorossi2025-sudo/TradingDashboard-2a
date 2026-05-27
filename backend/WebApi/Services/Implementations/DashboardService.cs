@@ -127,13 +127,27 @@ public class DashboardService : IDashboardService
 
     public async Task<DashboardTelemetry> GetLatestTelemetryAsync()
     {
+        if (!await _context.PcCurrentStatuses.AsNoTracking().AnyAsync())
+        {
+            return new DashboardTelemetry
+            {
+                SecurityFilterEnabled = await GetSecurityFilterEnabledAsync()
+            };
+        }
+
         var row = await _context.Statistiche
             .AsNoTracking()
             .OrderByDescending(s => s.DataInizio)
+            .ThenByDescending(s => s.Id)
             .FirstOrDefaultAsync();
 
         if (row == null)
-            return new DashboardTelemetry();
+        {
+            return new DashboardTelemetry
+            {
+                SecurityFilterEnabled = await GetSecurityFilterEnabledAsync()
+            };
+        }
 
         var result = new DashboardTelemetry
         {
@@ -211,6 +225,22 @@ public class DashboardService : IDashboardService
         }
 
         return result;
+    }
+
+    private async Task<bool> GetSecurityFilterEnabledAsync()
+    {
+        var value = await _context.Configurations
+            .AsNoTracking()
+            .Where(c => c.Key == "SECURITY_FILTER_ENABLED")
+            .Select(c => c.Value)
+            .FirstOrDefaultAsync();
+
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        return value.Trim().Equals("1", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
     }
 
     private Task<List<Entities.PcCurrentStatus>> GetCurrentStatusRowsAsync()

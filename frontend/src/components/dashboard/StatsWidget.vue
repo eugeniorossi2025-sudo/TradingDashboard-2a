@@ -33,6 +33,35 @@ function formatSeconds(value) {
     if (value == null || Number(value) <= 0) return '-';
     return `${Number(value).toFixed(1)}s`;
 }
+
+function isSecurityFilterEnabled() {
+    return telemetryData.value?.SecurityFilterEnabled !== false;
+}
+
+function getSecurityFilterStatus(row) {
+    if (!isSecurityFilterEnabled()) return 'Disattivato';
+    return row?.SecurityFilterActive ? 'Pausa bot' : 'In valutazione';
+}
+
+function getSecurityFilterStatusClass(row) {
+    if (!isSecurityFilterEnabled()) return 'bg-surface-100 text-muted-color dark:bg-surface-800';
+    if (row?.SecurityFilterActive) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+}
+
+function getSecurityFilterRowClass(row) {
+    if (!isSecurityFilterEnabled()) return 'bg-surface-50/50 dark:bg-surface-900/30';
+    if (row?.SecurityFilterActive) return 'bg-red-50 dark:bg-red-950/30';
+    return 'bg-emerald-50/60 dark:bg-emerald-950/20';
+}
+
+function getScoreClass(row) {
+    const score = Number(row?.SecurityRiskScore ?? 0);
+    if (score >= 3) return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300';
+    if (score >= 2) return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    if (score >= 1) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
+    return 'bg-surface-100 text-muted-color dark:bg-surface-800';
+}
 </script>
 
 <template>
@@ -246,17 +275,30 @@ function formatSeconds(value) {
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="row in securityFilterRows" :key="row.computer" class="border-t border-surface-200 dark:border-surface-700">
-                            <td class="py-2 pr-3 font-medium">{{ row.Computer || row.computer }}</td>
+                        <tr v-for="row in securityFilterRows" :key="row.computer" class="border-t border-surface-200 dark:border-surface-700 transition-colors" :class="getSecurityFilterRowClass(row)">
+                            <td class="py-2 pr-3">
+                                <span class="inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                                    <span class="h-2 w-2 rounded-full" :class="row.SecurityFilterActive ? 'bg-red-500' : 'bg-emerald-500'"></span>
+                                    {{ row.Computer || row.computer }}
+                                </span>
+                            </td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.AvgHandSeconds) }}</td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.LastHandDeltaSeconds) }}</td>
                             <td class="py-2 pr-3">{{ row.CurrentStreak ?? 0 }}</td>
-                            <td class="py-2 pr-3">{{ row.SecurityRiskScore ?? 0 }}/4</td>
-                            <td class="py-2 pr-3" :class="row.SecurityFilterActive ? 'text-red-500 font-semibold' : 'text-muted-color'">
-                                {{ row.SecurityFilterActive ? 'Attivo' : 'Non attivo' }}
+                            <td class="py-2 pr-3">
+                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">
+                                    {{ row.SecurityRiskScore ?? 0 }}/4
+                                </span>
                             </td>
                             <td class="py-2 pr-3">
-                                {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSecurityFilterStatusClass(row)">
+                                    {{ getSecurityFilterStatus(row) }}
+                                </span>
+                            </td>
+                            <td class="py-2 pr-3">
+                                <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
+                                    {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                                </span>
                             </td>
                             <td class="py-2 pr-3">{{ row.PreventedL6 ?? 0 }}</td>
                             <td class="py-2 pr-3">{{ row.LastShoeHand ?? '-' }}</td>
