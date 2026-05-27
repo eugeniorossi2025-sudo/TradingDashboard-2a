@@ -1,0 +1,147 @@
+name: DASH2A Decisore Deploy Safe
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DEPLOY_DECISORE to publish Decisore to C:\\Decisore"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Build, backup, deploy Decisore
+    if: ${{ github.event.inputs.confirm == 'DEPLOY_DECISORE' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-DECISORE
+    timeout-minutes: 15
+
+    env:
+      DECISORE_ROOT: C:\Decisore
+      DECISORE_BACKUP_ROOT: C:\DecisoreBackups
+      DECISORE_APP_POOL: Proactive
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and publish Decisore
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publishPath = Join-Path $env:RUNNER_TEMP 'decisore-publish'
+          if (Test-Path -LiteralPath $publishPath) {
+            Remove-Item -LiteralPath $publishPath -Recurse -Force
+          }
+
+          dotnet restore .\decision-engine\Decisore\Decisore.csproj
+          dotnet build .\decision-engine\Decisore\Decisore.csproj -c Release --no-restore
+          dotnet publish .\decision-engine\Decisore\Decisore.csproj -c Release -o $publishPath --no-build --no-self-contained
+
+          if (-not (Test-Path -LiteralPath (Join-Path $publishPath 'Decisore.dll'))) {
+            throw "Publish output missing Decisore.dll"
+          }
+
+          Write-Host "PUBLISH_PATH=$publishPath"
+          Get-ChildItem -LiteralPath $publishPath | Select-Object Name, Length, LastWriteTime | Format-Table -AutoSize
+
+      - name: Backup current C:\Decisore
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Test-Path -LiteralPath $env:DECISORE_ROOT)) {
+            throw "Missing Decisore root: $env:DECISORE_ROOT"
+          }
+
+          New-Item -ItemType Directory -Force -Path $env:DECISORE_BACKUP_ROOT | Out-Null
+          $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+          $backupPath = Join-Path $env:DECISORE_BACKUP_ROOT "decisore-$stamp"
+
+          robocopy $env:DECISORE_ROOT $backupPath /MIR /R:2 /W:2 /NFL /NDL /NP
+          if ($LASTEXITCODE -ge 8) {
+            throw "Backup robocopy failed with exit code $LASTEXITCODE"
+          }
+
+          "DECISORE_BACKUP_PATH=$backupPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "BACKUP_PATH=$backupPath"
+
+      - name: Deploy publish output preserving live appsettings
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration -ErrorAction Stop
+          $publishPath = Join-Path $env:RUNNER_TEMP 'decisore-publish'
+
+          $liveAppSettings = Join-Path $env:DECISORE_ROOT 'appsettings.json'
+          if (-not (Test-Path -LiteralPath $liveAppSettings)) {
+            throw "Refusing deploy: live appsettings.json is missing"
+          }
+
+          Stop-WebAppPool -Name $env:DECISORE_APP_POOL
+          Start-Sleep -Seconds 3
+
+          try {
+            robocopy $publishPath $env:DECISORE_ROOT /MIR /R:2 /W:2 /NFL /NDL /NP /XF appsettings.json appsettings.Development.json
+            if ($LASTEXITCODE -ge 8) {
+              throw "Deploy robocopy failed with exit code $LASTEXITCODE"
+            }
+          }
+          catch {
+            Write-Host "Deploy failed, attempting rollback from $env:DECISORE_BACKUP_PATH"
+            robocopy $env:DECISORE_BACKUP_PATH $env:DECISORE_ROOT /MIR /R:2 /W:2 /NFL /NDL /NP
+            Start-WebAppPool -Name $env:DECISORE_APP_POOL
+            throw
+          }
+
+          Start-WebAppPool -Name $env:DECISORE_APP_POOL
+          Start-Sleep -Seconds 8
+
+      - name: Smoke Decisore without side effects
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          function Test-HttpNoSideEffect([string] $url) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 10
+              Write-Host "$url => HTTP $($response.StatusCode)"
+              return $true
+            }
+            catch {
+              $statusCode = $null
+              if ($_.Exception.Response -and $_.Exception.Response.StatusCode) {
+                $statusCode = $_.Exception.Response.StatusCode.value__
+              }
+              if ($statusCode -eq 404) {
+                Write-Host "$url => HTTP 404 (app is running; route not defined)"
+                return $true
+              }
+
+              Write-Host "$url => ERROR $($_.Exception.Message)"
+              return $false
+            }
+          }
+
+          $tcp = Test-NetConnection -ComputerName 127.0.0.1 -Port 80 -InformationLevel Quiet -WarningAction SilentlyContinue
+          Write-Host "127.0.0.1:80 TCP=$tcp"
+          if (-not $tcp) {
+            throw "Local IIS port 80 is not reachable"
+          }
+
+          $ok = Test-HttpNoSideEffect 'http://127.0.0.1/api/proactive/health'
+          if (-not $ok) {
+            Write-Host "Smoke failed, attempting rollback from $env:DECISORE_BACKUP_PATH"
+            Import-Module WebAdministration -ErrorAction Stop
+            Stop-WebAppPool -Name $env:DECISORE_APP_POOL
+            robocopy $env:DECISORE_BACKUP_PATH $env:DECISORE_ROOT /MIR /R:2 /W:2 /NFL /NDL /NP
+            Start-WebAppPool -Name $env:DECISORE_APP_POOL
+            throw "Decisore smoke failed and rollback was attempted"
+          }
+
+          Write-Host "DECISORE_DEPLOY_OK"
