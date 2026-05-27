@@ -2,7 +2,7 @@
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-27 12:08 CEST** — aggiunta guardia anti-confusione repo/workspace: DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`. Prima di lavorare o deployare verificare sempre `git remote -v`.
+> **Ultimo aggiornamento: 2026-05-28 00:30 CEST** — aggiunto runbook blindato patch `ProactiveEngine` / note UX frontend con test locali, gate di approvazione e blocco esplicito di qualunque deploy/smoke remoto quando una missione live è attiva. DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`. Prima di lavorare o deployare verificare sempre `git remote -v`.
 
 ---
 
@@ -142,6 +142,7 @@ Se il remote mostra `TradingDashboard-iis`, `PCTEST45\TradingDashboard`, Dashboa
 | `Pc_CurrentStatus` | Da verificare read-only | Stato bot scritto dal Decisore e letto dalla WebApi |
 | `Statistiche` | Da verificare read-only | Telemetry JSON letta dalla WebApi |
 | `Margini` | Da verificare read-only | Serie margini Decisore |
+| `UserPushSubscriptions` | Creata automaticamente se manca | Subscription Web Push degli utenti; schema idempotente lato WebApi, nessuna EF migration prod |
 
 ### Configurazioni chiave (da DB prod)
 
@@ -208,9 +209,25 @@ File runtime: override IIS `appsettings.Production.json` sul server. Non usare i
 | `/api/mission/reports/index` | GET | Indice sessioni |
 | `/api/decider/config` | GET | Config Decider (diagnostica) |
 | `/api/decider/health` | GET | Probe reachability Decider |
+| `/api/push/vapid-public-key` | GET | Stato Web Push + public key VAPID; no auth, usato dal mobile admin |
+| `/api/push/subscribe` | POST | Salva/aggiorna subscription Web Push dell'utente autenticato |
 | `/api/admin/users/overview` | GET | Utenti e ruoli |
 | `/api/admin/user-notification-settings` | GET/PUT | Notifiche email |
 | `/api/admin/user-notification-settings/{id}/test` | POST | Test email |
+
+### Push mobile admin / Web Push
+
+| Parametro | Valore |
+|---|---|
+| Stato produzione | **Attivo** — `GET https://vps-b0942869.vps.ovh.net/api/push/vapid-public-key` → `enabled=true` |
+| Config runtime | Sezione `Push` in `C:\inetpub\wwwroot\shared\appsettings.Production.json` e release corrente |
+| Chiavi VAPID | Generate/applicate sul server dal workflow `configure-push-vapid.yml`; private key mai committata |
+| Subject VAPID | Configurato nel runtime server dal workflow |
+| Tabella DB | `UserPushSubscriptions`, creata idempotentemente dalla WebApi se assente |
+| Invio notifiche | `MissionLifecycleService` invia push sugli eventi missione senza bloccare il flusso se il push fallisce |
+| Frontend | `AdminMobileLive.vue` mostra differenza tra supporto browser, permesso utente, backend configurato e subscription attiva |
+
+> Su iOS le notifiche Web Push richiedono app installata in Home Screen e permesso concesso. Su Android/Chrome basta browser compatibile + permesso notifiche.
 
 ---
 
@@ -239,11 +256,13 @@ File runtime: override IIS `appsettings.Production.json` sul server. Non usare i
 | `firebase-hosting-merge.yml` | `workflow_dispatch` | Deploy frontend Firebase live |
 | `firebase-hosting-pull-request.yml` | PR | Build frontend (no deploy live) |
 | `deploy-decisore-safe.yml` | `workflow_dispatch` | Build + backup + deploy Decisore su `C:\Decisore` |
+| `configure-push-vapid.yml` | `workflow_dispatch` | Genera/ruota/applica VAPID Web Push su WebApi prod e riavvia app pool `demoapp` |
 | `diag-runtime-config-readonly.yml` | `workflow_dispatch` | Verifica read-only WebApi IIS + SQL `1434` |
 | `diag-decisore-runner-readonly.yml` | `workflow_dispatch` | Verifica read-only runner Decisore, IIS, `C:\Decisore`, appsettings |
 
 > **Nessun auto-deploy su push `main`** — backend, frontend e Decisore richiedono tutti `workflow_dispatch` manuale con input di conferma.
 > **Decisore:** usare solo `DASH2A Decisore Deploy Safe`. Il vecchio `deploy-decisore-v2.yml` resta storico/obsoleto e non va ripristinato.
+> **Push VAPID:** usare `configure-push-vapid.yml` solo quando manca la config o serve rotazione. Non inserire chiavi VAPID private nel repo, nei log o in `appsettings.json` committati.
 > **Guardia repo:** i deploy DASH2A validi appaiono nei run di `eugeniorossi2025-sudo/TradingDashboard-2a` con workflow `DASH2A Backend Deploy Safe`, `DASH2A Decisore Deploy Safe` e `Firebase Hosting Live`. I run o remote di `TradingDashboard-iis` non sono prova del deploy DASH2A.
 
 ### Segreti GitHub (repository secrets — verificati 2026-05-25)
@@ -285,6 +304,22 @@ Shell:
 gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm_frontend_deploy=DEPLOY_FRONTEND
 ```
 
+### Procedura configurazione Push VAPID
+
+```text
+1. Usare solo dopo deploy backend che contiene `/api/push/*`.
+2. GitHub Actions → Configure Push VAPID → Run workflow.
+3. Input standard: apply / no rotate; usare rotate solo se si vuole invalidare le vecchie subscription.
+4. Il workflow aggiorna `C:\inetpub\wwwroot\shared\appsettings.Production.json` e la release corrente, poi riavvia app pool `demoapp`.
+5. Smoke esterno: `https://vps-b0942869.vps.ovh.net/api/push/vapid-public-key` deve tornare `enabled=true`.
+```
+
+Shell:
+
+```powershell
+gh workflow run "Configure Push VAPID" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f mode=apply -f rotate=false
+```
+
 ### Procedura deploy Decisore
 
 ```text
@@ -295,11 +330,202 @@ gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDash
 5. Smoke neutro: TCP `127.0.0.1:80=True`; `/api/proactive/health` può dare 404 ed è accettato perché la route non esiste.
 ```
 
+> Per patch chirurgiche Decisore/frontend questa procedura rapida **non basta**: seguire sempre lo standard operativo obbligatorio sotto, con test locali, commit chirurgico, push controllato, approvazione deploy e blocco missione live.
+
 Shell:
 
 ```powershell
 gh workflow run "DASH2A Decisore Deploy Safe" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=DEPLOY_DECISORE
 ```
+
+## STANDARD OPERATIVO OBBLIGATORIO — PATCH CHIRURGICHE DASH2A
+
+**Procedura ufficiale post-patch DASH2A.** Questo standard sostituisce qualunque flusso vecchio o incompleto per patch chirurgiche Decisore/frontend.
+
+Validata sulla patch **Security Filter L6 Prevention** (`ProactiveEngine` + note UX frontend) e da riutilizzare per patch future analoghe.
+
+Questa procedura vale per patch chirurgiche come correzioni in `decision-engine/Decisore/Engine/ProactiveEngine.cs` e sole note UX frontend in `StatsWidget.vue` / `ProfitsChats.vue`.
+
+Sequenza obbligatoria:
+
+1. Test locali.
+2. Commit chirurgico.
+3. Verifica diff.
+4. Push controllato.
+5. Verifica workflow.
+6. Deploy manuali storici solo se approvati.
+7. Stop obbligatorio prima di toccare missione live.
+8. Nessuno smoke custom improvvisato.
+9. Nessun workflow inventato.
+
+**Regola assoluta:** se c'è una missione live attiva, **fermarsi prima di qualunque deploy, workflow, smoke remoto, chiamata HTTP al Decisore, restart app pool o diagnostica su runner**. Il workflow `DASH2A Decisore Deploy Safe` riavvia l'app pool `Proactive` e contiene uno step di smoke integrato; quindi si può lanciare solo dopo approvazione esplicita che conferma missione ferma o finestra operativa accettata.
+
+#### Step 0 — Posizionamento e guardia repo
+
+```powershell
+cd "C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri"
+git remote -v
+git status --short
+git log --oneline -5
+```
+
+Esito richiesto:
+
+- Remote `origin` = `https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a.git`.
+- Branch previsto = `main` o branch patch approvato.
+- Nessuna modifica estranea inclusa nella patch.
+- Non usare `PCTEST45\TradingDashboard`, Dashboard 1 o repo `TradingDashboard-iis`.
+
+#### Step 1 — Patch chirurgica
+
+File ammessi per questa classe di intervento:
+
+- `decision-engine/Decisore/Engine/ProactiveEngine.cs`
+- `frontend/src/components/dashboard/StatsWidget.vue`
+- `frontend/src/components/dashboard/ProfitsChats.vue`
+- `tools/security-filter-l6-prevention-smoke.ps1`
+
+Regole patch:
+
+- Non fare refactor generale.
+- Non toccare calcolo margini.
+- Non toccare data logic del `Profits Chart`.
+- Non toccare scaling `K`.
+- Non toccare endpoint API.
+- Non toccare logica L7/L8.
+- Non modificare config live, DB, missione, runner o workflow per far passare il test.
+
+Logica corretta `Security Filter`:
+
+- Calcolare `securityFilterActive` prima del consumo credito L6.
+- In caso `L5 loss + credito L6 disponibile + SecurityFilter score >= 3`, il filtro blocca prima di autorizzare L6.
+- In quello scenario `ActionCode = 3` e `StopL6 = true`.
+- `TotalSecurityFilterPreventedL6` aumenta solo quando una L6 reale sarebbe stata autorizzata ma viene bloccata.
+- `TotalAuthL6Authorized` resta invariato.
+- Il credito L6 non viene consumato.
+- Nessun marker `LastL6Authorization...` deve essere scritto.
+
+#### Step 2 — Test locali obbligatori, senza missione live
+
+Eseguire solo test locali nel clone. Vietato chiamare endpoint live Decisore o WebApi per validare questa patch.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\tools\security-filter-l6-prevention-smoke.ps1
+dotnet build .\decision-engine\Decisore.sln
+npm run build --prefix frontend
+git diff --check
+```
+
+Esito richiesto dello smoke `security-filter-l6-prevention-smoke.ps1`:
+
+- Scenario simulato: `L5 loss + credito L6 disponibile + SecurityFilter score >= 3`.
+- `ActionCode = 3`.
+- `StopL6 = true`.
+- `TotalSecurityFilterPreventedL6 = 1`.
+- `TotalAuthL6Authorized = 0`.
+- Credito L6 non consumato.
+- Nessun marker `LastL6Authorization...` scritto.
+
+Esito richiesto build:
+
+- `dotnet build .\decision-engine\Decisore.sln` = OK.
+- `npm run build --prefix frontend` = OK.
+- `git diff --check` = OK, nessun trailing whitespace.
+
+#### Step 3 — Diff finale e commit locale
+
+Prima del commit mostrare e verificare solo i file ammessi:
+
+```powershell
+git diff -- decision-engine/Decisore/Engine/ProactiveEngine.cs frontend/src/components/dashboard/StatsWidget.vue frontend/src/components/dashboard/ProfitsChats.vue tools/security-filter-l6-prevention-smoke.ps1
+git status --short
+```
+
+Commit locale ammesso solo dopo conferma utente:
+
+```powershell
+git add decision-engine/Decisore/Engine/ProactiveEngine.cs frontend/src/components/dashboard/StatsWidget.vue frontend/src/components/dashboard/ProfitsChats.vue tools/security-filter-l6-prevention-smoke.ps1
+git commit -m "Fix Security Filter L6 prevention semantics"
+git rev-parse HEAD
+```
+
+Dopo il commit ripetere i test locali dello Step 2. Non fare push senza conferma esplicita.
+
+#### Step 4 — Push controllato
+
+Eseguire solo se l'utente approva esplicitamente il push:
+
+```powershell
+git push origin main
+git rev-parse HEAD
+gh run list --repo eugeniorossi2025-sudo/TradingDashboard-2a --limit 8
+```
+
+Esito richiesto:
+
+- Hash locale = hash pushato.
+- Nessun deploy automatico inatteso.
+- Nessun workflow manuale lanciato.
+- Missione live invariata.
+
+#### Step 5 — Valutazione deploy, senza automatismi
+
+Prima di qualunque deploy chiedere conferma separata per ogni componente:
+
+- Decisore: serve solo se cambia `ProactiveEngine.cs`.
+- Firebase: serve solo se cambiano note UX frontend.
+- Backend WebApi: non serve per questa patch.
+
+**Blocco sicurezza missione live:** prima del deploy Decisore l'utente deve confermare una delle due condizioni:
+
+- `MISSIONE_FERMA_CONFERMATA`
+- `AUTORIZZO_DEPLOY_DECISORE_CON_RESTART_E_SMOKE_INTEGRATO`
+
+Senza una di queste conferme, **non lanciare**:
+
+- `DASH2A Decisore Deploy Safe`
+- `DIAG - Decisore runner readonly`
+- chiamate a `/api/proactive/*`
+- `Test-NetConnection` remoto
+- qualunque smoke remoto/custom
+- restart app pool `Proactive`
+
+#### Step 6 — Deploy manuale approvato
+
+Se e solo se approvato, usare i workflow storici esistenti. Non inventare workflow, script, runner label o procedure.
+
+Decisore:
+
+```powershell
+gh workflow run "DASH2A Decisore Deploy Safe" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm=DEPLOY_DECISORE
+```
+
+Firebase:
+
+```powershell
+gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDashboard-2a -f confirm_frontend_deploy=DEPLOY_FRONTEND
+```
+
+Monitoraggio consentito solo del run GitHub appena lanciato:
+
+```powershell
+gh run watch <RUN_ID> --repo eugeniorossi2025-sudo/TradingDashboard-2a --exit-status
+gh run view <RUN_ID> --repo eugeniorossi2025-sudo/TradingDashboard-2a --json databaseId,name,headSha,status,conclusion,url
+```
+
+Non aggiungere smoke esterni dopo il deploy, salvo nuova conferma esplicita dell'utente.
+
+#### Step 7 — Output finale obbligatorio
+
+Il report finale deve contenere:
+
+- Commit hash locale e remoto.
+- File modificati.
+- Test locali eseguiti e risultato.
+- Push OK/KO.
+- Workflow eventualmente lanciati, run ID, commit `headSha`, stato finale.
+- Conferma che non sono stati toccati missione live, DB, endpoint API, calcolo margini, scaling `K`, logica L7/L8.
+- Se il Decisore è stato deployato: dichiarare esplicitamente che il workflow ha riavviato `Proactive` e ha eseguito lo smoke integrato previsto dal workflow.
 
 ### Diagnostiche read-only post-deploy
 
@@ -334,6 +560,7 @@ gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/T
 | Frontend | `https://eugenio-dashboard-2a.web.app` |
 | WebApi HTTPS | **`https://vps-b0942869.vps.ovh.net`** |
 | WebApi IP | `51.83.159.175` |
+| Push VAPID status | `https://vps-b0942869.vps.ovh.net/api/push/vapid-public-key` |
 | DB runtime WebApi + Decisore | `51.83.159.175:1434` / `Eugenio-Demo10` |
 | Decisore (engine) | `http://51.178.16.37` / `/api/proactive` |
 | Fonte dati dashboard Vue | **UI → WebApi HTTPS → DB runtime 1434** |
@@ -399,6 +626,7 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 9. Deploy Decisore solo via workflow `DASH2A Decisore Deploy Safe`, con backup automatico e `appsettings.json` live preservato.
 10. **NON** applicare migration/script SQL sul DB Decisore senza audit read-only e backup/diff delle stored procedure esistenti.
 11. **NON** usare `/api/proactive/reset` come healthcheck neutro: ha side effect.
+12. **NON** committare chiavi VAPID private; la configurazione push vive nel runtime server e si gestisce con `configure-push-vapid.yml`.
 
 ---
 
@@ -496,13 +724,14 @@ Test-NetConnection 127.0.0.1 -Port 80
 | 11 | WebApi prod dati dashboard | **OK** | da DB runtime unico `51.83.159.175,1434` |
 | 12 | Secret `FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2` | **OK** | configurato su GitHub 2026-05-25 |
 | 13 | Firebase project ID workflow | **OK** | `eugenio-dashboard-2a` (commit `bd6c322`) |
+| 14 | Push VAPID prod `/api/push/vapid-public-key` | **OK** | HTTP 200, `enabled=true`, public key presente |
 
 ### Punti ancora incerti / da monitorare
 
 | Punto | Stato |
 |---|---|
 | SP `upI_Values` mancante su `1434` | **Da creare** — non critica per startup; blocca solo `SaveRequestValue` (fire & forget) |
-| SignalR / push VAPID in locale | Opzionale — 404 atteso se non configurato |
+| SignalR / push VAPID in locale | Opzionale — `enabled=false` atteso se VAPID non configurato |
 | `MissionSessions` prod vuota vs locale ricca | Locale ha dati demo/import; prod 0 al check — non allineare automaticamente |
 | Allineamento binario live `C:\Decisore` vs codice repo | **OK** dopo deploy `454becd`; verificare di nuovo prima di ogni release |
 
@@ -520,6 +749,7 @@ Test-NetConnection 127.0.0.1 -Port 80
 | **Backend live URL HTTPS** | **OK** | — | `https://vps-b0942869.vps.ovh.net` |
 | **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175,1434` |
 | **Decisore live** | **DEPLOY OK** | run `26483836856` | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; `Decisore.dll` 2026-05-27 02:47 |
+| **Push mobile admin** | **ATTIVO** | workflow `configure-push-vapid.yml` OK | `/api/push/vapid-public-key` → `enabled=true`; VAPID in runtime server, private key non in repo |
 
 ### Run fallite (storico sessione — risolte)
 
