@@ -67,6 +67,7 @@ jobs:
           if ($LASTEXITCODE -ge 8) {
             throw "Backup robocopy failed with exit code $LASTEXITCODE"
           }
+          $global:LASTEXITCODE = 0
 
           "DECISORE_BACKUP_PATH=$backupPath" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
           Write-Host "BACKUP_PATH=$backupPath"
@@ -91,10 +92,14 @@ jobs:
             if ($LASTEXITCODE -ge 8) {
               throw "Deploy robocopy failed with exit code $LASTEXITCODE"
             }
+            $global:LASTEXITCODE = 0
           }
           catch {
             Write-Host "Deploy failed, attempting rollback from $env:DECISORE_BACKUP_PATH"
             robocopy $env:DECISORE_BACKUP_PATH $env:DECISORE_ROOT /MIR /R:2 /W:2 /NFL /NDL /NP
+            if ($LASTEXITCODE -lt 8) {
+              $global:LASTEXITCODE = 0
+            }
             Start-WebAppPool -Name $env:DECISORE_APP_POOL
             throw
           }
@@ -140,6 +145,9 @@ jobs:
             Import-Module WebAdministration -ErrorAction Stop
             Stop-WebAppPool -Name $env:DECISORE_APP_POOL
             robocopy $env:DECISORE_BACKUP_PATH $env:DECISORE_ROOT /MIR /R:2 /W:2 /NFL /NDL /NP
+            if ($LASTEXITCODE -lt 8) {
+              $global:LASTEXITCODE = 0
+            }
             Start-WebAppPool -Name $env:DECISORE_APP_POOL
             throw "Decisore smoke failed and rollback was attempted"
           }
