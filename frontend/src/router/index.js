@@ -3,7 +3,7 @@ import { AuthConstants } from '@/constants/AuthConstants';
 import { TokenService } from '@/service/TokenService';
 import { UserService } from '@/service/UserService';
 import { createRouter, createWebHistory } from 'vue-router';
-import { adminGuard, authGuard, guestGuard, permissionGuard } from './middleware';
+import { adminGuard, authGuard, guestGuard, mobileHomeRedirectGuard, permissionGuard } from './middleware';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -16,6 +16,7 @@ const router = createRouter({
                 {
                     path: '/',
                     name: 'dashboard',
+                    beforeEnter: mobileHomeRedirectGuard,
                     component: () => import('@/views/Dashboard.vue')
                 },
                 {
@@ -190,6 +191,13 @@ const router = createRouter({
             beforeEnter: adminGuard,
             meta: { requiresAdmin: true },
             component: () => import('@/views/mobile/AdminMobileLive.vue')
+        },
+        {
+            path: '/admin/mobile-reports',
+            name: 'admin-mobile-reports',
+            beforeEnter: adminGuard,
+            meta: { requiresAdmin: true },
+            component: () => import('@/views/mobile/AdminMobileReports.vue')
         },
         {
             path: '/pages/notfound',

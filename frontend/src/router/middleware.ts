@@ -20,6 +20,26 @@ export const authGuard = (
     }
 };
 
+const isMobileViewport = () => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px), (pointer: coarse)').matches;
+};
+
+export const mobileHomeRedirectGuard = (
+    to: RouteLocationNormalized,
+    from: RouteLocationNormalized,
+    next: NavigationGuardNext
+) => {
+    if (!AuthService.isAuthenticated.value || !isMobileViewport()) {
+        next();
+        return;
+    }
+
+    next({
+        name: AuthService.isAdmin.value ? 'admin-mobile-live' : 'client-mobile',
+    });
+};
+
 /**
  * Middleware per verificare il ruolo admin
  */

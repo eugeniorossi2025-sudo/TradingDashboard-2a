@@ -49,11 +49,11 @@ const chartSamples = computed(() =>
 const chartPath = computed(() => buildPath(chartSamples.value, (row) => getNumber(row, 'margine', 'Margine', 'margin')));
 const targetPath = computed(() => buildPath(chartSamples.value, () => target.value));
 const strategyLabel = computed(() => {
-    const row = tableRows.value.find((item) => item.valutazione || item.Valutazione || item.reason || item.Reason);
-    return row?.valutazione || row?.Valutazione || row?.reason || row?.Reason || '--';
+    const row = tableRows.value.find((item) => buildStrategyLabel(item) !== '--');
+    return row ? buildStrategyLabel(row) : '--';
 });
 const sessionPulse = computed(() => (activeTables.value > 0 ? 'LIVE' : 'IDLE'));
-const copilotEvents = computed(() => tableRows.value.filter((row) => row.reason || row.Reason || row.prediction || row.Prediction).slice(0, 6));
+const copilotEvents = computed(() => tableRows.value.filter((row) => buildStrategyLabel(row) !== '--').slice(0, 6));
 
 function getNumber(row, ...keys) {
     for (const key of keys) {
@@ -68,6 +68,44 @@ function toneClass(value) {
     if (number > 0.01) return 'pos';
     if (number < -0.01) return 'neg';
     return 'neutral';
+}
+
+function getField(row, ...keys) {
+    for (const key of keys) {
+        const value = row?.[key];
+        if (value !== undefined && value !== null) return value;
+    }
+    return null;
+}
+
+function getText(row, ...keys) {
+    const value = getField(row, ...keys);
+    if (typeof value === 'string') {
+        const text = value.trim();
+        if (!text || text === '{}' || text === '[]' || text.toLowerCase() === 'null') return '';
+        return text;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (value && typeof value === 'object' && Object.keys(value).length > 0) return JSON.stringify(value);
+    return '';
+}
+
+function buildStrategyLabel(row) {
+    const directText = getText(row, 'valutazione', 'Valutazione', 'reason', 'Reason', 'lastInfo', 'LastInfo', 'prediction', 'Prediction');
+    if (directText) return directText;
+
+    const actionCode = getField(row, 'adviceActionCode', 'AdviceActionCode');
+    const martingala = getField(row, 'adviceMartingala', 'AdviceMartingala', 'colpoMartingala', 'ColpoMartingala', 'levelIndex', 'LevelIndex');
+    const hotZoneLabel = getText(row, 'adviceHotZoneLabel', 'AdviceHotZoneLabel');
+    const state = getText(row, 'stato', 'Stato');
+
+    const parts = [];
+    if (actionCode !== null) parts.push(`Action ${actionCode}`);
+    if (martingala !== null) parts.push(`L${martingala}`);
+    if (hotZoneLabel) parts.push(hotZoneLabel);
+    if (state) parts.push(state);
+
+    return parts.length ? parts.join(' · ') : '--';
 }
 
 function formatMoney(value) {
@@ -111,7 +149,7 @@ async function loadData() {
     loading.value = true;
     error.value = '';
     try {
-        const [dashboard, chart] = await Promise.all([DashboardService.getDashboardData(), DashboardService.getChartData()]);
+        const [dashboard, chart] = await Promise.all([DashboardService.getDashboardData(), DashboardService.getMarginiChart()]);
         tableRows.value = Array.isArray(dashboard) ? dashboard : dashboard?.rows || dashboard?.tables || [];
         chartRows.value = Array.isArray(chart) ? chart : [];
 
@@ -155,7 +193,11 @@ async function enablePush() {
 }
 
 function downloadReport(runtimeMode) {
-    return FinancialReportService.downloadCsv(runtimeMode, from.value, to.value);
+    return FinancialReportService.openHtmlReport(runtimeMode, from.value, to.value);
+}
+
+function openFinancialReports() {
+    router.push('/admin/mobile-reports');
 }
 
 async function logout() {
@@ -187,6 +229,7 @@ onMounted(() => {
                 </div>
                 <div class="actions">
                     <button type="button" class="link-btn" @click="loadData">Sync</button>
+                    <button type="button" class="link-btn" @click="openFinancialReports">Report finanziari</button>
                     <button type="button" class="logout-btn" @click="logout">Logout</button>
                 </div>
             </section>
@@ -231,7 +274,7 @@ onMounted(() => {
                 <div class="section-head">
                     <div>
                         <div class="section-title">Mission curve</div>
-                        <div class="section-copy">Storico margine contro target</div>
+                        <div class="section-copy">Storico margine missione contro target</div>
                     </div>
                     <div class="mini-label">{{ chartSamples.length }} samples</div>
                 </div>
@@ -263,7 +306,7 @@ onMounted(() => {
                         <div class="watch-top">
                             <div>
                                 <div class="watch-name">{{ row.account || row.Account || 'Account' }} · Table {{ row.tavolo || row.Tavolo || '-' }}</div>
-                                <div class="watch-detail">{{ row.reason || row.Reason || row.stato || row.Stato || 'No decision detail available' }}</div>
+                                <div class="watch-detail">{{ buildStrategyLabel(row) }}</div>
                             </div>
                             <div class="watch-level">L{{ getNumber(row, 'colpoMartingala', 'ColpoMartingala', 'levelIndex') }}</div>
                         </div>
@@ -288,21 +331,24 @@ onMounted(() => {
                     <div v-if="!copilotEvents.length" class="empty">No server decision has been captured yet.</div>
                     <article v-else v-for="row in copilotEvents" :key="`${row.account || row.Account}-${row.tavolo || row.Tavolo}-copilot`" class="assistant-item">
                         <div class="assistant-top">
-                            <div class="assistant-title">{{ row.account || row.Account || 'Bot' }} · {{ row.reason || row.Reason || 'Decision' }}</div>
+                            <div class="assistant-title">{{ row.account || row.Account || 'Bot' }} · {{ buildStrategyLabel(row) }}</div>
                             <div class="assistant-stamp">{{ row.tavolo || row.Tavolo || '-' }}</div>
                         </div>
-                        <div class="assistant-body">{{ row.prediction || row.Prediction || row.valutazione || row.Valutazione || 'Payload reale senza dettaglio testuale.' }}</div>
+                        <div class="assistant-body">{{ buildStrategyLabel(row) }}</div>
                     </article>
                 </div>
             </section>
 
-            <section class="panel section">
+            <section id="mobile-financial-reports" class="panel section">
                 <div class="section-head">
                     <div>
-                        <div class="section-title">Report mese</div>
-                        <div class="section-copy">Aggregato da inizio mese alla data odierna</div>
+                        <div class="section-title">Report finanziari</div>
+                        <div class="section-copy">Download rapido CSV e accesso alla pagina completa report/log</div>
                     </div>
                     <div class="mini-label">{{ formatPeriod() }}</div>
+                </div>
+                <div class="report-actions">
+                    <button type="button" class="month-report-link compact" @click="openFinancialReports">Scegli periodo e scarica</button>
                 </div>
                 <div class="month-report-grid">
                     <article class="month-report-card">
@@ -312,7 +358,7 @@ onMounted(() => {
                             Target {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />Avanzamento {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} campioni<br />contabilita
                             ufficiale
                         </div>
-                        <button type="button" class="month-report-link" @click="downloadReport('Production')">Scarica CSV</button>
+                        <button type="button" class="month-report-link" @click="downloadReport('Production')">Apri HTML</button>
                     </article>
                     <article class="month-report-card">
                         <div class="month-report-label">Demo</div>
@@ -320,7 +366,7 @@ onMounted(() => {
                         <div class="month-report-meta">
                             Target {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />Avanzamento {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} campioni<br />non contabile
                         </div>
-                        <button type="button" class="month-report-link" @click="downloadReport('Demo')">Scarica CSV</button>
+                        <button type="button" class="month-report-link" @click="downloadReport('Demo')">Apri HTML</button>
                     </article>
                 </div>
                 <div class="month-report-foot">Aggiornato {{ lastSync || '--' }} · solo dati reali</div>
@@ -627,6 +673,11 @@ onMounted(() => {
     grid-template-columns: 1fr 1fr;
     gap: 10px;
 }
+.report-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin: 12px 0;
+}
 .month-report-value {
     margin-top: 7px;
     font-size: 22px;
@@ -648,6 +699,9 @@ onMounted(() => {
     letter-spacing: 0.06em;
     text-transform: uppercase;
     cursor: pointer;
+}
+.month-report-link.compact {
+    margin-top: 0;
 }
 .push-button:disabled {
     opacity: 0.55;
