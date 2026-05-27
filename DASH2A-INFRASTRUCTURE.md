@@ -2,7 +2,7 @@
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-26 (sera)** — Decisore completamente operativo: DB corretto su `51.83.159.175,1434`, tabelle create, firewall aperto. Vedi §11.
+> **Ultimo aggiornamento: 2026-05-27** — produzione consolidata su DB runtime unico `51.83.159.175,1434`: WebApi live (`appsettings.Production.json`) e Decisore puntano entrambi alla stessa istanza SQLEXPRESS01. Vedi §3 e §11.
 
 ---
 
@@ -44,12 +44,12 @@
 | Backup root | `C:\inetpub\wwwroot\backups` |
 | RDP user | `administrator` |
 | RDP password | GitHub Secret `DASH2A_RDP_PASSWORD` |
-| Porte verificate | **80** HTTP (WebApi OK), **1433** SQL (TcpTest OK), **3389** RDP |
+| Porte verificate | **80/443** HTTP/HTTPS (WebApi OK), **1434** SQL runtime, **3389** RDP |
 | HTTPS | Porta **443 attiva** — Let's Encrypt su `vps-b0942869.vps.ovh.net` |
 | Smoke test HTTP | `GET http://51.83.159.175/api/Auth/test` → **200** |
 | Smoke test HTTPS | `GET https://vps-b0942869.vps.ovh.net/api/Auth/test` → **200** |
 
-**Architettura dati produzione:** la WebApi dashboard legge e scrive **solo** sul DB SQL locale al VPS backend (`51.83.159.175` / `Eugenio-Demo10`). **Non** legge il DB del Decisore. Non esiste sync automatico Decisore → DB WebApi nel repo.
+**Architettura dati produzione:** WebApi dashboard e Decisore usano lo stesso DB operativo su `51.83.159.175,1434` / `Eugenio-Demo10`. La UI Firebase non accede mai direttamente al DB: chiama la WebApi HTTPS, che in produzione carica `appsettings.Production.json` con `DefaultConnection` su `1434`.
 
 ### 2.2 VPS Decisore (OVH — engine separato)
 
@@ -69,7 +69,7 @@
 | Deploy Decisore | **Manuale / non automatizzato** |
 | Stato 2026-05-26 | **OPERATIVO** — HTTP 200 su `/api/proactive/reset` e `/api/proactive/decide` |
 
-> **ATTENZIONE:** il Decisore usa il DB sul **VPS backend** (`51.83.159.175,1434`), NON un DB locale a se stesso. La porta 1434 è SQLEXPRESS01, istanza separata da quella usata dalla WebApi (1433).
+> **ATTENZIONE:** il Decisore usa il DB sul **VPS backend** (`51.83.159.175,1434`), NON un DB locale a se stesso. La WebApi live usa la stessa porta `1434` tramite `appsettings.Production.json`.
 
 > La regola firewall `SQLEXPRESS01-1434-Decisore` sul VPS backend permette l'accesso dalla sola IP `51.178.16.37` porta 1434. Non rimuovere questa regola.
 
@@ -100,29 +100,32 @@
 
 ---
 
-## 3. DATABASE PRODUZIONE (WebApi dashboard)
+## 3. DATABASE PRODUZIONE (runtime unico WebApi + Decisore)
 
 | Parametro | Valore |
 |---|---|
-| Host | `51.83.159.175,1433` |
+| Host | `51.83.159.175,1434` |
 | Database | `Eugenio-Demo10` |
 | Login | `sa3` |
-| Password | **Secret / local config** (`appsettings.json`, GitHub Secrets) — non documentare in chiaro |
+| Password | **Secret / live config** (`appsettings.Production.json`, GitHub Secrets) — non documentare in chiaro |
 | Encrypt | False |
-| Login verificato | **OK** (2026-05-25) |
-| Porta SQL verificata | **1433 OK** |
+| Runtime verificato | **OK** — `DASH2A Runtime Config Readonly Diagnostic` 2026-05-26: `SQL_CONFIG_SERVER=51.83.159.175,1434` |
+| Config live | `C:\inetpub\wwwroot\shared\appsettings.Production.json` e release corrente allineate |
 | EF Migrations | **NON eseguire** — `__EFMigrationsHistory` vuota per design |
 
-### Tabelle principali (conteggi verificati 2026-05-25, read-only)
+> `appsettings.json` base nei release può ancora contenere `1433`: non usarlo come fonte runtime. In `ASPNETCORE_ENVIRONMENT=Production` vale `appsettings.Production.json`, che punta a `1434`.
+
+### Tabelle principali sul DB runtime `1434`
 
 | Tabella | Righe | Note |
 |---|---|---|
-| `Users_v2` | 5 | admin, Giacomo, test, Marko, marcoadmin |
-| `Configurations` | 20 | Parametri operativi |
-| `MissionSessions` | 0 | Vuota al momento del check |
-| `MissionMarginSamples` | 0 | Vuota al momento del check |
-| `Pc_CurrentStatus` | 0 | Vuota al momento del check |
-| `UserNotificationSettings` | 0 | Da popolare se servono notifiche prod |
+| `Users_v2` | Da verificare read-only | Utenti WebApi |
+| `Configurations` | Da verificare read-only | Parametri operativi |
+| `MissionSessions` | Da verificare read-only | Report missioni |
+| `MissionMarginSamples` | Da verificare read-only | Campioni margine missione |
+| `Pc_CurrentStatus` | Da verificare read-only | Stato bot scritto dal Decisore e letto dalla WebApi |
+| `Statistiche` | Da verificare read-only | Telemetry JSON letta dalla WebApi |
+| `Margini` | Da verificare read-only | Serie margini Decisore |
 
 ### Configurazioni chiave (da DB prod)
 
@@ -172,10 +175,10 @@
 Pattern (password in secret, **non** committare valori):
 
 ```text
-Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=<SECRET>;Encrypt=False;TrustServerCertificate=True;
+Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=<SECRET>;Encrypt=False;TrustServerCertificate=True;
 ```
 
-File: `backend/WebApi/appsettings.json` + override IIS `appsettings.Production.json` sul server.
+File runtime: override IIS `appsettings.Production.json` sul server. Non usare il valore di `backend/WebApi/appsettings.json` come fonte produzione.
 
 ### Endpoint principali
 
@@ -281,9 +284,9 @@ gh workflow run "Firebase Hosting Live" --repo eugeniorossi2025-sudo/TradingDash
 | Frontend | `https://eugenio-dashboard-2a.web.app` |
 | WebApi HTTPS | **`https://vps-b0942869.vps.ovh.net`** |
 | WebApi IP | `51.83.159.175` |
-| DB dashboard | `51.83.159.175:1433` / `Eugenio-Demo10` |
+| DB runtime WebApi + Decisore | `51.83.159.175:1434` / `Eugenio-Demo10` |
 | Decisore (engine) | `http://51.178.16.37` / `/api/proactive` |
-| Fonte dati dashboard Vue | **WebApi → DB backend** (non Decisore) |
+| Fonte dati dashboard Vue | **UI → WebApi HTTPS → DB runtime 1434** |
 
 ---
 
@@ -367,8 +370,8 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 
 | Problema | Causa | Fix applicato |
 |---|---|---|
-| `HTTP 500.30` startup crash | `appsettings.json` puntava a `51.178.16.37,1433` (locale VPS) | Modificato manualmente a `51.83.159.175,1434` |
-| `Invalid object name 'dbo.Statistiche'` | Tabella mancante su `1433` | Creata su `1433` (obsoleto) poi su `1434` (corretto) |
+| `HTTP 500.30` startup crash | `appsettings.json` Decisore puntava a un DB errato | Modificato manualmente a `51.83.159.175,1434` |
+| Drift storico `1433` | Vecchi script/config avevano creato o letto oggetti sull'istanza sbagliata | Runtime consolidato su `1434`; trattare `1433` solo come storico/obsoleto |
 | `Invalid object name 'dbo.Pc_CurrentStatus_PBT_History'` | Tabella mancante | Creata su `51.83.159.175,1434` |
 | TCP timeout 10060 su `1434` | Firewall Windows bloccava porta 1434 da IP Decisore | Aggiunta regola `SQLEXPRESS01-1434-Decisore` (inbound TCP 1434, remote `51.178.16.37`) |
 
@@ -430,14 +433,14 @@ Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
 | 1 | Runner `dash2a-backend-runner-01` online | **OK** | labels: self-hosted, Windows, X64, DASH2A, DASH2A-BACKEND |
 | 2 | Runner su VPS backend `51.83.159.175` | **OK** | self-hosted deploy workflow |
 | 3 | WebApi prod `/api/Auth/test` | **OK** | HTTP 200, IIS 10 |
-| 4 | SQL prod porta 1433 | **OK** | TcpTestSucceeded |
-| 5 | SQL login `sa3` / `Eugenio-Demo10` | **OK** | read-only query |
+| 4 | SQL prod runtime porta `1434` | **OK** | WebApi live e Decisore puntano a `51.83.159.175,1434` |
+| 5 | SQL login `sa3` / `Eugenio-Demo10` | **OK** | read-only diagnostic su runtime |
 | 6 | Frontend prod Firebase | **OK** | HTTP 200, build da GitHub Actions |
 | 7 | Decider `51.178.16.37/api/proactive/reset` | **OK** | HTTP 200 (verificato 2026-05-26 sera) — side effect: non usare come healthcheck neutro |
 | 8 | Decider obsoleto `51.210.181.37` | **404** | non usare |
 | 9 | Stack locale `:5299` / `:5001` | **OK** | smoke sessione corrente |
 | 10 | Decider locale health/config | **OK** | diagnostica only, no sync DB |
-| 11 | WebApi prod dati dashboard | **OK** | da DB `51.83.159.175`, non Decisore |
+| 11 | WebApi prod dati dashboard | **OK** | da DB runtime unico `51.83.159.175,1434` |
 | 12 | Secret `FIREBASE_SERVICE_ACCOUNT_EUGENIO_DASHBOARD_2` | **OK** | configurato su GitHub 2026-05-25 |
 | 13 | Firebase project ID workflow | **OK** | `eugenio-dashboard-2a` (commit `bd6c322`) |
 
@@ -462,7 +465,7 @@ Invoke-WebRequest http://127.0.0.1/api/proactive/reset -UseBasicParsing
 | **Login UI + /pages/user** | **OK** | smoke 2026-05-25 | Mixed Content risolto (HTTPS end-to-end) |
 | **Frontend live URL** | **OK** | — | `https://eugenio-dashboard-2a.web.app` |
 | **Backend live URL HTTPS** | **OK** | — | `https://vps-b0942869.vps.ovh.net` |
-| **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175` |
+| **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175,1434` |
 | **Decisore live** | **OPERATIVO** | fix 2026-05-26 sera | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; HTTP 200 |
 
 ### Run fallite (storico sessione — risolte)

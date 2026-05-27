@@ -1,0 +1,100 @@
+name: DIAG - Decisore runner readonly
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DECISORE_READONLY to inspect the Decisore runner and IIS runtime"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: Inspect Decisore runner and IIS runtime
+    if: ${{ github.event.inputs.confirm == 'DECISORE_READONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-DECISORE
+    timeout-minutes: 5
+
+    steps:
+      - name: Read-only Decisore runtime inventory
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $decisoreRoot = 'C:\Decisore'
+
+          Write-Host "RUNNER_NAME=$env:RUNNER_NAME"
+          Write-Host "COMPUTERNAME=$env:COMPUTERNAME"
+          Write-Host "DECISORE_ROOT=$decisoreRoot"
+          Write-Host "DECISORE_ROOT_EXISTS=$(Test-Path -LiteralPath $decisoreRoot)"
+
+          Write-Host ""
+          Write-Host "=== .NET INFO ==="
+          dotnet --info
+
+          Write-Host ""
+          Write-Host "=== IIS APP POOLS ==="
+          Import-Module WebAdministration -ErrorAction SilentlyContinue
+          Get-ChildItem IIS:\AppPools -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match 'Proactive|Decisore|decis' } |
+            Select-Object Name, State |
+            Format-Table -AutoSize
+
+          Write-Host ""
+          Write-Host "=== IIS SITES ==="
+          Get-Website -ErrorAction SilentlyContinue |
+            Select-Object Name, State, PhysicalPath, ApplicationPool |
+            Format-Table -AutoSize
+
+          Write-Host ""
+          Write-Host "=== C:\Decisore FILES ==="
+          if (Test-Path -LiteralPath $decisoreRoot) {
+            Get-ChildItem -LiteralPath $decisoreRoot -Force |
+              Select-Object Name, Length, LastWriteTime |
+              Sort-Object Name |
+              Format-Table -AutoSize
+          }
+
+          Write-Host ""
+          Write-Host "=== appsettings.json redacted ==="
+          $appsettings = Join-Path $decisoreRoot 'appsettings.json'
+          if (Test-Path -LiteralPath $appsettings) {
+            $content = Get-Content -LiteralPath $appsettings -Raw
+            $content = $content -replace '(Password\s*=\s*)[^;"]+', '$1***'
+            $content = $content -replace '("Password"\s*:\s*")[^"]+(")', '$1***$2'
+            $content = $content -replace '("Key"\s*:\s*")[^"]+(")', '$1***$2'
+            Write-Host $content
+          } else {
+            Write-Host "MISSING appsettings.json"
+          }
+
+          Write-Host ""
+          Write-Host "=== web.config ==="
+          $webConfig = Join-Path $decisoreRoot 'web.config'
+          if (Test-Path -LiteralPath $webConfig) {
+            Get-Content -LiteralPath $webConfig -Raw | Write-Host
+          } else {
+            Write-Host "MISSING web.config"
+          }
+
+          Write-Host ""
+          Write-Host "=== HTTP PROBES (no side effects) ==="
+          foreach ($hostName in @('127.0.0.1', '51.178.16.37')) {
+            $tcp = Test-NetConnection -ComputerName $hostName -Port 80 -InformationLevel Quiet -WarningAction SilentlyContinue
+            Write-Host "${hostName}:80 TCP=$tcp"
+          }
+
+          foreach ($url in @('http://127.0.0.1/api/proactive/health', 'http://51.178.16.37/api/proactive/health', 'http://127.0.0.1/')) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -Method Get -UseBasicParsing -TimeoutSec 8
+              Write-Host "$url => HTTP $($response.StatusCode)"
+            } catch {
+              Write-Host "$url => ERROR $($_.Exception.Message)"
+            }
+          }

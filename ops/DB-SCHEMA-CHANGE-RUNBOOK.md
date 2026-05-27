@@ -2,18 +2,17 @@
 
 > **Documento operativo vincolante.**
 > Seguire ogni passo nell'ordine indicato. Nessun DDL in produzione senza aver completato la fase di verifica.
-> **Ultimo aggiornamento: 2026-05-26**
+> **Ultimo aggiornamento: 2026-05-27**
 
 ---
 
-## 1. ISTANZE DATABASE IN USO
+## 1. DATABASE PRODUZIONE IN USO
 
 | Istanza | Host | Porta | Usata da |
 |---|---|---|---|
-| MSSQLSERVER (default) | `51.83.159.175` | **1433** | WebApi dashboard (`sa3`) |
-| SQLEXPRESS01 | `51.83.159.175` | **1434** | Decisore Proattivo (`sa3`) |
+| SQLEXPRESS01 | `51.83.159.175` | **1434** | WebApi dashboard + Decisore Proattivo (`sa3`) |
 
-> **Regola:** modifiche schema su una istanza NON si replicano sull'altra. Verificare sempre su quale istanza si sta operando prima di eseguire DDL.
+> **Regola:** il target operativo produzione è `51.83.159.175,1434` / `Eugenio-Demo10`. Non usare `1433` per nuove modifiche DASH2A: è uno storico/deriva di vecchie configurazioni e non va considerato runtime senza nuova diagnostica esplicita.
 
 ---
 
@@ -41,11 +40,8 @@ Prima di qualsiasi modifica eseguire una query read-only per capire lo stato rea
 **Connessione da runner (workflow GitHub Actions):**
 
 ```powershell
-# Su SQLEXPRESS01 (1434) — Decisore
+# DB runtime produzione DASH2A — WebApi + Decisore
 $cs = "Server=51.83.159.175,1434;Database=Eugenio-Demo10;User Id=sa3;Password=<SECRET>;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
-
-# Su MSSQLSERVER (1433) — WebApi
-$cs = "Server=51.83.159.175,1433;Database=Eugenio-Demo10;User Id=sa3;Password=<SECRET>;Encrypt=False;TrustServerCertificate=True;Connect Timeout=10;"
 ```
 
 **Query di verifica:**
@@ -106,7 +102,7 @@ Percorso standard: `ops/db-migrations/YYYYMMDD_descrizione.sql`
 -- DASH2A DB Migration
 -- Data: 2026-MM-DD
 -- Autore: <nome>
--- Istanza target: SQLEXPRESS01 (1434) | MSSQLSERVER (1433)
+-- Istanza target: SQLEXPRESS01 (1434) runtime produzione
 -- Descrizione: <cosa cambia e perché>
 -- =============================================================
 
@@ -223,7 +219,7 @@ Dopo ogni migrazione DB:
 
 ## 4. TABELLE — SCHEMA DI RIFERIMENTO COMPLETO
 
-### Istanza `51.83.159.175,1434` (Decisore)
+### Istanza `51.83.159.175,1434` (runtime WebApi + Decisore)
 
 ```sql
 -- Pc_CurrentStatus (preesistente)
@@ -278,10 +274,10 @@ CREATE TABLE dbo.ApiLogs (
 ### `upI_Values` (mancante su `51.83.159.175,1434`)
 
 Non critica per il Decisore: usata solo in `SaveRequestValue` (fire & forget, errori ignorati).
-Prima di crearla: verificare se esiste su `51.83.159.175,1433` e copiare il corpo.
+Prima di crearla: recuperare il corpo da backup affidabile o sorgente storico verificato; non assumere che `1433` sia fonte corretta.
 
 ```sql
--- Verifica su 1433
+-- Verifica sul DB runtime
 EXEC sp_helptext 'upI_Values';
 ```
 
@@ -304,7 +300,7 @@ EXEC sp_helptext 'upI_Values';
 ## 7. CHECKLIST RAPIDA
 
 ```text
-[ ] Identificata l'istanza target (1433 o 1434)
+[ ] Confermato target runtime `51.83.159.175,1434`
 [ ] Query read-only eseguita — stato attuale noto
 [ ] Backup tabella eseguito (se ha dati)
 [ ] Script SQL scritto in ops/db-migrations/ e committato
