@@ -29,6 +29,15 @@ const securityFilterRows = computed(() => {
         .sort((a, b) => String(a.computer).localeCompare(String(b.computer)));
 });
 
+const securityFilterSetup = computed(() => ({
+    minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
+    minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
+    maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
+    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 23.5,
+    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 21.0,
+    deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8
+}));
+
 function formatSeconds(value) {
     if (value == null || Number(value) <= 0) return '-';
     return `${Number(value).toFixed(1)}s`;
@@ -252,6 +261,45 @@ function getScoreClass(row) {
         </div>
     </div>
 
+    <div class="col-span-12">
+        <div class="card">
+            <div class="flex flex-col gap-1 mb-4">
+                <span class="block text-muted-color font-medium">Setup Security Filter</span>
+                <span class="text-sm text-muted-color">Condizioni correnti usate per comporre lo score per singolo bot.</span>
+            </div>
+            <div class="grid grid-cols-12 gap-3 text-sm">
+                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Soglia attivazione</div>
+                    <div class="font-semibold">Score minimo {{ securityFilterSetup.minScore }}/4</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Finestra avg mano</div>
+                    <div class="font-semibold">Ultimi {{ securityFilterSetup.deltaWindow }} delta mano</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Media</div>
+                    <div class="font-semibold">Trimmata quando ci sono almeno 3 campioni</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                    <div class="font-semibold">+1 streak</div>
+                    <div class="text-muted-color">se streak &gt;= {{ securityFilterSetup.minStreak }}</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                    <div class="font-semibold">+1 avg veloce</div>
+                    <div class="text-muted-color">se avg mano &lt; {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                    <div class="font-semibold">+1 inizio shoe</div>
+                    <div class="text-muted-color">se mano shoe &lt;= {{ securityFilterSetup.maxShoeHand }}</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
+                    <div class="font-semibold">+1 very fast</div>
+                    <div class="text-muted-color">se avg mano &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="col-span-12" v-if="securityFilterRows.length">
         <div class="card">
             <div class="flex justify-between items-center mb-4">
@@ -267,6 +315,11 @@ function getScoreClass(row) {
                             <th class="py-2 pr-3">Ultimo delta</th>
                             <th class="py-2 pr-3">Min delta missione</th>
                             <th class="py-2 pr-3">Max delta missione</th>
+                            <th class="py-2 pr-3">L6 giocati</th>
+                            <th class="py-2 pr-3">Ultimo delta L6</th>
+                            <th class="py-2 pr-3">Avg delta L6</th>
+                            <th class="py-2 pr-3">Min delta L6</th>
+                            <th class="py-2 pr-3">Max delta L6</th>
                             <th class="py-2 pr-3">Streak</th>
                             <th class="py-2 pr-3">Score</th>
                             <th class="py-2 pr-3">Filtro</th>
@@ -288,6 +341,11 @@ function getScoreClass(row) {
                             <td class="py-2 pr-3">{{ formatSeconds(row.LastHandDeltaSeconds) }}</td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.MinHandDeltaSeconds) }}</td>
                             <td class="py-2 pr-3">{{ formatSeconds(row.MaxHandDeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ row.L6PlayedCount ?? 0 }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.LastL6DeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.AvgL6DeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.MinL6DeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.MaxL6DeltaSeconds) }}</td>
                             <td class="py-2 pr-3">{{ row.CurrentStreak ?? 0 }}</td>
                             <td class="py-2 pr-3">
                                 <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">

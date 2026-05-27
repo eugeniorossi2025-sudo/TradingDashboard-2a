@@ -29,6 +29,12 @@ public class Telemetry
 
     // Security Filter — filtro sperimentale compressione temporale streak
     public bool   SecurityFilterEnabled          { get; set; } = true;
+    public int    SecurityFilterMinScore         { get; set; } = 3;
+    public int    SecurityFilterMinStreak        { get; set; } = 5;
+    public int    SecurityFilterMaxShoeHand      { get; set; } = 20;
+    public double SecurityFilterMaxAvgSeconds    { get; set; } = 23.5;
+    public double SecurityFilterVeryFastSeconds  { get; set; } = 21.0;
+    public int    SecurityFilterDeltaWindow      { get; set; } = 8;
     public int    TotalSecurityFilterActivated    { get; set; } = 0;
     public int    TotalSecurityFilterPreventedL6  { get; set; } = 0;
     public double LastAvgHandSeconds              { get; set; } = 0;
@@ -43,6 +49,13 @@ public class SecurityFilterBotTelemetry
     public double LastHandDeltaSeconds { get; set; }
     public double MinHandDeltaSeconds { get; set; }
     public double MaxHandDeltaSeconds { get; set; }
+    public int L6PlayedCount { get; set; }
+    public double LastL6DeltaSeconds { get; set; }
+    public double AvgL6DeltaSeconds { get; set; }
+    public double MinL6DeltaSeconds { get; set; }
+    public double MaxL6DeltaSeconds { get; set; }
+    public int L6DeltaSamples { get; set; }
+    public DateTime LastL6PlayedAtUtc { get; set; }
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }

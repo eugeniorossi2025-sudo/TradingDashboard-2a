@@ -207,6 +207,18 @@ public class DashboardService : IDashboardService
                     result.SpotL5Loss = sl5l.GetInt32();
                 if (root.TryGetProperty("SecurityFilterEnabled", out var sfe))
                     result.SecurityFilterEnabled = sfe.GetBoolean();
+                if (root.TryGetProperty("SecurityFilterMinScore", out var sfms))
+                    result.SecurityFilterMinScore = sfms.GetInt32();
+                if (root.TryGetProperty("SecurityFilterMinStreak", out var sfst))
+                    result.SecurityFilterMinStreak = sfst.GetInt32();
+                if (root.TryGetProperty("SecurityFilterMaxShoeHand", out var sfmh))
+                    result.SecurityFilterMaxShoeHand = sfmh.GetInt32();
+                if (root.TryGetProperty("SecurityFilterMaxAvgSeconds", out var sfma))
+                    result.SecurityFilterMaxAvgSeconds = (decimal)sfma.GetDouble();
+                if (root.TryGetProperty("SecurityFilterVeryFastSeconds", out var sfvf))
+                    result.SecurityFilterVeryFastSeconds = (decimal)sfvf.GetDouble();
+                if (root.TryGetProperty("SecurityFilterDeltaWindow", out var sfdw))
+                    result.SecurityFilterDeltaWindow = sfdw.GetInt32();
                 if (root.TryGetProperty("TotalSecurityFilterActivated", out var tsfa))
                     result.TotalSecurityFilterActivated = tsfa.GetInt32();
                 if (root.TryGetProperty("TotalSecurityFilterPreventedL6", out var tsfp))

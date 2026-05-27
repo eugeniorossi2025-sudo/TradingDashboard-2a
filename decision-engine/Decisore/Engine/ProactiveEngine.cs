@@ -153,6 +153,12 @@ namespace Decisore.Engine
             telemetry.TotalPauseScalpingEWMAActivated = totalPauseScalpingEWMAActivated;
 
             telemetry.SecurityFilterEnabled          = SECURITY_FILTER_ENABLED;
+            telemetry.SecurityFilterMinScore         = SECURITY_FILTER_MIN_SCORE;
+            telemetry.SecurityFilterMinStreak        = SECURITY_FILTER_MIN_STREAK;
+            telemetry.SecurityFilterMaxShoeHand      = SECURITY_FILTER_MAX_SHOE_HAND;
+            telemetry.SecurityFilterMaxAvgSeconds    = SECURITY_FILTER_MAX_AVG_SECONDS;
+            telemetry.SecurityFilterVeryFastSeconds  = SECURITY_FILTER_VERY_FAST_SECONDS;
+            telemetry.SecurityFilterDeltaWindow      = SECURITY_FILTER_DELTA_WINDOW;
             telemetry.TotalSecurityFilterActivated   = totalSecurityFilterActivated;
             telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
             telemetry.LastAvgHandSeconds =
@@ -170,6 +176,13 @@ namespace Decisore.Engine
                     LastHandDeltaSeconds = x.Value.LastHandDeltaSeconds,
                     MinHandDeltaSeconds = x.Value.MinHandDeltaSeconds,
                     MaxHandDeltaSeconds = x.Value.MaxHandDeltaSeconds,
+                    L6PlayedCount = x.Value.L6PlayedCount,
+                    LastL6DeltaSeconds = x.Value.LastL6DeltaSeconds,
+                    AvgL6DeltaSeconds = x.Value.AvgL6DeltaSeconds,
+                    MinL6DeltaSeconds = x.Value.MinL6DeltaSeconds,
+                    MaxL6DeltaSeconds = x.Value.MaxL6DeltaSeconds,
+                    L6DeltaSamples = x.Value.L6DeltaSamples,
+                    LastL6PlayedAtUtc = x.Value.LastL6PlayedAtUtc,
                     CurrentStreak = x.Value.CurrentStreak,
                     SecurityRiskScore = x.Value.SecurityRiskScore,
                     SecurityFilterActive = x.Value.SecurityFilterActive,
@@ -437,6 +450,24 @@ namespace Decisore.Engine
                     ? lastHandDeltaSeconds
                     : Math.Min(botSecurity.MinHandDeltaSeconds, lastHandDeltaSeconds);
                 botSecurity.MaxHandDeltaSeconds = Math.Max(botSecurity.MaxHandDeltaSeconds, lastHandDeltaSeconds);
+            }
+            if (martingalaCounter == 6)
+            {
+                botSecurity.L6PlayedCount++;
+                if (botSecurity.LastL6PlayedAtUtc != default)
+                {
+                    double l6DeltaSeconds = (nowUtc - botSecurity.LastL6PlayedAtUtc).TotalSeconds;
+                    botSecurity.LastL6DeltaSeconds = l6DeltaSeconds;
+                    botSecurity.MinL6DeltaSeconds = botSecurity.MinL6DeltaSeconds <= 0
+                        ? l6DeltaSeconds
+                        : Math.Min(botSecurity.MinL6DeltaSeconds, l6DeltaSeconds);
+                    botSecurity.MaxL6DeltaSeconds = Math.Max(botSecurity.MaxL6DeltaSeconds, l6DeltaSeconds);
+                    botSecurity.AvgL6DeltaSeconds =
+                        ((botSecurity.AvgL6DeltaSeconds * botSecurity.L6DeltaSamples) + l6DeltaSeconds) /
+                        (botSecurity.L6DeltaSamples + 1);
+                    botSecurity.L6DeltaSamples++;
+                }
+                botSecurity.LastL6PlayedAtUtc = nowUtc;
             }
             botSecurity.CurrentStreak = currentStreak;
             botSecurity.SecurityRiskScore = securityScore;

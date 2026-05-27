@@ -258,6 +258,12 @@ public class DashboardTelemetry
     public int SpotAuthL6Counter { get; set; }
     public int SpotL5Loss { get; set; }
     public bool SecurityFilterEnabled { get; set; } = true;
+    public int SecurityFilterMinScore { get; set; } = 3;
+    public int SecurityFilterMinStreak { get; set; } = 5;
+    public int SecurityFilterMaxShoeHand { get; set; } = 20;
+    public decimal SecurityFilterMaxAvgSeconds { get; set; } = 23.5m;
+    public decimal SecurityFilterVeryFastSeconds { get; set; } = 21.0m;
+    public int SecurityFilterDeltaWindow { get; set; } = 8;
     public int TotalSecurityFilterActivated { get; set; }
     public int TotalSecurityFilterPreventedL6 { get; set; }
     public decimal LastAvgHandSeconds { get; set; }
@@ -280,6 +286,13 @@ public class SecurityFilterBotTelemetryDto
     public decimal LastHandDeltaSeconds { get; set; }
     public decimal MinHandDeltaSeconds { get; set; }
     public decimal MaxHandDeltaSeconds { get; set; }
+    public int L6PlayedCount { get; set; }
+    public decimal LastL6DeltaSeconds { get; set; }
+    public decimal AvgL6DeltaSeconds { get; set; }
+    public decimal MinL6DeltaSeconds { get; set; }
+    public decimal MaxL6DeltaSeconds { get; set; }
+    public int L6DeltaSamples { get; set; }
+    public DateTime LastL6PlayedAtUtc { get; set; }
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
