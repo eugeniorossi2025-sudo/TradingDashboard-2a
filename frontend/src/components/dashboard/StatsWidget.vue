@@ -421,6 +421,9 @@ function getScoreClass(row) {
                                 <div class="text-xs text-muted-color">Range storico bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
                                 <div class="text-xs text-muted-color">Non usato direttamente nella media attuale</div>
                                 <div class="text-xs text-muted-color">Mani bot {{ formatHands(row.PBHandsPlayed) }}</div>
+                                <div class="text-xs" :class="row.RapidL5TriggerActive ? 'font-semibold text-red-500' : 'text-muted-color'">
+                                    Trigger rapido L5: ultimi 2 &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s · {{ row.RapidL5TriggerActive ? 'Attivo' : 'Non attivo' }}
+                                </div>
                             </div>
                         </div>
 

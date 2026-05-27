@@ -47,8 +47,10 @@ public class SecurityFilterBotTelemetry
     public string Computer { get; set; } = "";
     public double AvgHandSeconds { get; set; }
     public double LastHandDeltaSeconds { get; set; }
+    public double[] LastTwoHandDeltaSeconds { get; set; } = Array.Empty<double>();
     public double MinHandDeltaSeconds { get; set; }
     public double MaxHandDeltaSeconds { get; set; }
+    public bool RapidL5TriggerActive { get; set; }
     public int L6PlayedCount { get; set; }
     public double LastL6DeltaSeconds { get; set; }
     public double AvgL6DeltaSeconds { get; set; }

@@ -174,8 +174,10 @@ namespace Decisore.Engine
                     Computer = x.Value.Computer,
                     AvgHandSeconds = x.Value.AvgHandSeconds,
                     LastHandDeltaSeconds = x.Value.LastHandDeltaSeconds,
+                    LastTwoHandDeltaSeconds = x.Value.LastTwoHandDeltaSeconds,
                     MinHandDeltaSeconds = x.Value.MinHandDeltaSeconds,
                     MaxHandDeltaSeconds = x.Value.MaxHandDeltaSeconds,
+                    RapidL5TriggerActive = x.Value.RapidL5TriggerActive,
                     L6PlayedCount = x.Value.L6PlayedCount,
                     LastL6DeltaSeconds = x.Value.LastL6DeltaSeconds,
                     AvgL6DeltaSeconds = x.Value.AvgL6DeltaSeconds,
@@ -343,6 +345,7 @@ namespace Decisore.Engine
             DateTime nowUtc = DateTime.UtcNow;
             double lastHandDeltaSeconds = 0;
             double avgHandSeconds       = 0;
+            double[] lastTwoHandDeltaSeconds = Array.Empty<double>();
             int    currentStreak        = 0;
             if (!_securityFilterByBot.TryGetValue(computer, out var botSecurity))
             {
@@ -389,6 +392,15 @@ namespace Decisore.Engine
                 avgHandSeconds = botSecurity.AvgHandSeconds;
             }
 
+            if (_handDeltasWindow.TryGetValue(computer, out var currentDeltaWindow))
+            {
+                lastTwoHandDeltaSeconds = currentDeltaWindow
+                    .Reverse()
+                    .Take(2)
+                    .Reverse()
+                    .ToArray();
+            }
+
             // — streak colore USCITO (esito PBT), tie non resetta —
             if (esito != 'T')
             {
@@ -408,6 +420,9 @@ namespace Decisore.Engine
             if (avgHandSeconds  > 0 && avgHandSeconds < SECURITY_FILTER_VERY_FAST_SECONDS)  securityScore++;
 
             bool securityFilterActive = SECURITY_FILTER_ENABLED && securityScore >= SECURITY_FILTER_MIN_SCORE;
+            bool rapidL5TriggerActive = SECURITY_FILTER_ENABLED &&
+                lastTwoHandDeltaSeconds.Length == 2 &&
+                lastTwoHandDeltaSeconds.All(x => x > 0 && x < SECURITY_FILTER_VERY_FAST_SECONDS);
 
             #endregion
 
@@ -435,11 +450,13 @@ namespace Decisore.Engine
 
                         if (_globalAuthL6Counter > 0 && !isHotZone)
                         {
-                            if (securityFilterActive)
+                            if (securityFilterActive || rapidL5TriggerActive)
                             {
                                 advice.StopL6 = true;
                                 securityFilterPreventedL6ThisCall = true;
-                                advice.Reason = $"L6 Bloccato (Security Filter)";
+                                advice.Reason = rapidL5TriggerActive
+                                    ? $"L6 Bloccato (Trigger rapido L5)"
+                                    : $"L6 Bloccato (Security Filter)";
                             }
                             else
                             {
@@ -518,6 +535,8 @@ namespace Decisore.Engine
 
             botSecurity.AvgHandSeconds = avgHandSeconds;
             botSecurity.LastHandDeltaSeconds = lastHandDeltaSeconds;
+            botSecurity.LastTwoHandDeltaSeconds = lastTwoHandDeltaSeconds;
+            botSecurity.RapidL5TriggerActive = rapidL5TriggerActive;
             if (pbHandPlayedThisCall && lastHandDeltaSeconds > 0)
             {
                 botSecurity.MinHandDeltaSeconds = botSecurity.MinHandDeltaSeconds <= 0
@@ -646,10 +665,10 @@ namespace Decisore.Engine
 
             advice.SecurityFilterEnabled    = SECURITY_FILTER_ENABLED;
             advice.SecurityRiskScore       = securityScore;
-            advice.SecurityFilterActive    = securityFilterActive;
-            advice.SecurityFilterPauseBot  = securityFilterActive;
-            advice.SecurityFilterPauseScope = securityFilterActive ? "BOT" : "NONE";
-            advice.SecurityFilterPauseComputer = securityFilterActive ? computer : "";
+            advice.SecurityFilterActive    = securityFilterActive || securityFilterPreventedL6ThisCall;
+            advice.SecurityFilterPauseBot  = securityFilterActive || securityFilterPreventedL6ThisCall;
+            advice.SecurityFilterPauseScope = (securityFilterActive || securityFilterPreventedL6ThisCall) ? "BOT" : "NONE";
+            advice.SecurityFilterPauseComputer = (securityFilterActive || securityFilterPreventedL6ThisCall) ? computer : "";
             advice.AvgHandSeconds          = avgHandSeconds;
             advice.LastHandDeltaSeconds    = lastHandDeltaSeconds;
             advice.MinHandDeltaSeconds     = botSecurity.MinHandDeltaSeconds;
