@@ -105,6 +105,24 @@ function isShoeRisk(row) {
     return getNumber(row?.LastShoeHand, Number.MAX_SAFE_INTEGER) <= getNumber(securityFilterSetup.value.maxShoeHand);
 }
 
+function isAuthToL8PaceFast(row) {
+    const secondsPerHand = getNumber(row?.LastAuthorizedL8LossSecondsPerHand);
+    return secondsPerHand > 0 && secondsPerHand < getNumber(securityFilterSetup.value.maxAvgSeconds);
+}
+
+function formatHands(value, decimals = 0) {
+    const hands = Number(value);
+    if (!Number.isFinite(hands) || hands <= 0) return '-';
+    return `${hands.toFixed(decimals)} mani`;
+}
+
+function formatHandsRange(minValue, maxValue) {
+    const min = formatHands(minValue);
+    const max = formatHands(maxValue);
+    if (min === '-' && max === '-') return '-';
+    return `${min} - ${max}`;
+}
+
 function isSecurityFilterEnabled() {
     return telemetryData.value?.SecurityFilterEnabled !== false;
 }
@@ -387,7 +405,7 @@ function getScoreClass(row) {
 
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
-                            <div class="mb-2 font-semibold">Ritmo vs soglie tempo</div>
+                            <div class="mb-2 font-semibold">Ritmo mani bot</div>
                             <div class="flex flex-col gap-1 leading-tight">
                                 <div>
                                     <span class="font-semibold">Avg</span>
@@ -400,7 +418,8 @@ function getScoreClass(row) {
                                     <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(row))">{{ getScorePoint(isVeryFast(row)) }}</span>
                                 </div>
                                 <div class="text-xs text-muted-color">Ult {{ formatSeconds(row.LastHandDeltaSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
-                                <div class="text-xs text-muted-color">Range missione {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                                <div class="text-xs text-muted-color">Range bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                                <div class="text-xs text-muted-color">Mani bot {{ formatHands(row.PBHandsPlayed) }}</div>
                             </div>
                         </div>
 
@@ -439,13 +458,12 @@ function getScoreClass(row) {
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
-                            <div class="mb-2 font-semibold">Frequenza L6 e rischio ultimo L6</div>
+                            <div class="mb-2 font-semibold">Ultimo L6 bot</div>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span><strong>{{ row.L6PlayedCount ?? 0 }}</strong> giocati</span>
-                                    <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastL6DeltaSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgL6DeltaSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinL6DeltaSeconds, row.MaxL6DeltaSeconds) }}</span>
+                                    <span><strong>L6 giocati</strong> {{ row.L6PlayedCount ?? 0 }}</span>
+                                    <span class="text-xs text-muted-color">Frequenza L6: ult {{ formatHands(row.LastL6DeltaHands) }} · avg {{ formatHands(row.AvgL6DeltaHands, 1) }}</span>
+                                    <span class="text-xs text-muted-color">Range L6 {{ formatHandsRange(row.MinL6DeltaHands, row.MaxL6DeltaHands) }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
                                     <div>
@@ -465,18 +483,24 @@ function getScoreClass(row) {
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
-                            <div class="mb-2 font-semibold">Frequenza L8 auth e perdita</div>
+                            <div class="mb-2 font-semibold">L8 auth perso bot</div>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
                                     <span><strong>{{ row.AuthorizedL8LostCount ?? 0 }}</strong> L8 persi auth</span>
-                                    <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastAuthorizedL8LostDeltaSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgAuthorizedL8LostDeltaSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinAuthorizedL8LostDeltaSeconds, row.MaxAuthorizedL8LostDeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Frequenza L8 persi: ult {{ formatHands(row.LastAuthorizedL8LostDeltaHands) }} · avg {{ formatHands(row.AvgAuthorizedL8LostDeltaHands, 1) }}</span>
+                                    <span class="text-xs text-muted-color">Range L8 persi {{ formatHandsRange(row.MinAuthorizedL8LostDeltaHands, row.MaxAuthorizedL8LostDeltaHands) }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
                                     <span><strong>Auth -> L8</strong> {{ formatDuration(row.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <div>
+                                        <span class="font-semibold">Ritmo auth -> L8</span>
+                                        {{ formatSeconds(row.LastAuthorizedL8LossSecondsPerHand) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAuthToL8PaceFast(row))">{{ getScorePoint(isAuthToL8PaceFast(row)) }}</span>
+                                    </div>
                                     <span class="text-xs text-muted-color">Avg auth -> L8 {{ formatDuration(row.AvgAuthorizedL8LossFromAuthorizationSeconds) }}</span>
                                     <span class="text-xs text-muted-color">Range auth -> L8 {{ formatDurationRange(row.MinAuthorizedL8LossFromAuthorizationSeconds, row.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Mani auth -> L8 {{ formatHands(row.LastAuthorizedL8LossFromAuthorizationHands) }}</span>
+                                    <span class="text-xs text-muted-color">Avg ritmo {{ formatSeconds(row.AvgAuthorizedL8LossSecondsPerHand) }}</span>
                                     <span class="text-xs text-muted-color">Score auth {{ Number(row.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${row.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
                                 </div>
                             </div>

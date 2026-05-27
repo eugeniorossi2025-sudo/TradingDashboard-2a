@@ -291,16 +291,28 @@ public class SecurityFilterBotTelemetryDto
     public decimal AvgL6DeltaSeconds { get; set; }
     public decimal MinL6DeltaSeconds { get; set; }
     public decimal MaxL6DeltaSeconds { get; set; }
+    public int LastL6DeltaHands { get; set; }
+    public decimal AvgL6DeltaHands { get; set; }
+    public int MinL6DeltaHands { get; set; }
+    public int MaxL6DeltaHands { get; set; }
     public int L6DeltaSamples { get; set; }
     public DateTime LastL6PlayedAtUtc { get; set; }
+    public int LastL6PlayedPBHands { get; set; }
     public int AuthorizedL8LostCount { get; set; }
     public decimal LastAuthorizedL8LostDeltaSeconds { get; set; }
     public decimal AvgAuthorizedL8LostDeltaSeconds { get; set; }
     public decimal MinAuthorizedL8LostDeltaSeconds { get; set; }
     public decimal MaxAuthorizedL8LostDeltaSeconds { get; set; }
+    public int LastAuthorizedL8LostDeltaHands { get; set; }
+    public decimal AvgAuthorizedL8LostDeltaHands { get; set; }
+    public int MinAuthorizedL8LostDeltaHands { get; set; }
+    public int MaxAuthorizedL8LostDeltaHands { get; set; }
     public int AuthorizedL8LostDeltaSamples { get; set; }
     public DateTime LastAuthorizedL8LostAtUtc { get; set; }
+    public int LastAuthorizedL8LostPBHands { get; set; }
     public DateTime LastL6AuthorizationAtUtc { get; set; }
+    public int PBHandsPlayed { get; set; }
+    public int LastL6AuthorizationPBHandsPlayed { get; set; }
     public int LastL6AuthorizationScore { get; set; }
     public int LastL6AuthorizationStreak { get; set; }
     public int LastL6AuthorizationShoeHand { get; set; }
@@ -310,6 +322,11 @@ public class SecurityFilterBotTelemetryDto
     public decimal AvgAuthorizedL8LossFromAuthorizationSeconds { get; set; }
     public decimal MinAuthorizedL8LossFromAuthorizationSeconds { get; set; }
     public decimal MaxAuthorizedL8LossFromAuthorizationSeconds { get; set; }
+    public int LastAuthorizedL8LossFromAuthorizationHands { get; set; }
+    public decimal LastAuthorizedL8LossSecondsPerHand { get; set; }
+    public decimal AvgAuthorizedL8LossSecondsPerHand { get; set; }
+    public decimal MinAuthorizedL8LossSecondsPerHand { get; set; }
+    public decimal MaxAuthorizedL8LossSecondsPerHand { get; set; }
     public int LastAuthorizedL8LossAuthorizationScore { get; set; }
     public decimal AvgAuthorizedL8LossAuthorizationScore { get; set; }
     public int CurrentStreak { get; set; }

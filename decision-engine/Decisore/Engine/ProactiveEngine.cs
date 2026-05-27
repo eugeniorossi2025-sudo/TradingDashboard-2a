@@ -181,16 +181,28 @@ namespace Decisore.Engine
                     AvgL6DeltaSeconds = x.Value.AvgL6DeltaSeconds,
                     MinL6DeltaSeconds = x.Value.MinL6DeltaSeconds,
                     MaxL6DeltaSeconds = x.Value.MaxL6DeltaSeconds,
+                    LastL6DeltaHands = x.Value.LastL6DeltaHands,
+                    AvgL6DeltaHands = x.Value.AvgL6DeltaHands,
+                    MinL6DeltaHands = x.Value.MinL6DeltaHands,
+                    MaxL6DeltaHands = x.Value.MaxL6DeltaHands,
                     L6DeltaSamples = x.Value.L6DeltaSamples,
                     LastL6PlayedAtUtc = x.Value.LastL6PlayedAtUtc,
+                    LastL6PlayedPBHands = x.Value.LastL6PlayedPBHands,
                     AuthorizedL8LostCount = x.Value.AuthorizedL8LostCount,
                     LastAuthorizedL8LostDeltaSeconds = x.Value.LastAuthorizedL8LostDeltaSeconds,
                     AvgAuthorizedL8LostDeltaSeconds = x.Value.AvgAuthorizedL8LostDeltaSeconds,
                     MinAuthorizedL8LostDeltaSeconds = x.Value.MinAuthorizedL8LostDeltaSeconds,
                     MaxAuthorizedL8LostDeltaSeconds = x.Value.MaxAuthorizedL8LostDeltaSeconds,
+                    LastAuthorizedL8LostDeltaHands = x.Value.LastAuthorizedL8LostDeltaHands,
+                    AvgAuthorizedL8LostDeltaHands = x.Value.AvgAuthorizedL8LostDeltaHands,
+                    MinAuthorizedL8LostDeltaHands = x.Value.MinAuthorizedL8LostDeltaHands,
+                    MaxAuthorizedL8LostDeltaHands = x.Value.MaxAuthorizedL8LostDeltaHands,
                     AuthorizedL8LostDeltaSamples = x.Value.AuthorizedL8LostDeltaSamples,
                     LastAuthorizedL8LostAtUtc = x.Value.LastAuthorizedL8LostAtUtc,
+                    LastAuthorizedL8LostPBHands = x.Value.LastAuthorizedL8LostPBHands,
                     LastL6AuthorizationAtUtc = x.Value.LastL6AuthorizationAtUtc,
+                    PBHandsPlayed = x.Value.PBHandsPlayed,
+                    LastL6AuthorizationPBHandsPlayed = x.Value.LastL6AuthorizationPBHandsPlayed,
                     LastL6AuthorizationScore = x.Value.LastL6AuthorizationScore,
                     LastL6AuthorizationStreak = x.Value.LastL6AuthorizationStreak,
                     LastL6AuthorizationShoeHand = x.Value.LastL6AuthorizationShoeHand,
@@ -200,6 +212,11 @@ namespace Decisore.Engine
                     AvgAuthorizedL8LossFromAuthorizationSeconds = x.Value.AvgAuthorizedL8LossFromAuthorizationSeconds,
                     MinAuthorizedL8LossFromAuthorizationSeconds = x.Value.MinAuthorizedL8LossFromAuthorizationSeconds,
                     MaxAuthorizedL8LossFromAuthorizationSeconds = x.Value.MaxAuthorizedL8LossFromAuthorizationSeconds,
+                    LastAuthorizedL8LossFromAuthorizationHands = x.Value.LastAuthorizedL8LossFromAuthorizationHands,
+                    LastAuthorizedL8LossSecondsPerHand = x.Value.LastAuthorizedL8LossSecondsPerHand,
+                    AvgAuthorizedL8LossSecondsPerHand = x.Value.AvgAuthorizedL8LossSecondsPerHand,
+                    MinAuthorizedL8LossSecondsPerHand = x.Value.MinAuthorizedL8LossSecondsPerHand,
+                    MaxAuthorizedL8LossSecondsPerHand = x.Value.MaxAuthorizedL8LossSecondsPerHand,
                     LastAuthorizedL8LossAuthorizationScore = x.Value.LastAuthorizedL8LossAuthorizationScore,
                     AvgAuthorizedL8LossAuthorizationScore = x.Value.AvgAuthorizedL8LossAuthorizationScore,
                     CurrentStreak = x.Value.CurrentStreak,
@@ -296,8 +313,10 @@ namespace Decisore.Engine
 
             #region L6 SYSTEM
 
-            if (esito != 'T' && valoreGiocato > 0 &&
-                (stato.ToLower().Equals("sculping") || stato.ToLower().Equals("scalping")))
+            bool pbHandPlayedThisCall = esito != 'T' && valoreGiocato > 0 &&
+                (stato.ToLower().Equals("sculping") || stato.ToLower().Equals("scalping"));
+
+            if (pbHandPlayedThisCall)
             {
                 _globalPBHandsPlayed++;
                 totalPBHandsPlayed++;
@@ -396,32 +415,50 @@ namespace Decisore.Engine
             double lastHandDeltaSeconds = 0;
             double avgHandSeconds       = 0;
             int    currentStreak        = 0;
-
-            // — timing: misura il delta dall'arrivo della chiamata precedente —
-            if (_lastDecideAt.TryGetValue(computer, out var lastAt))
+            if (!_securityFilterByBot.TryGetValue(computer, out var botSecurity))
             {
-                lastHandDeltaSeconds = (nowUtc - lastAt).TotalSeconds;
-
-                if (!_handDeltasWindow.TryGetValue(computer, out var win))
-                    _handDeltasWindow[computer] = win = new Queue<double>();
-
-                win.Enqueue(lastHandDeltaSeconds);
-                if (win.Count > SECURITY_FILTER_DELTA_WINDOW)
-                    win.Dequeue();
-
-                // media trimmata: rimuovi il minimo e il massimo per attenuare spike rete/OCR
-                if (win.Count >= 3)
-                {
-                    var sorted  = win.OrderBy(x => x).ToList();
-                    var trimmed = sorted.Skip(1).Take(Math.Max(1, sorted.Count - 2));
-                    avgHandSeconds = trimmed.Average();
-                }
-                else if (win.Count > 0)
-                {
-                    avgHandSeconds = win.Average();
-                }
+                botSecurity = new SecurityFilterBotTelemetry { Computer = computer };
+                _securityFilterByBot[computer] = botSecurity;
             }
-            _lastDecideAt[computer] = nowUtc;
+
+            // — timing: misura solo le mani P/B realmente giocate dal singolo bot —
+            if (pbHandPlayedThisCall)
+            {
+                if (_lastDecideAt.TryGetValue(computer, out var lastAt))
+                {
+                    lastHandDeltaSeconds = (nowUtc - lastAt).TotalSeconds;
+
+                    if (!_handDeltasWindow.TryGetValue(computer, out var win))
+                        _handDeltasWindow[computer] = win = new Queue<double>();
+
+                    win.Enqueue(lastHandDeltaSeconds);
+                    if (win.Count > SECURITY_FILTER_DELTA_WINDOW)
+                        win.Dequeue();
+
+                    // media trimmata: rimuovi il minimo e il massimo per attenuare spike rete/OCR
+                    if (win.Count >= 3)
+                    {
+                        var sorted  = win.OrderBy(x => x).ToList();
+                        var trimmed = sorted.Skip(1).Take(Math.Max(1, sorted.Count - 2));
+                        avgHandSeconds = trimmed.Average();
+                    }
+                    else if (win.Count > 0)
+                    {
+                        avgHandSeconds = win.Average();
+                    }
+                }
+                else
+                {
+                    avgHandSeconds = botSecurity.AvgHandSeconds;
+                }
+
+                _lastDecideAt[computer] = nowUtc;
+            }
+            else
+            {
+                lastHandDeltaSeconds = botSecurity.LastHandDeltaSeconds;
+                avgHandSeconds = botSecurity.AvgHandSeconds;
+            }
 
             // — streak colore USCITO (esito PBT), tie non resetta —
             if (esito != 'T')
@@ -445,11 +482,8 @@ namespace Decisore.Engine
 
             // — contatori transizione false→true —
             bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
-            if (!_securityFilterByBot.TryGetValue(computer, out var botSecurity))
-            {
-                botSecurity = new SecurityFilterBotTelemetry { Computer = computer };
-                _securityFilterByBot[computer] = botSecurity;
-            }
+            if (pbHandPlayedThisCall)
+                botSecurity.PBHandsPlayed++;
 
             if (securityFilterActive && !prevActive)
             {
@@ -466,19 +500,20 @@ namespace Decisore.Engine
 
             botSecurity.AvgHandSeconds = avgHandSeconds;
             botSecurity.LastHandDeltaSeconds = lastHandDeltaSeconds;
-            if (lastHandDeltaSeconds > 0)
+            if (pbHandPlayedThisCall && lastHandDeltaSeconds > 0)
             {
                 botSecurity.MinHandDeltaSeconds = botSecurity.MinHandDeltaSeconds <= 0
                     ? lastHandDeltaSeconds
                     : Math.Min(botSecurity.MinHandDeltaSeconds, lastHandDeltaSeconds);
                 botSecurity.MaxHandDeltaSeconds = Math.Max(botSecurity.MaxHandDeltaSeconds, lastHandDeltaSeconds);
             }
-            if (martingalaCounter == 6)
+            if (martingalaCounter == 6 && pbHandPlayedThisCall)
             {
                 botSecurity.L6PlayedCount++;
                 if (botSecurity.LastL6PlayedAtUtc != default)
                 {
                     double l6DeltaSeconds = (nowUtc - botSecurity.LastL6PlayedAtUtc).TotalSeconds;
+                    int l6DeltaHands = Math.Max(0, botSecurity.PBHandsPlayed - botSecurity.LastL6PlayedPBHands);
                     botSecurity.LastL6DeltaSeconds = l6DeltaSeconds;
                     botSecurity.MinL6DeltaSeconds = botSecurity.MinL6DeltaSeconds <= 0
                         ? l6DeltaSeconds
@@ -487,16 +522,26 @@ namespace Decisore.Engine
                     botSecurity.AvgL6DeltaSeconds =
                         ((botSecurity.AvgL6DeltaSeconds * botSecurity.L6DeltaSamples) + l6DeltaSeconds) /
                         (botSecurity.L6DeltaSamples + 1);
+                    botSecurity.LastL6DeltaHands = l6DeltaHands;
+                    botSecurity.MinL6DeltaHands = botSecurity.MinL6DeltaHands <= 0
+                        ? l6DeltaHands
+                        : Math.Min(botSecurity.MinL6DeltaHands, l6DeltaHands);
+                    botSecurity.MaxL6DeltaHands = Math.Max(botSecurity.MaxL6DeltaHands, l6DeltaHands);
+                    botSecurity.AvgL6DeltaHands =
+                        ((botSecurity.AvgL6DeltaHands * botSecurity.L6DeltaSamples) + l6DeltaHands) /
+                        (botSecurity.L6DeltaSamples + 1);
                     botSecurity.L6DeltaSamples++;
                 }
                 botSecurity.LastL6PlayedAtUtc = nowUtc;
+                botSecurity.LastL6PlayedPBHands = botSecurity.PBHandsPlayed;
             }
-            if (martingalaCounter == 8 && esito != 'T' && esito != coloreGiocato)
+            if (martingalaCounter == 8 && pbHandPlayedThisCall && esito != coloreGiocato)
             {
                 botSecurity.AuthorizedL8LostCount++;
                 if (botSecurity.LastAuthorizedL8LostAtUtc != default)
                 {
                     double l8LostDeltaSeconds = (nowUtc - botSecurity.LastAuthorizedL8LostAtUtc).TotalSeconds;
+                    int l8LostDeltaHands = Math.Max(0, botSecurity.PBHandsPlayed - botSecurity.LastAuthorizedL8LostPBHands);
                     botSecurity.LastAuthorizedL8LostDeltaSeconds = l8LostDeltaSeconds;
                     botSecurity.MinAuthorizedL8LostDeltaSeconds = botSecurity.MinAuthorizedL8LostDeltaSeconds <= 0
                         ? l8LostDeltaSeconds
@@ -505,12 +550,22 @@ namespace Decisore.Engine
                     botSecurity.AvgAuthorizedL8LostDeltaSeconds =
                         ((botSecurity.AvgAuthorizedL8LostDeltaSeconds * botSecurity.AuthorizedL8LostDeltaSamples) + l8LostDeltaSeconds) /
                         (botSecurity.AuthorizedL8LostDeltaSamples + 1);
+                    botSecurity.LastAuthorizedL8LostDeltaHands = l8LostDeltaHands;
+                    botSecurity.MinAuthorizedL8LostDeltaHands = botSecurity.MinAuthorizedL8LostDeltaHands <= 0
+                        ? l8LostDeltaHands
+                        : Math.Min(botSecurity.MinAuthorizedL8LostDeltaHands, l8LostDeltaHands);
+                    botSecurity.MaxAuthorizedL8LostDeltaHands = Math.Max(botSecurity.MaxAuthorizedL8LostDeltaHands, l8LostDeltaHands);
+                    botSecurity.AvgAuthorizedL8LostDeltaHands =
+                        ((botSecurity.AvgAuthorizedL8LostDeltaHands * botSecurity.AuthorizedL8LostDeltaSamples) + l8LostDeltaHands) /
+                        (botSecurity.AuthorizedL8LostDeltaSamples + 1);
                     botSecurity.AuthorizedL8LostDeltaSamples++;
                 }
                 botSecurity.LastAuthorizedL8LostAtUtc = nowUtc;
+                botSecurity.LastAuthorizedL8LostPBHands = botSecurity.PBHandsPlayed;
                 if (botSecurity.LastL6AuthorizationAtUtc != default)
                 {
                     double authorizationToLossSeconds = (nowUtc - botSecurity.LastL6AuthorizationAtUtc).TotalSeconds;
+                    int authorizationToLossHands = Math.Max(0, botSecurity.PBHandsPlayed - botSecurity.LastL6AuthorizationPBHandsPlayed);
                     botSecurity.LastAuthorizedL8LossFromAuthorizationSeconds = authorizationToLossSeconds;
                     botSecurity.MinAuthorizedL8LossFromAuthorizationSeconds = botSecurity.MinAuthorizedL8LossFromAuthorizationSeconds <= 0
                         ? authorizationToLossSeconds
@@ -519,6 +574,20 @@ namespace Decisore.Engine
                     botSecurity.AvgAuthorizedL8LossFromAuthorizationSeconds =
                         ((botSecurity.AvgAuthorizedL8LossFromAuthorizationSeconds * botSecurity.AuthorizedL8LostFromAuthorizationCount) + authorizationToLossSeconds) /
                         (botSecurity.AuthorizedL8LostFromAuthorizationCount + 1);
+
+                    botSecurity.LastAuthorizedL8LossFromAuthorizationHands = authorizationToLossHands;
+                    if (authorizationToLossHands > 0)
+                    {
+                        double secondsPerHand = authorizationToLossSeconds / authorizationToLossHands;
+                        botSecurity.LastAuthorizedL8LossSecondsPerHand = secondsPerHand;
+                        botSecurity.MinAuthorizedL8LossSecondsPerHand = botSecurity.MinAuthorizedL8LossSecondsPerHand <= 0
+                            ? secondsPerHand
+                            : Math.Min(botSecurity.MinAuthorizedL8LossSecondsPerHand, secondsPerHand);
+                        botSecurity.MaxAuthorizedL8LossSecondsPerHand = Math.Max(botSecurity.MaxAuthorizedL8LossSecondsPerHand, secondsPerHand);
+                        botSecurity.AvgAuthorizedL8LossSecondsPerHand =
+                            ((botSecurity.AvgAuthorizedL8LossSecondsPerHand * botSecurity.AuthorizedL8LostFromAuthorizationCount) + secondsPerHand) /
+                            (botSecurity.AuthorizedL8LostFromAuthorizationCount + 1);
+                    }
 
                     botSecurity.LastAuthorizedL8LossAuthorizationScore = botSecurity.LastL6AuthorizationScore;
                     botSecurity.AvgAuthorizedL8LossAuthorizationScore =
@@ -534,6 +603,7 @@ namespace Decisore.Engine
             if (l6AuthorizedThisCall)
             {
                 botSecurity.LastL6AuthorizationAtUtc = nowUtc;
+                botSecurity.LastL6AuthorizationPBHandsPlayed = botSecurity.PBHandsPlayed;
                 botSecurity.LastL6AuthorizationScore = securityScore;
                 botSecurity.LastL6AuthorizationStreak = currentStreak;
                 botSecurity.LastL6AuthorizationShoeHand = handIndexMazzo;
