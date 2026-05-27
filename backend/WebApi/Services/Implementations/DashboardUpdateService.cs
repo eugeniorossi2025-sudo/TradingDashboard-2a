@@ -41,6 +41,9 @@ public class DashboardUpdateService : BackgroundService
             {
                 using (var scope = _serviceProvider.CreateScope())
                 {
+                    var missionLifecycleService = scope.ServiceProvider.GetRequiredService<IMissionLifecycleService>();
+                    await missionLifecycleService.ObserveLiveStateAsync(stoppingToken);
+
                     var dashboardService = scope.ServiceProvider.GetRequiredService<IDashboardService>();
                     var dashboardData = await dashboardService.GetDashboardDataAsync();
 

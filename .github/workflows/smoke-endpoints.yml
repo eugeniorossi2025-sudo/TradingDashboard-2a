@@ -58,13 +58,7 @@ jobs:
           $h = if ($token) { @{ Authorization = "Bearer $token" } } else { @{} }
           $base2 = if ($token) { $base } else { "https://localhost" }
 
-          try {
-            $t = Invoke-RestMethod -Uri "$base/api/dashboard/telemetry" -Method GET -Headers $h
-            Write-Host "TELEMETRY: OK"
-            Write-Host ($t | ConvertTo-Json -Depth 4 -Compress)
-          } catch {
-            Write-Host "TELEMETRY ($base): FAILED - $($_.Exception.Message)"
-          }
+          Write-Host "TELEMETRY: SKIPPED - mission lifecycle endpoints must remain side-effect free during smoke"
 
           try {
             $m = Invoke-RestMethod -Uri "$base/api/dashboard/margini-chart" -Method GET -Headers $h

@@ -12,6 +12,8 @@ public class MissionLifecycleService : IMissionLifecycleService
     private const string Demo = "Demo";
     private const string RuntimeModeKey = "RUNTIME_MODE";
     private const string StopWinKey = "STOP_WIN";
+    private const string MissionLastResetAtKey = "MISSION_LAST_RESET_AT_UTC";
+    private const string MissionSuppressStartUntilResetKey = "MISSION_SUPPRESS_START_UNTIL_RESET";
     private const int OnlineWindowMinutes = 5;
 
     private readonly AppDbContext _context;
@@ -34,7 +36,6 @@ public class MissionLifecycleService : IMissionLifecycleService
     public async Task<MissionLifecycleState> GetCurrentAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
-        await EnsureMissionStartedFromFirstPbtAsync(cancellationToken);
 
         var open = await _context.MissionSessions
             .AsNoTracking()
@@ -74,6 +75,59 @@ public class MissionLifecycleService : IMissionLifecycleService
         };
     }
 
+    public async Task<MissionLifecycleResult?> ObserveLiveStateAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureMissionReportSchemaAsync(cancellationToken);
+
+        var open = await _context.MissionSessions
+            .Where(session => !session.Completed)
+            .OrderByDescending(session => session.StartTime)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (open != null)
+        {
+            if (await HasStopWinActionCodeAsync(open, cancellationToken))
+            {
+                var result = await FinalizeCurrentAsync("ActionCode1_STOP_WIN", cancellationToken);
+                await SetConfigurationValueAsync(MissionSuppressStartUntilResetKey, "1", "Mission start is suppressed after AC1 close until the next dashboard reset.", cancellationToken);
+                return result;
+            }
+
+            return null;
+        }
+
+        if (await IsMissionStartSuppressedAsync(cancellationToken))
+            return null;
+
+        var resetAt = await GetLastResetBoundaryAsync(cancellationToken);
+        if (!resetAt.HasValue)
+            return null;
+
+        var firstPoint = await _context.Margini
+            .AsNoTracking()
+            .Where(point => point.Data.HasValue && point.Data.Value > resetAt.Value)
+            .OrderBy(point => point.Data)
+            .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (firstPoint == null)
+            return null;
+
+        var alreadyTracked = await _context.MissionSessions
+            .AsNoTracking()
+            .AnyAsync(session => session.StartTime >= firstPoint.Timestamp, cancellationToken);
+        if (alreadyTracked)
+            return null;
+
+        return await StartMissionFromFirstMarginPointAsync(firstPoint.Timestamp, firstPoint.Margin, cancellationToken);
+    }
+
+    public async Task RecordResetBoundaryAsync(CancellationToken cancellationToken = default)
+    {
+        await SetConfigurationValueAsync(MissionLastResetAtKey, DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture), "Last dashboard reset accepted by Decisore; mission starts only from the next real PBT/margin point.", cancellationToken);
+        await SetConfigurationValueAsync(MissionSuppressStartUntilResetKey, "0", "Mission start is suppressed after AC1 close until the next dashboard reset.", cancellationToken);
+    }
+
     public async Task<MissionLifecycleResult> StartCurrentAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
@@ -94,48 +148,14 @@ public class MissionLifecycleService : IMissionLifecycleService
             };
         }
 
-        var now = DateTime.UtcNow;
-        var runtimeMode = await GetCurrentModeAsync(cancellationToken);
-        var currentMargin = await GetCurrentMarginAsync(cancellationToken);
-        var activeTables = await GetActiveTablesAsync(cancellationToken);
-        var target = await GetStopWinTargetAsync(cancellationToken);
-
-        var session = new MissionSession
-        {
-            MissionKey = $"mission-{now:yyyyMMddHHmmss}",
-            StartTime = now,
-            TotalMargin = currentMargin,
-            LastTotalMarginForRealHands = currentMargin,
-            GlobalTarget = target,
-            ActiveTables = activeTables,
-            RuntimeMode = runtimeMode,
-            Completed = false,
-            CreatedAt = now
-        };
-
-        _context.MissionSessions.Add(session);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        _context.MissionMarginSamples.Add(new MissionMarginSample
-        {
-            SessionId = session.Id,
-            Timestamp = now,
-            TotalMargin = currentMargin,
-            ActiveTables = activeTables,
-            VmCurrent = currentMargin,
-            RuntimeMode = runtimeMode
-        });
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var emailSent = await SendMissionEmailAsync(session.Id, "started", cancellationToken);
+        var observed = await ObserveLiveStateAsync(cancellationToken);
+        if (observed?.MissionStarted == true)
+            return observed;
 
         return new MissionLifecycleResult
         {
-            Success = true,
-            Message = "Missione avviata",
-            MissionStarted = true,
-            MissionSessionId = session.Id,
-            EmailSent = emailSent,
+            Success = false,
+            Message = "La missione parte solo dal primo PBT reale successivo al reset dashboard",
             Mission = await GetCurrentAsync(cancellationToken)
         };
     }
@@ -341,45 +361,15 @@ public class MissionLifecycleService : IMissionLifecycleService
         return string.Equals(value, Demo, StringComparison.OrdinalIgnoreCase) ? Demo : Production;
     }
 
-    private async Task EnsureMissionStartedFromFirstPbtAsync(CancellationToken cancellationToken)
+    private async Task<MissionLifecycleResult> StartMissionFromFirstMarginPointAsync(DateTime startTime, decimal startMargin, CancellationToken cancellationToken)
     {
-        var hasOpenMission = await _context.MissionSessions
-            .AsNoTracking()
-            .AnyAsync(session => !session.Completed, cancellationToken);
-        if (hasOpenMission)
-            return;
-
-        var telemetry = await GetLatestPbtTelemetryAsync(cancellationToken);
-        if (telemetry == null || telemetry.TotalPbHandsPlayed <= 0)
-            return;
-
-        var alreadyTracked = await _context.MissionSessions
-            .AsNoTracking()
-            .AnyAsync(session => session.StartTime >= telemetry.SessionStart, cancellationToken);
-        if (alreadyTracked)
-            return;
-
-        await StartMissionFromPbtAsync(telemetry, cancellationToken);
-    }
-
-    private async Task StartMissionFromPbtAsync(PbtTelemetry telemetry, CancellationToken cancellationToken)
-    {
-        var startPoint = await _context.Margini
-            .AsNoTracking()
-            .Where(point => point.Data.HasValue && point.Data.Value >= telemetry.SessionStart)
-            .OrderBy(point => point.Data)
-            .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
-            .FirstOrDefaultAsync(cancellationToken);
-
         var now = DateTime.UtcNow;
-        var startTime = startPoint?.Timestamp ?? now;
-        var startMargin = startPoint?.Margin ?? await GetCurrentMarginAsync(cancellationToken);
         var runtimeMode = await GetCurrentModeAsync(cancellationToken);
         var activeTables = await GetActiveTablesAsync(cancellationToken);
 
         var session = new MissionSession
         {
-            MissionKey = $"pbt-{telemetry.SessionStart:yyyyMMddHHmmss}",
+            MissionKey = $"pbt-{startTime:yyyyMMddHHmmss}",
             StartTime = startTime,
             TotalMargin = startMargin,
             LastTotalMarginForRealHands = startMargin,
@@ -404,7 +394,17 @@ public class MissionLifecycleService : IMissionLifecycleService
         });
         await _context.SaveChangesAsync(cancellationToken);
 
-        await SendMissionEmailAsync(session.Id, "started", cancellationToken);
+        var emailSent = await SendMissionEmailAsync(session.Id, "started", cancellationToken);
+
+        return new MissionLifecycleResult
+        {
+            Success = true,
+            Message = "Missione avviata dal primo PBT reale dopo reset dashboard",
+            MissionStarted = true,
+            MissionSessionId = session.Id,
+            EmailSent = emailSent,
+            Mission = await GetCurrentAsync(cancellationToken)
+        };
     }
 
     private async Task<PbtTelemetry?> GetLatestPbtTelemetryAsync(CancellationToken cancellationToken)
@@ -476,6 +476,113 @@ public class MissionLifecycleService : IMissionLifecycleService
         return decimal.TryParse(value?.Replace(",", "."), NumberStyles.Any, CultureInfo.InvariantCulture, out var target)
             ? target
             : 0m;
+    }
+
+    private async Task<bool> HasStopWinActionCodeAsync(MissionSession open, CancellationToken cancellationToken)
+    {
+        var rows = await _context.PcCurrentStatuses
+            .AsNoTracking()
+            .Where(row => row.LastUpdate >= open.StartTime && row.LastAdvice != null)
+            .Select(row => row.LastAdvice)
+            .ToListAsync(cancellationToken);
+
+        foreach (var lastAdvice in rows)
+        {
+            var action = TryGetInt32Property(lastAdvice, "ActionCode");
+            if (action != 1)
+                continue;
+
+            var reason = TryGetStringProperty(lastAdvice, "Reason");
+            if (string.Equals(reason, "STOP_WIN", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private async Task<bool> IsMissionStartSuppressedAsync(CancellationToken cancellationToken)
+    {
+        var value = await _context.Configurations
+            .AsNoTracking()
+            .Where(row => row.Key == MissionSuppressStartUntilResetKey)
+            .Select(row => row.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return string.Equals(value, "1", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<DateTime?> GetLastResetBoundaryAsync(CancellationToken cancellationToken)
+    {
+        var value = await _context.Configurations
+            .AsNoTracking()
+            .Where(row => row.Key == MissionLastResetAtKey)
+            .Select(row => row.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return DateTime.TryParse(value, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed)
+            ? parsed
+            : null;
+    }
+
+    private async Task SetConfigurationValueAsync(string key, string value, string description, CancellationToken cancellationToken)
+    {
+        var configuration = await _context.Configurations
+            .FirstOrDefaultAsync(row => row.Key == key, cancellationToken);
+
+        if (configuration == null)
+        {
+            _context.Configurations.Add(new Configuration
+            {
+                Key = key,
+                Value = value,
+                Description = description,
+                Pos = 990
+            });
+        }
+        else
+        {
+            configuration.Value = value;
+            configuration.Description ??= description;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private static int? TryGetInt32Property(string? json, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.Number
+                ? property.GetInt32()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? TryGetStringProperty(string? json, string propertyName)
+    {
+        if (string.IsNullOrWhiteSpace(json))
+            return null;
+
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.TryGetProperty(propertyName, out var property) && property.ValueKind == JsonValueKind.String
+                ? property.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private async Task<int> GetRealHandsCountAsync(DateTime start, DateTime end, CancellationToken cancellationToken)

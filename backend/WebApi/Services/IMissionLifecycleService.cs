@@ -5,6 +5,8 @@ public interface IMissionLifecycleService
     Task<MissionLifecycleState> GetCurrentAsync(CancellationToken cancellationToken = default);
     Task<MissionLifecycleResult> StartCurrentAsync(CancellationToken cancellationToken = default);
     Task<MissionLifecycleResult> FinalizeCurrentAsync(string reason, CancellationToken cancellationToken = default);
+    Task<MissionLifecycleResult?> ObserveLiveStateAsync(CancellationToken cancellationToken = default);
+    Task RecordResetBoundaryAsync(CancellationToken cancellationToken = default);
     Task<int> SendMissionEmailAsync(int sessionId, string eventType, CancellationToken cancellationToken = default);
 }
 

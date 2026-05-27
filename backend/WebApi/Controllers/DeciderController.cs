@@ -58,9 +58,11 @@ public class DeciderController : ControllerBase
         {
             var missionResult = await _missionLifecycleService.FinalizeCurrentAsync("ResetDashboard", cancellationToken);
             var response = await client.GetAsync(url, cancellationToken);
-            return response.IsSuccessStatusCode
-                ? Ok(ApiResponse<object>.SuccessResponse(new { url, mission = missionResult }, "Reset inviato al Decisore"))
-                : StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore ha risposto {(int)response.StatusCode}"));
+            if (!response.IsSuccessStatusCode)
+                return StatusCode(502, ApiResponse<object>.ErrorResponse($"Decisore ha risposto {(int)response.StatusCode}"));
+
+            await _missionLifecycleService.RecordResetBoundaryAsync(cancellationToken);
+            return Ok(ApiResponse<object>.SuccessResponse(new { url, mission = missionResult }, "Reset inviato al Decisore"));
         }
         catch (Exception ex)
         {
@@ -101,12 +103,12 @@ public class DeciderController : ControllerBase
                 enabled = false,
                 reachable = false,
                 statusCode = 0,
-                url = _options.ProactiveUrl("reset"),
+                url = _options.ApiBaseUrl,
                 message = "Decider integration disabled in configuration.",
             }));
         }
 
-        var probeUrl = _options.ProactiveUrl("reset");
+        var probeUrl = _options.ApiBaseUrl;
         var client = _httpClientFactory.CreateClient(nameof(DeciderController));
         client.Timeout = TimeSpan.FromSeconds(10);
 
@@ -116,7 +118,7 @@ public class DeciderController : ControllerBase
             return Ok(ApiResponse<object>.SuccessResponse(new
             {
                 enabled = true,
-                reachable = response.IsSuccessStatusCode,
+                reachable = true,
                 statusCode = (int)response.StatusCode,
                 url = probeUrl,
             }));

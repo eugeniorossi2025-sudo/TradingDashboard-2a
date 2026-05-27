@@ -14,16 +14,14 @@ namespace WebApi.Controllers;
 public class DashboardController : ControllerBase
 {
     private readonly IDashboardService _dashboardService;
-    private readonly IMissionLifecycleService _missionLifecycleService;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="DashboardController"/> class.
     /// </summary>
     /// <param name="dashboardService">The dashboard service.</param>
-    public DashboardController(IDashboardService dashboardService, IMissionLifecycleService missionLifecycleService)
+    public DashboardController(IDashboardService dashboardService)
     {
         _dashboardService = dashboardService;
-        _missionLifecycleService = missionLifecycleService;
     }
 
     /// <summary>
@@ -142,7 +140,6 @@ public class DashboardController : ControllerBase
     {
         try
         {
-            await _missionLifecycleService.GetCurrentAsync();
             var telemetry = await _dashboardService.GetLatestTelemetryAsync();
             return Ok(ApiResponse<DashboardTelemetry>.SuccessResponse(telemetry));
         }
