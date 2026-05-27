@@ -166,4 +166,29 @@ jobs:
           ORDER BY m.ID DESC;
           "@
 
+          Invoke-TableQuery 'Current production telemetry evidence' @"
+          SELECT TOP (5)
+            DataInizio,
+            LEFT(Telemetry, 500) AS TelemetryPrefix
+          FROM dbo.Statistiche
+          WHERE Telemetry IS NOT NULL
+          ORDER BY DataInizio DESC;
+          "@
+
+          Invoke-TableQuery 'Current margin evidence' @"
+          SELECT
+            MIN(Data) AS FirstMargin,
+            MAX(Data) AS LastMargin,
+            COUNT_BIG(*) AS MarginRows
+          FROM dbo.Margini
+          WHERE Data IS NOT NULL;
+          "@
+
+          Invoke-TableQuery 'Current bot status evidence' @"
+          SELECT
+            COUNT_BIG(*) AS PcCurrentRows,
+            MAX(LastUpdate) AS LastBotUpdate
+          FROM dbo.Pc_CurrentStatus;
+          "@
+
           $connection.Close()
