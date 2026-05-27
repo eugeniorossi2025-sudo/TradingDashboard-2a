@@ -183,6 +183,25 @@ namespace Decisore.Engine
                     MaxL6DeltaSeconds = x.Value.MaxL6DeltaSeconds,
                     L6DeltaSamples = x.Value.L6DeltaSamples,
                     LastL6PlayedAtUtc = x.Value.LastL6PlayedAtUtc,
+                    AuthorizedL8LostCount = x.Value.AuthorizedL8LostCount,
+                    LastAuthorizedL8LostDeltaSeconds = x.Value.LastAuthorizedL8LostDeltaSeconds,
+                    AvgAuthorizedL8LostDeltaSeconds = x.Value.AvgAuthorizedL8LostDeltaSeconds,
+                    MinAuthorizedL8LostDeltaSeconds = x.Value.MinAuthorizedL8LostDeltaSeconds,
+                    MaxAuthorizedL8LostDeltaSeconds = x.Value.MaxAuthorizedL8LostDeltaSeconds,
+                    AuthorizedL8LostDeltaSamples = x.Value.AuthorizedL8LostDeltaSamples,
+                    LastAuthorizedL8LostAtUtc = x.Value.LastAuthorizedL8LostAtUtc,
+                    LastL6AuthorizationAtUtc = x.Value.LastL6AuthorizationAtUtc,
+                    LastL6AuthorizationScore = x.Value.LastL6AuthorizationScore,
+                    LastL6AuthorizationStreak = x.Value.LastL6AuthorizationStreak,
+                    LastL6AuthorizationShoeHand = x.Value.LastL6AuthorizationShoeHand,
+                    LastL6AuthorizationAvgHandSeconds = x.Value.LastL6AuthorizationAvgHandSeconds,
+                    AuthorizedL8LostFromAuthorizationCount = x.Value.AuthorizedL8LostFromAuthorizationCount,
+                    LastAuthorizedL8LossFromAuthorizationSeconds = x.Value.LastAuthorizedL8LossFromAuthorizationSeconds,
+                    AvgAuthorizedL8LossFromAuthorizationSeconds = x.Value.AvgAuthorizedL8LossFromAuthorizationSeconds,
+                    MinAuthorizedL8LossFromAuthorizationSeconds = x.Value.MinAuthorizedL8LossFromAuthorizationSeconds,
+                    MaxAuthorizedL8LossFromAuthorizationSeconds = x.Value.MaxAuthorizedL8LossFromAuthorizationSeconds,
+                    LastAuthorizedL8LossAuthorizationScore = x.Value.LastAuthorizedL8LossAuthorizationScore,
+                    AvgAuthorizedL8LossAuthorizationScore = x.Value.AvgAuthorizedL8LossAuthorizationScore,
                     CurrentStreak = x.Value.CurrentStreak,
                     SecurityRiskScore = x.Value.SecurityRiskScore,
                     SecurityFilterActive = x.Value.SecurityFilterActive,
@@ -295,6 +314,8 @@ namespace Decisore.Engine
                 _globalL5Loss = 0;
             }
 
+            bool l6AuthorizedThisCall = false;
+
             if (martingalaCounter == 5)
             {
                 if (esito != 'T')
@@ -317,6 +338,7 @@ namespace Decisore.Engine
                             advice.StopL6 = false;
                             _globalAuthL6Counter--;
                             totalAuthL6Authorized++;
+                            l6AuthorizedThisCall = true;
                             
                             advice.Reason = $"L6 Autorizzato";
                         }
@@ -468,6 +490,54 @@ namespace Decisore.Engine
                     botSecurity.L6DeltaSamples++;
                 }
                 botSecurity.LastL6PlayedAtUtc = nowUtc;
+            }
+            if (martingalaCounter == 8 && esito != 'T' && esito != coloreGiocato)
+            {
+                botSecurity.AuthorizedL8LostCount++;
+                if (botSecurity.LastAuthorizedL8LostAtUtc != default)
+                {
+                    double l8LostDeltaSeconds = (nowUtc - botSecurity.LastAuthorizedL8LostAtUtc).TotalSeconds;
+                    botSecurity.LastAuthorizedL8LostDeltaSeconds = l8LostDeltaSeconds;
+                    botSecurity.MinAuthorizedL8LostDeltaSeconds = botSecurity.MinAuthorizedL8LostDeltaSeconds <= 0
+                        ? l8LostDeltaSeconds
+                        : Math.Min(botSecurity.MinAuthorizedL8LostDeltaSeconds, l8LostDeltaSeconds);
+                    botSecurity.MaxAuthorizedL8LostDeltaSeconds = Math.Max(botSecurity.MaxAuthorizedL8LostDeltaSeconds, l8LostDeltaSeconds);
+                    botSecurity.AvgAuthorizedL8LostDeltaSeconds =
+                        ((botSecurity.AvgAuthorizedL8LostDeltaSeconds * botSecurity.AuthorizedL8LostDeltaSamples) + l8LostDeltaSeconds) /
+                        (botSecurity.AuthorizedL8LostDeltaSamples + 1);
+                    botSecurity.AuthorizedL8LostDeltaSamples++;
+                }
+                botSecurity.LastAuthorizedL8LostAtUtc = nowUtc;
+                if (botSecurity.LastL6AuthorizationAtUtc != default)
+                {
+                    double authorizationToLossSeconds = (nowUtc - botSecurity.LastL6AuthorizationAtUtc).TotalSeconds;
+                    botSecurity.LastAuthorizedL8LossFromAuthorizationSeconds = authorizationToLossSeconds;
+                    botSecurity.MinAuthorizedL8LossFromAuthorizationSeconds = botSecurity.MinAuthorizedL8LossFromAuthorizationSeconds <= 0
+                        ? authorizationToLossSeconds
+                        : Math.Min(botSecurity.MinAuthorizedL8LossFromAuthorizationSeconds, authorizationToLossSeconds);
+                    botSecurity.MaxAuthorizedL8LossFromAuthorizationSeconds = Math.Max(botSecurity.MaxAuthorizedL8LossFromAuthorizationSeconds, authorizationToLossSeconds);
+                    botSecurity.AvgAuthorizedL8LossFromAuthorizationSeconds =
+                        ((botSecurity.AvgAuthorizedL8LossFromAuthorizationSeconds * botSecurity.AuthorizedL8LostFromAuthorizationCount) + authorizationToLossSeconds) /
+                        (botSecurity.AuthorizedL8LostFromAuthorizationCount + 1);
+
+                    botSecurity.LastAuthorizedL8LossAuthorizationScore = botSecurity.LastL6AuthorizationScore;
+                    botSecurity.AvgAuthorizedL8LossAuthorizationScore =
+                        ((botSecurity.AvgAuthorizedL8LossAuthorizationScore * botSecurity.AuthorizedL8LostFromAuthorizationCount) + botSecurity.LastL6AuthorizationScore) /
+                        (botSecurity.AuthorizedL8LostFromAuthorizationCount + 1);
+                    botSecurity.AuthorizedL8LostFromAuthorizationCount++;
+                }
+            }
+            if (martingalaCounter == 8 && esito != 'T')
+            {
+                botSecurity.LastL6AuthorizationAtUtc = default;
+            }
+            if (l6AuthorizedThisCall)
+            {
+                botSecurity.LastL6AuthorizationAtUtc = nowUtc;
+                botSecurity.LastL6AuthorizationScore = securityScore;
+                botSecurity.LastL6AuthorizationStreak = currentStreak;
+                botSecurity.LastL6AuthorizationShoeHand = handIndexMazzo;
+                botSecurity.LastL6AuthorizationAvgHandSeconds = avgHandSeconds;
             }
             botSecurity.CurrentStreak = currentStreak;
             botSecurity.SecurityRiskScore = securityScore;

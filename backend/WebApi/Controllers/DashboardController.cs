@@ -293,6 +293,25 @@ public class SecurityFilterBotTelemetryDto
     public decimal MaxL6DeltaSeconds { get; set; }
     public int L6DeltaSamples { get; set; }
     public DateTime LastL6PlayedAtUtc { get; set; }
+    public int AuthorizedL8LostCount { get; set; }
+    public decimal LastAuthorizedL8LostDeltaSeconds { get; set; }
+    public decimal AvgAuthorizedL8LostDeltaSeconds { get; set; }
+    public decimal MinAuthorizedL8LostDeltaSeconds { get; set; }
+    public decimal MaxAuthorizedL8LostDeltaSeconds { get; set; }
+    public int AuthorizedL8LostDeltaSamples { get; set; }
+    public DateTime LastAuthorizedL8LostAtUtc { get; set; }
+    public DateTime LastL6AuthorizationAtUtc { get; set; }
+    public int LastL6AuthorizationScore { get; set; }
+    public int LastL6AuthorizationStreak { get; set; }
+    public int LastL6AuthorizationShoeHand { get; set; }
+    public decimal LastL6AuthorizationAvgHandSeconds { get; set; }
+    public int AuthorizedL8LostFromAuthorizationCount { get; set; }
+    public decimal LastAuthorizedL8LossFromAuthorizationSeconds { get; set; }
+    public decimal AvgAuthorizedL8LossFromAuthorizationSeconds { get; set; }
+    public decimal MinAuthorizedL8LossFromAuthorizationSeconds { get; set; }
+    public decimal MaxAuthorizedL8LossFromAuthorizationSeconds { get; set; }
+    public int LastAuthorizedL8LossAuthorizationScore { get; set; }
+    public decimal AvgAuthorizedL8LossAuthorizationScore { get; set; }
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }

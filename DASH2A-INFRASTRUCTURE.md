@@ -2,7 +2,7 @@
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-27 02:52 CEST** — produzione consolidata su DB runtime unico `51.83.159.175,1434`; WebApi, Frontend e Decisore deployati da GitHub Actions. Runner backend e runner Decisore verificati online. Vedi §3, §6 e §11.
+> **Ultimo aggiornamento: 2026-05-27 12:08 CEST** — aggiunta guardia anti-confusione repo/workspace: DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`. Prima di lavorare o deployare verificare sempre `git remote -v`.
 
 ---
 
@@ -10,10 +10,25 @@
 
 | Sistema | Repo | Scopo |
 |---|---|---|
-| **Dashboard 1** | `PCTEST45\TradingDashboard` | Sistema legacy — bot / Gamebot storico |
-| **DASH2A** | `NuovaDashboard-MarcoTurri` | Nuovo sistema — questo repo |
+| **Dashboard 1 / IIS legacy** | `PCTEST45\TradingDashboard` / repo `TradingDashboard-iis` | Sistema legacy — bot / Gamebot storico; **non usare per patch DASH2A** |
+| **DASH2A** | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri` / repo `TradingDashboard-2a` | Nuovo sistema — Decisore + WebApi + frontend Vue |
 
 **Regola assoluta:** credenziali, IP Firebase, e DB di Dashboard 1 non si usano per deploy DASH2A e viceversa.
+
+**Controllo obbligatorio anti-errore prima di qualunque modifica DASH2A:**
+
+```powershell
+cd "C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri"
+git remote -v
+```
+
+Il remote deve essere:
+
+```text
+origin  https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a.git
+```
+
+Se il remote mostra `TradingDashboard-iis`, `PCTEST45\TradingDashboard`, Dashboard 1 o altri repo, **fermarsi**: si sta leggendo/modificando il workspace sbagliato.
 
 > **Nota IP condiviso:** `51.178.16.37` compare nello stack legacy Dashboard 1 **e** come host attivo del **Decisore Proattivo** DASH2A (`/api/proactive`). Non confondere i due prodotti: Vue/WebApi DASH2A in produzione puntano a `51.83.159.175`, non al Decisore per i dati dashboard.
 
@@ -204,6 +219,8 @@ File runtime: override IIS `appsettings.Production.json` sul server. Non usare i
 | Parametro | Valore |
 |---|---|
 | Repo | `github.com/eugeniorossi2025-sudo/TradingDashboard-2a` |
+| Clone locale corretto | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri` |
+| Remote atteso | `origin https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a.git` |
 | Branch principale | `main` |
 | Runner backend | **`dash2a-backend-runner-01`** |
 | Runner backend labels | `self-hosted`, `Windows`, `X64`, `DASH2A`, `DASH2A-BACKEND` |
@@ -227,6 +244,7 @@ File runtime: override IIS `appsettings.Production.json` sul server. Non usare i
 
 > **Nessun auto-deploy su push `main`** — backend, frontend e Decisore richiedono tutti `workflow_dispatch` manuale con input di conferma.
 > **Decisore:** usare solo `DASH2A Decisore Deploy Safe`. Il vecchio `deploy-decisore-v2.yml` resta storico/obsoleto e non va ripristinato.
+> **Guardia repo:** i deploy DASH2A validi appaiono nei run di `eugeniorossi2025-sudo/TradingDashboard-2a` con workflow `DASH2A Backend Deploy Safe`, `DASH2A Decisore Deploy Safe` e `Firebase Hosting Live`. I run o remote di `TradingDashboard-iis` non sono prova del deploy DASH2A.
 
 ### Segreti GitHub (repository secrets — verificati 2026-05-25)
 

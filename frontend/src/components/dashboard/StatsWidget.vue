@@ -43,6 +43,58 @@ function formatSeconds(value) {
     return `${Number(value).toFixed(1)}s`;
 }
 
+function formatDuration(value) {
+    const seconds = Number(value);
+    if (!Number.isFinite(seconds) || seconds <= 0) return '-';
+    if (seconds < 60) return `${seconds.toFixed(1)}s`;
+
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.round(seconds % 60);
+    if (minutes < 60) return remainingSeconds > 0 ? `${minutes}m ${remainingSeconds}s` : `${minutes}m`;
+
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    return remainingMinutes > 0 ? `${hours}h ${remainingMinutes}m` : `${hours}h`;
+}
+
+function formatDurationRange(minValue, maxValue) {
+    const min = formatDuration(minValue);
+    const max = formatDuration(maxValue);
+    if (min === '-' && max === '-') return '-';
+    return `${min} - ${max}`;
+}
+
+function getNumber(value, fallback = 0) {
+    const numberValue = Number(value);
+    return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function getRiskPillClass(active) {
+    return active ? 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300' : 'bg-surface-100 text-muted-color dark:bg-surface-800';
+}
+
+function getScorePoint(active) {
+    return active ? '+1' : '+0';
+}
+
+function isAvgFast(row) {
+    const avg = getNumber(row?.AvgHandSeconds);
+    return avg > 0 && avg < getNumber(securityFilterSetup.value.maxAvgSeconds);
+}
+
+function isVeryFast(row) {
+    const avg = getNumber(row?.AvgHandSeconds);
+    return avg > 0 && avg < getNumber(securityFilterSetup.value.veryFastSeconds);
+}
+
+function isStreakRisk(row) {
+    return getNumber(row?.CurrentStreak) >= getNumber(securityFilterSetup.value.minStreak);
+}
+
+function isShoeRisk(row) {
+    return getNumber(row?.LastShoeHand, Number.MAX_SAFE_INTEGER) <= getNumber(securityFilterSetup.value.maxShoeHand);
+}
+
 function isSecurityFilterEnabled() {
     return telemetryData.value?.SecurityFilterEnabled !== false;
 }
@@ -306,68 +358,92 @@ function getScoreClass(row) {
                 <span class="block text-muted-color font-medium">Security Filter per bot</span>
                 <span class="text-sm text-muted-color">{{ securityFilterRows.length }} bot</span>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm">
-                    <thead>
-                        <tr class="text-left text-muted-color">
-                            <th class="py-2 pr-3">Bot</th>
-                            <th class="py-2 pr-3">Avg mano</th>
-                            <th class="py-2 pr-3">Ultimo delta</th>
-                            <th class="py-2 pr-3">Min delta missione</th>
-                            <th class="py-2 pr-3">Max delta missione</th>
-                            <th class="py-2 pr-3">L6 giocati</th>
-                            <th class="py-2 pr-3">Ultimo delta L6</th>
-                            <th class="py-2 pr-3">Avg delta L6</th>
-                            <th class="py-2 pr-3">Min delta L6</th>
-                            <th class="py-2 pr-3">Max delta L6</th>
-                            <th class="py-2 pr-3">Streak</th>
-                            <th class="py-2 pr-3">Score</th>
-                            <th class="py-2 pr-3">Filtro</th>
-                            <th class="py-2 pr-3">Scope pausa</th>
-                            <th class="py-2 pr-3">L6 prevenuti</th>
-                            <th class="py-2 pr-3">Mano shoe</th>
-                            <th class="py-2 pr-3">L</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="row in securityFilterRows" :key="row.computer" class="border-t border-surface-200 dark:border-surface-700 transition-colors" :class="getSecurityFilterRowClass(row)">
-                            <td class="py-2 pr-3">
-                                <span class="inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                                    <span class="h-2 w-2 rounded-full" :class="row.SecurityFilterActive ? 'bg-red-500' : 'bg-emerald-500'"></span>
-                                    {{ row.Computer || row.computer }}
-                                </span>
-                            </td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.AvgHandSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.LastHandDeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.MinHandDeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.MaxHandDeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ row.L6PlayedCount ?? 0 }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.LastL6DeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.AvgL6DeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.MinL6DeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ formatSeconds(row.MaxL6DeltaSeconds) }}</td>
-                            <td class="py-2 pr-3">{{ row.CurrentStreak ?? 0 }}</td>
-                            <td class="py-2 pr-3">
-                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">
-                                    {{ row.SecurityRiskScore ?? 0 }}/4
-                                </span>
-                            </td>
-                            <td class="py-2 pr-3">
-                                <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSecurityFilterStatusClass(row)">
-                                    {{ getSecurityFilterStatus(row) }}
-                                </span>
-                            </td>
-                            <td class="py-2 pr-3">
-                                <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
-                                    {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
-                                </span>
-                            </td>
-                            <td class="py-2 pr-3">{{ row.PreventedL6 ?? 0 }}</td>
-                            <td class="py-2 pr-3">{{ row.LastShoeHand ?? '-' }}</td>
-                            <td class="py-2 pr-3">{{ row.Martingala ?? '-' }}</td>
-                        </tr>
-                    </tbody>
-                </table>
+            <div class="grid grid-cols-1 gap-4">
+                <div v-for="row in securityFilterRows" :key="row.computer" class="rounded-2xl border border-surface-200 p-4 transition-colors dark:border-surface-700" :class="getSecurityFilterRowClass(row)">
+                    <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
+                                <span class="h-2 w-2 rounded-full" :class="row.SecurityFilterActive ? 'bg-red-500' : 'bg-emerald-500'"></span>
+                                {{ row.Computer || row.computer }}
+                            </span>
+                            <span class="rounded-full bg-surface-100 px-2.5 py-1 text-xs font-semibold text-muted-color dark:bg-surface-800">L{{ row.Martingala ?? '-' }}</span>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">{{ row.SecurityRiskScore ?? 0 }}/4</span>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSecurityFilterStatusClass(row)">{{ getSecurityFilterStatus(row) }}</span>
+                            <span class="text-xs text-muted-color">pausa da {{ securityFilterSetup.minScore }}/4</span>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
+                            <div class="mb-2 font-semibold">Ritmo vs soglie tempo</div>
+                            <div class="flex flex-col gap-1 leading-tight">
+                                <div>
+                                    <span class="font-semibold">Avg</span>
+                                    {{ formatSeconds(row.AvgHandSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAvgFast(row))">{{ getScorePoint(isAvgFast(row)) }}</span>
+                                </div>
+                                <div>
+                                    <span class="font-semibold">Very fast</span>
+                                    {{ formatSeconds(row.AvgHandSeconds) }} / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
+                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(row))">{{ getScorePoint(isVeryFast(row)) }}</span>
+                                </div>
+                                <div class="text-xs text-muted-color">Ult {{ formatSeconds(row.LastHandDeltaSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
+                                <div class="text-xs text-muted-color">Range missione {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
+                            <div class="mb-2 font-semibold">Streak e shoe vs soglia</div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <div class="text-xs text-muted-color">Streak</div>
+                                    <div class="font-semibold">{{ row.CurrentStreak ?? 0 }} / {{ securityFilterSetup.minStreak }}</div>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isStreakRisk(row))">{{ getScorePoint(isStreakRisk(row)) }}</span>
+                                </div>
+                                <div>
+                                    <div class="text-xs text-muted-color">Mano shoe</div>
+                                    <div class="font-semibold">{{ row.LastShoeHand ?? '-' }} / {{ securityFilterSetup.maxShoeHand }}</div>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isShoeRisk(row))">{{ getScorePoint(isShoeRisk(row)) }}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
+                            <div class="mb-2 font-semibold">Pausa</div>
+                            <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
+                                {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                            </span>
+                            <div class="text-xs text-muted-color mt-1">L6 prevenuti: {{ row.PreventedL6 ?? 0 }}</div>
+                        </div>
+
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
+                            <div class="mb-2 font-semibold">Frequenza L6</div>
+                            <div class="flex flex-col gap-1 leading-tight">
+                                <span><strong>{{ row.L6PlayedCount ?? 0 }}</strong> giocati</span>
+                                <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastL6DeltaSeconds) }}</span>
+                                <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgL6DeltaSeconds) }}</span>
+                                <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinL6DeltaSeconds, row.MaxL6DeltaSeconds) }}</span>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
+                            <div class="mb-2 font-semibold">Frequenza L8 auth</div>
+                            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <span><strong>{{ row.AuthorizedL8LostCount ?? 0 }}</strong> L8 persi auth</span>
+                                    <span class="text-xs text-muted-color">Delta persi: ult {{ formatDuration(row.LastAuthorizedL8LostDeltaSeconds) }}, avg {{ formatDuration(row.AvgAuthorizedL8LostDeltaSeconds) }}</span>
+                                </div>
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <span class="text-xs text-muted-color">Auth -> L8: {{ formatDuration(row.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Range auth -> L8: {{ formatDurationRange(row.MinAuthorizedL8LossFromAuthorizationSeconds, row.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Score auth: {{ Number(row.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${row.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
