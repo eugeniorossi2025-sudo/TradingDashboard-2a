@@ -151,6 +151,69 @@ function getScoreClass(row) {
     if (score >= 1) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300';
     return 'bg-surface-100 text-muted-color dark:bg-surface-800';
 }
+
+function getPaceClass(value) {
+    const seconds = getNumber(value);
+    const veryFast = getNumber(securityFilterSetup.value.veryFastSeconds);
+    const fast = getNumber(securityFilterSetup.value.maxAvgSeconds);
+
+    if (seconds > 0 && seconds <= veryFast) return 'font-semibold text-red-500';
+    if (seconds > 0 && seconds <= fast) return 'font-semibold text-orange-500';
+    return 'font-semibold text-emerald-600 dark:text-emerald-400';
+}
+
+function getLastTwoDeltas(row) {
+    return Array.isArray(row?.LastTwoHandDeltaSeconds) ? row.LastTwoHandDeltaSeconds : [];
+}
+
+function getRapidDeltaCount(row) {
+    const veryFast = getNumber(securityFilterSetup.value.veryFastSeconds);
+    return getLastTwoDeltas(row).filter((value) => getNumber(value) > 0 && getNumber(value) < veryFast).length;
+}
+
+function isRapidTriggerActive(row) {
+    return row?.RapidL5TriggerActive || getRapidDeltaCount(row) >= 2;
+}
+
+function getRapidTriggerClass(row) {
+    if (isRapidTriggerActive(row)) return 'font-semibold text-red-500 animate-pulse';
+    if (getRapidDeltaCount(row) === 1) return 'font-semibold text-orange-500';
+    return 'text-muted-color';
+}
+
+function formatLastTwoDeltas(row) {
+    const deltas = getLastTwoDeltas(row);
+    if (!deltas.length) return '-';
+    return deltas.map((value) => formatSeconds(value)).join(' · ');
+}
+
+function getSummaryPill(row) {
+    const score = Number(row?.SecurityRiskScore ?? 0);
+    if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
+    if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
+    if (score >= 2 || isAvgFast(row) || getNumber(row?.LastHandDeltaSeconds) <= getNumber(securityFilterSetup.value.maxAvgSeconds) || getRapidDeltaCount(row) === 1) return 'ATTENZIONE RITMO';
+    return 'NORMALE';
+}
+
+function getSummaryPillClass(row) {
+    const label = getSummaryPill(row);
+    if (label === 'PAUSA ATTIVA' || label === 'COMPRESSIONE L5') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 animate-pulse';
+    if (label === 'ATTENZIONE RITMO') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
+}
+
+function shouldBlinkScore(row) {
+    return Number(row?.SecurityRiskScore ?? 0) >= 3 || row?.PauseBot || row?.SecurityFilterActive || Number(row?.PreventedL6 ?? 0) > 0;
+}
+
+function getScoreDotClass(row, point) {
+    const score = Number(row?.SecurityRiskScore ?? 0);
+    const filled = score >= point;
+    if (!filled) return 'bg-surface-200 dark:bg-surface-700';
+    if (score >= 3) return 'bg-red-500';
+    if (score === 2) return 'bg-orange-500';
+    return 'bg-emerald-500';
+}
 </script>
 
 <template>
@@ -395,6 +458,7 @@ function getScoreClass(row) {
                                 {{ row.Computer || row.computer }}
                             </span>
                             <span class="rounded-full bg-surface-100 px-2.5 py-1 text-xs font-semibold text-muted-color dark:bg-surface-800">L{{ row.Martingala ?? '-' }}</span>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSummaryPillClass(row)">{{ getSummaryPill(row) }}</span>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">{{ row.SecurityRiskScore ?? 0 }}/4</span>
@@ -409,20 +473,32 @@ function getScoreClass(row) {
                             <div class="flex flex-col gap-1 leading-tight">
                                 <div>
                                     <span class="font-semibold">Avg</span>
-                                    {{ formatSeconds(row.AvgHandSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                    <span :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</span>
+                                    / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
                                     <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAvgFast(row))">{{ getScorePoint(isAvgFast(row)) }}</span>
                                 </div>
                                 <div>
                                     <span class="font-semibold">Very fast</span>
-                                    {{ formatSeconds(row.AvgHandSeconds) }} / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
+                                    <span :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</span>
+                                    / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
                                     <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(row))">{{ getScorePoint(isVeryFast(row)) }}</span>
                                 </div>
-                                <div class="text-xs text-muted-color">Ult {{ formatSeconds(row.LastHandDeltaSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
+                                <div class="text-xs text-muted-color">
+                                    Ult <span :class="getPaceClass(row.LastHandDeltaSeconds)">{{ formatSeconds(row.LastHandDeltaSeconds) }}</span> / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                </div>
                                 <div class="text-xs text-muted-color">Range storico bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
                                 <div class="text-xs text-muted-color">Non usato direttamente nella media attuale</div>
                                 <div class="text-xs text-muted-color">Mani bot {{ formatHands(row.PBHandsPlayed) }}</div>
-                                <div class="text-xs" :class="row.RapidL5TriggerActive ? 'font-semibold text-red-500' : 'text-muted-color'">
-                                    Trigger rapido L5: ultimi 2 &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s · {{ row.RapidL5TriggerActive ? 'Attivo' : 'Non attivo' }}
+                                <div class="text-xs" :class="getRapidTriggerClass(row)">
+                                    Ultimi 2: {{ formatLastTwoDeltas(row) }}
+                                </div>
+                                <div class="text-xs" :class="getRapidTriggerClass(row)">
+                                    Trigger rapido L5: ultimi 2 &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s · {{ isRapidTriggerActive(row) ? 'Attivo' : 'Non attivo' }}
+                                </div>
+                                <div class="mt-1 flex items-center gap-1 text-xs text-muted-color" :class="shouldBlinkScore(row) ? 'animate-pulse' : ''">
+                                    <span>Score filtro:</span>
+                                    <span v-for="point in 4" :key="point" class="inline-block h-2.5 w-2.5 rounded-full" :class="getScoreDotClass(row, point)"></span>
+                                    <span class="ml-1">{{ row.SecurityRiskScore ?? 0 }}/4</span>
                                 </div>
                             </div>
                         </div>
