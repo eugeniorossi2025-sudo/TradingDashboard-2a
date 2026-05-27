@@ -104,6 +104,19 @@ jobs:
           Invoke-ScalarQuery 'ORPHAN_SAMPLES' 'SELECT COUNT_BIG(*) FROM dbo.MissionMarginSamples s LEFT JOIN dbo.MissionSessions m ON m.ID = s.SessionId WHERE m.ID IS NULL;'
           Invoke-ScalarQuery 'SESSIONS_WITHOUT_SAMPLES' 'SELECT COUNT_BIG(*) FROM dbo.MissionSessions m WHERE NOT EXISTS (SELECT 1 FROM dbo.MissionMarginSamples s WHERE s.SessionId = m.ID);'
 
+          Invoke-TableQuery 'Mission table column schema' @"
+          SELECT
+            c.TABLE_NAME,
+            c.COLUMN_NAME,
+            c.DATA_TYPE,
+            c.IS_NULLABLE,
+            c.COLUMN_DEFAULT
+          FROM INFORMATION_SCHEMA.COLUMNS c
+          WHERE c.TABLE_SCHEMA = 'dbo'
+            AND c.TABLE_NAME IN ('MissionSessions', 'MissionMarginSamples')
+          ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION;
+          "@
+
           Invoke-TableQuery 'Sessions by runtime/completed' @"
           SELECT
             RuntimeMode,
