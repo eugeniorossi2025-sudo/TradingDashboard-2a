@@ -136,12 +136,21 @@ jobs:
             StartTime,
             EndTime,
             RuntimeMode,
-            Completed,
+            CAST(Completed AS int) AS CompletedInt,
+            CASE WHEN Completed = 1 THEN 'true' ELSE 'false' END AS CompletedText,
             TotalMargin,
             RealHandsCount,
             FinalizationReason
           FROM dbo.MissionSessions
           ORDER BY ID DESC;
+          "@
+
+          Invoke-TableQuery 'Completed value sanity check' @"
+          SELECT
+            SUM(CASE WHEN Completed = 1 THEN 1 ELSE 0 END) AS CompletedTrue,
+            SUM(CASE WHEN Completed = 0 THEN 1 ELSE 0 END) AS CompletedFalse,
+            SUM(CASE WHEN Completed IS NULL THEN 1 ELSE 0 END) AS CompletedNull
+          FROM dbo.MissionSessions;
           "@
 
           Invoke-TableQuery 'Sample coverage by latest sessions' @"
