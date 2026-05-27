@@ -59,7 +59,7 @@ export const PushNotificationService = {
                     permission: Notification.permission,
                     configured: false,
                     subscribed: false,
-                    message: 'Endpoint push non ancora configurato sul backend DASH2A.'
+                    message: 'Permesso browser verificato. Backend push/VAPID non configurato.'
                 };
             }
 
@@ -71,7 +71,7 @@ export const PushNotificationService = {
                 permission: Notification.permission,
                 configured: true,
                 subscribed: Boolean(subscription),
-                message: subscription ? 'Notifiche push attive.' : 'Push configurate, autorizzazione non ancora attiva.'
+                message: subscription ? 'Subscription salvata sul browser. Push attive.' : 'Backend push configurato. Devi ancora autorizzare e salvare la subscription.'
             };
         } catch (error) {
             return {
@@ -79,7 +79,7 @@ export const PushNotificationService = {
                 permission: Notification.permission,
                 configured: false,
                 subscribed: false,
-                message: 'Endpoint push non ancora attivo sul backend DASH2A.'
+                message: 'Endpoint backend push non disponibile.'
             };
         }
     },
@@ -96,7 +96,7 @@ export const PushNotificationService = {
                 permission: Notification.permission,
                 configured: false,
                 subscribed: false,
-                message: 'Endpoint push non ancora configurato sul backend DASH2A.'
+                message: 'Permesso browser possibile, ma backend push/VAPID non configurato.'
             };
         }
 
@@ -127,7 +127,7 @@ export const PushNotificationService = {
             permission,
             configured: true,
             subscribed: true,
-            message: 'Notifiche push attive.'
+            message: 'Subscription salvata sul server. Push attive.'
         };
     }
 };

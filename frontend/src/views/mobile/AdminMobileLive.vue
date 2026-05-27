@@ -54,6 +54,13 @@ const strategyLabel = computed(() => {
 });
 const sessionPulse = computed(() => (activeTables.value > 0 ? 'LIVE' : 'IDLE'));
 const copilotEvents = computed(() => tableRows.value.filter((row) => buildStrategyLabel(row) !== '--').slice(0, 6));
+const pushStateLabel = computed(() => {
+    if (pushStatus.value.subscribed) return 'Push attive';
+    if (pushStatus.value.permission === 'granted' && !pushStatus.value.configured) return 'Permesso OK, backend non pronto';
+    if (pushStatus.value.permission === 'granted') return 'Permesso OK, subscription mancante';
+    if (pushStatus.value.configured) return 'Backend pronto';
+    return 'Push non attive';
+});
 
 function getNumber(row, ...keys) {
     for (const key of keys) {
@@ -381,11 +388,14 @@ onMounted(() => {
                     <div class="mini-label">{{ pushStatus.subscribed ? 'ON' : 'OFF' }}</div>
                 </div>
                 <div class="push-box">
-                    <div class="push-state" :class="{ active: pushStatus.subscribed, warn: !pushStatus.configured }">
-                        {{ pushStatus.subscribed ? 'Push attive' : 'Push non attive' }}
+                    <div class="push-state" :class="{ active: pushStatus.subscribed, warn: !pushStatus.configured || pushStatus.permission === 'granted' }">
+                        {{ pushStateLabel }}
                     </div>
                     <div class="push-message">{{ pushStatus.message }}</div>
                     <div class="push-meta">Browser: {{ pushStatus.supported ? 'supportato' : 'non supportato' }} · Permesso: {{ pushStatus.permission }} · Backend: {{ pushStatus.configured ? 'configurato' : 'non configurato' }}</div>
+                    <div class="push-platform-note">
+                        Android: abilita dal popup del browser. iOS: apri da app aggiunta alla schermata Home e abilita le notifiche da li.
+                    </div>
                     <button type="button" class="push-button" :disabled="pushLoading || !pushStatus.supported" @click="enablePush">
                         {{ pushLoading ? 'Verifica...' : 'Consenti notifiche' }}
                     </button>
@@ -739,6 +749,16 @@ onMounted(() => {
 }
 .push-meta {
     margin-top: 6px;
+    color: var(--text-color-secondary);
+    font-size: 11px;
+    line-height: 1.4;
+}
+.push-platform-note {
+    margin-top: 10px;
+    padding: 10px 11px;
+    border-radius: 14px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.18);
     color: var(--text-color-secondary);
     font-size: 11px;
     line-height: 1.4;

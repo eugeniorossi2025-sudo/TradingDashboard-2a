@@ -16,15 +16,18 @@ public class MissionLifecycleService : IMissionLifecycleService
 
     private readonly AppDbContext _context;
     private readonly IEmailSender _emailSender;
+    private readonly IPushNotificationService _pushNotificationService;
     private readonly ILogger<MissionLifecycleService> _logger;
 
     public MissionLifecycleService(
         AppDbContext context,
         IEmailSender emailSender,
+        IPushNotificationService pushNotificationService,
         ILogger<MissionLifecycleService> logger)
     {
         _context = context;
         _emailSender = emailSender;
+        _pushNotificationService = pushNotificationService;
         _logger = logger;
     }
 
@@ -254,9 +257,6 @@ public class MissionLifecycleService : IMissionLifecycleService
             return 0;
 
         var recipients = await GetMissionRecipientsAsync(cancellationToken);
-        if (recipients.Count == 0)
-            return 0;
-
         var isStart = string.Equals(eventType, "started", StringComparison.OrdinalIgnoreCase);
         var subject = isStart
             ? $"DASH2A - Missione avviata #{session.Id} ({session.RuntimeMode})"
@@ -275,6 +275,15 @@ public class MissionLifecycleService : IMissionLifecycleService
             {
                 _logger.LogWarning(ex, "Mission email failed for {Recipient}", recipient);
             }
+        }
+
+        try
+        {
+            await _pushNotificationService.SendMissionNotificationAsync(session.Id, eventType, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Mission push notification failed for session {SessionId}", session.Id);
         }
 
         return sent;

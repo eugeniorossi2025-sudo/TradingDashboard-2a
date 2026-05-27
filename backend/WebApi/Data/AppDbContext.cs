@@ -61,6 +61,8 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
 
     public DbSet<UserNotificationSetting> UserNotificationSettings { get; set; }
 
+    public DbSet<UserPushSubscription> UserPushSubscriptions { get; set; }
+
     public DbSet<UserAccessEvent> UserAccessEvents { get; set; }
 
     public DbSet<PcCurrentStatus> PcCurrentStatuses { get; set; }
@@ -178,6 +180,25 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .ValueGeneratedOnAdd();
             entity.Property(e => e.NotificationEmail).HasMaxLength(256);
             entity.HasIndex(e => e.UserId).IsUnique();
+            entity.HasOne(e => e.User)
+                .WithMany()
+                .HasForeignKey(e => e.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<UserPushSubscription>(entity =>
+        {
+            entity.ToTable("UserPushSubscriptions");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id)
+                .HasColumnName("ID")
+                .ValueGeneratedOnAdd();
+            entity.Property(e => e.Endpoint).HasMaxLength(2048);
+            entity.Property(e => e.P256dh).HasMaxLength(512);
+            entity.Property(e => e.Auth).HasMaxLength(256);
+            entity.Property(e => e.UserAgent).HasMaxLength(1024);
+            entity.HasIndex(e => e.UserId);
+            entity.HasIndex(e => e.Endpoint).IsUnique();
             entity.HasOne(e => e.User)
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
