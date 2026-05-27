@@ -1,0 +1,120 @@
+name: CONFIG - DASH2A Push VAPID
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type CONFIGURE_PUSH_VAPID to create/update runtime VAPID config"
+        required: true
+        type: string
+      rotate:
+        description: "Optional: type ROTATE_VAPID to replace existing keys"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  configure-vapid:
+    name: Generate and apply VAPID runtime config
+    if: ${{ github.event.inputs.confirm == 'CONFIGURE_PUSH_VAPID' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 10
+
+    steps:
+      - name: Configure VAPID without printing private key
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+
+          function ConvertTo-Base64Url([byte[]]$bytes) {
+            return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+          }
+
+          function New-VapidKeys {
+            $ecdsa = [System.Security.Cryptography.ECDsa]::Create([System.Security.Cryptography.ECCurve+NamedCurves]::nistP256)
+            try {
+              $params = $ecdsa.ExportParameters($true)
+              $public = New-Object byte[] (1 + $params.Q.X.Length + $params.Q.Y.Length)
+              $public[0] = 4
+              [Buffer]::BlockCopy($params.Q.X, 0, $public, 1, $params.Q.X.Length)
+              [Buffer]::BlockCopy($params.Q.Y, 0, $public, 1 + $params.Q.X.Length, $params.Q.Y.Length)
+
+              return [pscustomobject]@{
+                PublicKey = ConvertTo-Base64Url $public
+                PrivateKey = ConvertTo-Base64Url $params.D
+              }
+            }
+            finally {
+              $ecdsa.Dispose()
+            }
+          }
+
+          $siteName = 'demoapp'
+          $appPoolName = 'demoapp'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          $site = Get-Website -Name $siteName -ErrorAction Stop
+          $physicalPath = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+          $releaseConfig = Join-Path $physicalPath 'appsettings.Production.json'
+
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared config not found: $sharedConfig"
+          }
+          if (-not (Test-Path -LiteralPath $releaseConfig)) {
+            throw "Release config not found: $releaseConfig"
+          }
+
+          $sharedJson = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $hasExisting = $sharedJson.Push -and $sharedJson.Push.VapidPublicKey -and $sharedJson.Push.VapidPrivateKey
+          $shouldRotate = '${{ github.event.inputs.rotate }}' -eq 'ROTATE_VAPID'
+
+          if ($hasExisting -and -not $shouldRotate) {
+            $keys = [pscustomobject]@{
+              PublicKey = [string]$sharedJson.Push.VapidPublicKey
+              PrivateKey = [string]$sharedJson.Push.VapidPrivateKey
+            }
+            Write-Host "VAPID_EXISTING_REUSED=true"
+          } else {
+            $keys = New-VapidKeys
+            Write-Host "VAPID_EXISTING_REUSED=false"
+          }
+
+          $subject = $null
+          if ($sharedJson.Push -and $sharedJson.Push.Subject) {
+            $subject = [string]$sharedJson.Push.Subject
+          }
+          if ([string]::IsNullOrWhiteSpace($subject) -and $sharedJson.Smtp -and $sharedJson.Smtp.From) {
+            $subject = "mailto:$($sharedJson.Smtp.From)"
+          }
+          if ([string]::IsNullOrWhiteSpace($subject)) {
+            $subject = 'mailto:admin@botdashboard.local'
+          }
+
+          foreach ($path in @($sharedConfig, $releaseConfig)) {
+            $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+            if (-not $json.Push) {
+              $json | Add-Member -MemberType NoteProperty -Name Push -Value ([pscustomobject]@{})
+            }
+
+            $json.Push.VapidPublicKey = $keys.PublicKey
+            $json.Push.VapidPrivateKey = $keys.PrivateKey
+            $json.Push.Subject = $subject
+
+            $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding UTF8
+            Write-Host "UPDATED=$path"
+          }
+
+          Restart-WebAppPool -Name $appPoolName
+          Start-Sleep -Seconds 6
+
+          $verify = Get-Content -LiteralPath $releaseConfig -Raw | ConvertFrom-Json
+          Write-Host "PUSH_PUBLIC_KEY_PRESENT=$([bool]$verify.Push.VapidPublicKey)"
+          Write-Host "PUSH_PRIVATE_KEY_PRESENT=$([bool]$verify.Push.VapidPrivateKey)"
+          Write-Host "PUSH_SUBJECT=$($verify.Push.Subject)"
+          Write-Host "PUSH_PUBLIC_KEY=$($verify.Push.VapidPublicKey)"
+
+          $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1/api/push/vapid-public-key' -TimeoutSec 15
+          Write-Host "LOCAL_PUSH_STATUS=$($response.StatusCode)"
+          Write-Host "LOCAL_PUSH_BODY=$($response.Content)"
