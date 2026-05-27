@@ -94,13 +94,17 @@ jobs:
 
           foreach ($path in @($sharedConfig, $releaseConfig)) {
             $json = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
-            if (-not $json.Push) {
-              $json | Add-Member -MemberType NoteProperty -Name Push -Value ([pscustomobject]@{})
+            $pushConfig = [pscustomobject]@{
+              VapidPublicKey = $keys.PublicKey
+              VapidPrivateKey = $keys.PrivateKey
+              Subject = $subject
             }
 
-            $json.Push.VapidPublicKey = $keys.PublicKey
-            $json.Push.VapidPrivateKey = $keys.PrivateKey
-            $json.Push.Subject = $subject
+            if ($json.Push) {
+              $json.Push = $pushConfig
+            } else {
+              $json | Add-Member -MemberType NoteProperty -Name Push -Value $pushConfig
+            }
 
             $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding UTF8
             Write-Host "UPDATED=$path"
