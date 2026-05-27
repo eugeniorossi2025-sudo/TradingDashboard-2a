@@ -16,6 +16,23 @@ const telemetryData = computed(() => {
         return {};
     }
 });
+
+const securityFilterRows = computed(() => {
+    const byBot = telemetryData.value?.SecurityFilterByBot;
+    if (!byBot || typeof byBot !== 'object') return [];
+
+    return Object.entries(byBot)
+        .map(([computer, row]) => ({
+            computer,
+            ...(row || {})
+        }))
+        .sort((a, b) => String(a.computer).localeCompare(String(b.computer)));
+});
+
+function formatSeconds(value) {
+    if (value == null || Number(value) <= 0) return '-';
+    return `${Number(value).toFixed(1)}s`;
+}
 </script>
 
 <template>
@@ -187,6 +204,7 @@ const telemetryData = computed(() => {
                 {{ telemetryData?.TotalSecurityFilterActivated ?? 0 }}
             </div>
             <div class="text-sm text-muted-color mt-2">Avg hand: {{ telemetryData?.LastAvgHandSeconds != null ? Number(telemetryData.LastAvgHandSeconds).toFixed(1) + 's' : '-' }}</div>
+            <div class="text-sm text-muted-color">Bot attivi: {{ telemetryData?.ActiveSecurityFilterBots ?? 0 }}</div>
         </div>
     </div>
 
@@ -197,6 +215,51 @@ const telemetryData = computed(() => {
                 {{ telemetryData?.TotalSecurityFilterPreventedL6 ?? 0 }}
             </div>
             <div class="text-sm text-muted-color mt-2">Filtro a L5 con credito disponibile</div>
+        </div>
+    </div>
+
+    <div class="col-span-12" v-if="securityFilterRows.length">
+        <div class="card">
+            <div class="flex justify-between items-center mb-4">
+                <span class="block text-muted-color font-medium">Security Filter per bot</span>
+                <span class="text-sm text-muted-color">{{ securityFilterRows.length }} bot</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-muted-color">
+                            <th class="py-2 pr-3">Bot</th>
+                            <th class="py-2 pr-3">Avg mano</th>
+                            <th class="py-2 pr-3">Ultimo delta</th>
+                            <th class="py-2 pr-3">Streak</th>
+                            <th class="py-2 pr-3">Score</th>
+                            <th class="py-2 pr-3">Filtro</th>
+                            <th class="py-2 pr-3">Scope pausa</th>
+                            <th class="py-2 pr-3">L6 prevenuti</th>
+                            <th class="py-2 pr-3">Mano shoe</th>
+                            <th class="py-2 pr-3">L</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="row in securityFilterRows" :key="row.computer" class="border-t border-surface-200 dark:border-surface-700">
+                            <td class="py-2 pr-3 font-medium">{{ row.Computer || row.computer }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.AvgHandSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ formatSeconds(row.LastHandDeltaSeconds) }}</td>
+                            <td class="py-2 pr-3">{{ row.CurrentStreak ?? 0 }}</td>
+                            <td class="py-2 pr-3">{{ row.SecurityRiskScore ?? 0 }}/4</td>
+                            <td class="py-2 pr-3" :class="row.SecurityFilterActive ? 'text-red-500 font-semibold' : 'text-muted-color'">
+                                {{ row.SecurityFilterActive ? 'Attivo' : 'Non attivo' }}
+                            </td>
+                            <td class="py-2 pr-3">
+                                {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                            </td>
+                            <td class="py-2 pr-3">{{ row.PreventedL6 ?? 0 }}</td>
+                            <td class="py-2 pr-3">{{ row.LastShoeHand ?? '-' }}</td>
+                            <td class="py-2 pr-3">{{ row.Martingala ?? '-' }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
 </template>

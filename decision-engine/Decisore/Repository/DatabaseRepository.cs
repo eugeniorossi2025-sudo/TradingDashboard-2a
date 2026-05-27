@@ -490,26 +490,61 @@ namespace Decisore.Repository
 
                 var telemetryJson = JsonSerializer.Serialize(new Telemetry());
 
-                using (var insertCmd = new SqlCommand(@"
-    INSERT INTO dbo.Statistiche
-    (
-        TELEMETRY,
-        DATA_INIZIO,
-        MARGINE_TOT,
-        MARGINE_MIN,
-        MARGINE_MAX,
-        ELAPSED
-    )
-    VALUES
-    (
-        @Telemetry,
-        SYSUTCDATETIME(),
-        @MargineTot,
-        @MargineMin,
-        @MargineMax,
-        @Elapsed
-    )
-", conn, tran))
+                var isStatisticheIdIdentity = false;
+                using (var identityCmd = new SqlCommand(@"
+                    SELECT COLUMNPROPERTY(OBJECT_ID('dbo.Statistiche'), 'ID', 'IsIdentity');
+                ", conn, tran))
+                {
+                    isStatisticheIdIdentity = Convert.ToInt32(identityCmd.ExecuteScalar() ?? 0) == 1;
+                }
+
+                var insertSql = isStatisticheIdIdentity
+                    ? @"
+                        INSERT INTO dbo.Statistiche
+                        (
+                            TELEMETRY,
+                            DATA_INIZIO,
+                            MARGINE_TOT,
+                            MARGINE_MIN,
+                            MARGINE_MAX,
+                            CREATED_AT,
+                            ELAPSED
+                        )
+                        VALUES
+                        (
+                            @Telemetry,
+                            SYSUTCDATETIME(),
+                            @MargineTot,
+                            @MargineMin,
+                            @MargineMax,
+                            SYSUTCDATETIME(),
+                            @Elapsed
+                        );"
+                    : @"
+                        INSERT INTO dbo.Statistiche
+                        (
+                            ID,
+                            TELEMETRY,
+                            DATA_INIZIO,
+                            MARGINE_TOT,
+                            MARGINE_MIN,
+                            MARGINE_MAX,
+                            CREATED_AT,
+                            ELAPSED
+                        )
+                        VALUES
+                        (
+                            (SELECT ISNULL(MAX(ID), 0) + 1 FROM dbo.Statistiche WITH (UPDLOCK, HOLDLOCK)),
+                            @Telemetry,
+                            SYSUTCDATETIME(),
+                            @MargineTot,
+                            @MargineMin,
+                            @MargineMax,
+                            SYSUTCDATETIME(),
+                            @Elapsed
+                        );";
+
+                using (var insertCmd = new SqlCommand(insertSql, conn, tran))
                 {
                     insertCmd.Parameters.AddWithValue("@Telemetry", telemetryJson);
                     insertCmd.Parameters.AddWithValue("@MargineTot", 0);

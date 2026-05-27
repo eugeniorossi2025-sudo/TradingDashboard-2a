@@ -191,6 +191,19 @@ public class DashboardService : IDashboardService
                     result.SpotAuthL6Counter = salc.GetInt32();
                 if (root.TryGetProperty("SpotL5Loss", out var sl5l))
                     result.SpotL5Loss = sl5l.GetInt32();
+                if (root.TryGetProperty("TotalSecurityFilterActivated", out var tsfa))
+                    result.TotalSecurityFilterActivated = tsfa.GetInt32();
+                if (root.TryGetProperty("TotalSecurityFilterPreventedL6", out var tsfp))
+                    result.TotalSecurityFilterPreventedL6 = tsfp.GetInt32();
+                if (root.TryGetProperty("LastAvgHandSeconds", out var lah))
+                    result.LastAvgHandSeconds = (decimal)lah.GetDouble();
+                if (root.TryGetProperty("ActiveSecurityFilterBots", out var asfb))
+                    result.ActiveSecurityFilterBots = asfb.GetInt32();
+                if (root.TryGetProperty("SecurityFilterByBot", out var sfbb) && sfbb.ValueKind == JsonValueKind.Object)
+                {
+                    result.SecurityFilterByBot = JsonSerializer.Deserialize<Dictionary<string, SecurityFilterBotTelemetryDto>>(sfbb.GetRawText())
+                        ?? new Dictionary<string, SecurityFilterBotTelemetryDto>();
+                }
             }
             catch { /* telemetry JSON malformed — return partial result */ }
         }

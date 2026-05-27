@@ -24,6 +24,9 @@ public class Advice
     // Security Filter — compressione temporale streak inizio shoe
     public int    SecurityRiskScore       { get; set; }
     public bool   SecurityFilterActive    { get; set; }
+    public bool   SecurityFilterPauseBot  { get; set; }
+    public string SecurityFilterPauseScope { get; set; } = "NONE";
+    public string SecurityFilterPauseComputer { get; set; } = "";
     public double AvgHandSeconds          { get; set; }
     public double LastHandDeltaSeconds    { get; set; }
     public int    CurrentStreak           { get; set; }

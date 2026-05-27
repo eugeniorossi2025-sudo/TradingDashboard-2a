@@ -257,6 +257,11 @@ public class DashboardTelemetry
     public int SpotPbHandsPlayed { get; set; }
     public int SpotAuthL6Counter { get; set; }
     public int SpotL5Loss { get; set; }
+    public int TotalSecurityFilterActivated { get; set; }
+    public int TotalSecurityFilterPreventedL6 { get; set; }
+    public decimal LastAvgHandSeconds { get; set; }
+    public int ActiveSecurityFilterBots { get; set; }
+    public Dictionary<string, SecurityFilterBotTelemetryDto> SecurityFilterByBot { get; set; } = new();
     public DateTime? SessionStart { get; set; }
     public DateTime? SessionEnd { get; set; }
     public decimal MargineTot { get; set; }
@@ -265,6 +270,27 @@ public class DashboardTelemetry
     public decimal Elapsed { get; set; }
     /// <summary>Raw TELEMETRY JSON string from dbo.Statistiche — passed through to the frontend as-is.</summary>
     public string? RawTelemetry { get; set; }
+}
+
+public class SecurityFilterBotTelemetryDto
+{
+    public string Computer { get; set; } = "";
+    public decimal AvgHandSeconds { get; set; }
+    public decimal LastHandDeltaSeconds { get; set; }
+    public int CurrentStreak { get; set; }
+    public int SecurityRiskScore { get; set; }
+    public bool SecurityFilterActive { get; set; }
+    public bool PauseBot { get; set; }
+    public string PauseScope { get; set; } = "NONE";
+    public string PauseComputer { get; set; } = "";
+    public int Activations { get; set; }
+    public int PreventedL6 { get; set; }
+    public int LastShoeHand { get; set; }
+    public int Martingala { get; set; }
+    public bool HasL6Credit { get; set; }
+    public string LastReason { get; set; } = "";
+    public DateTime LastUpdatedUtc { get; set; }
+    public int HandSamples { get; set; }
 }
 
 /// <summary>

@@ -13,6 +13,7 @@ namespace Decisore.Engine
         private readonly Dictionary<string, Queue<double>>         _handDeltasWindow        = new();
         private readonly Dictionary<string, (char Outcome, int Count)> _streakByComputer    = new();
         private readonly Dictionary<string, bool>                  _prevSecFilterActive     = new();
+        private readonly Dictionary<string, SecurityFilterBotTelemetry> _securityFilterByBot = new();
 
         double _lastGlobalMargin = 0;
 
@@ -157,6 +158,29 @@ namespace Decisore.Engine
                     .Select(q => q.Average())
                     .DefaultIfEmpty(0)
                     .Average();
+            telemetry.ActiveSecurityFilterBots = _securityFilterByBot.Values.Count(x => x.SecurityFilterActive);
+            telemetry.SecurityFilterByBot = _securityFilterByBot.ToDictionary(
+                x => x.Key,
+                x => new SecurityFilterBotTelemetry
+                {
+                    Computer = x.Value.Computer,
+                    AvgHandSeconds = x.Value.AvgHandSeconds,
+                    LastHandDeltaSeconds = x.Value.LastHandDeltaSeconds,
+                    CurrentStreak = x.Value.CurrentStreak,
+                    SecurityRiskScore = x.Value.SecurityRiskScore,
+                    SecurityFilterActive = x.Value.SecurityFilterActive,
+                    PauseBot = x.Value.PauseBot,
+                    PauseScope = x.Value.PauseScope,
+                    PauseComputer = x.Value.PauseComputer,
+                    Activations = x.Value.Activations,
+                    PreventedL6 = x.Value.PreventedL6,
+                    LastShoeHand = x.Value.LastShoeHand,
+                    Martingala = x.Value.Martingala,
+                    HasL6Credit = x.Value.HasL6Credit,
+                    LastReason = x.Value.LastReason,
+                    LastUpdatedUtc = x.Value.LastUpdatedUtc,
+                    HandSamples = x.Value.HandSamples
+                });
             
             /* Fine nuovi campi */
             
@@ -382,17 +406,47 @@ namespace Decisore.Engine
 
             // — contatori transizione false→true —
             bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
+            if (!_securityFilterByBot.TryGetValue(computer, out var botSecurity))
+            {
+                botSecurity = new SecurityFilterBotTelemetry { Computer = computer };
+                _securityFilterByBot[computer] = botSecurity;
+            }
+
             if (securityFilterActive && !prevActive)
             {
                 totalSecurityFilterActivated++;
+                botSecurity.Activations++;
                 // KPI: filtro scatta a L5 con autorizzazione L6 disponibile → crossing prevenuto
                 if (martingalaCounter == 5 && !advice.StopL6)
+                {
                     totalSecurityFilterPreventedL6++;
+                    botSecurity.PreventedL6++;
+                }
             }
             _prevSecFilterActive[computer] = securityFilterActive;
 
+            botSecurity.AvgHandSeconds = avgHandSeconds;
+            botSecurity.LastHandDeltaSeconds = lastHandDeltaSeconds;
+            botSecurity.CurrentStreak = currentStreak;
+            botSecurity.SecurityRiskScore = securityScore;
+            botSecurity.SecurityFilterActive = securityFilterActive;
+            botSecurity.PauseBot = securityFilterActive;
+            botSecurity.PauseScope = securityFilterActive ? "BOT" : "NONE";
+            botSecurity.PauseComputer = securityFilterActive ? computer : "";
+            botSecurity.LastShoeHand = handIndexMazzo;
+            botSecurity.Martingala = martingalaCounter;
+            botSecurity.HasL6Credit = _globalAuthL6Counter > 0;
+            botSecurity.LastReason = securityFilterActive
+                ? $"SECURITY FILTER [score {securityScore}/4]"
+                : $"score {securityScore}/4";
+            botSecurity.LastUpdatedUtc = nowUtc;
+            botSecurity.HandSamples = _handDeltasWindow.TryGetValue(computer, out var samplesWindow) ? samplesWindow.Count : 0;
+
             advice.SecurityRiskScore       = securityScore;
             advice.SecurityFilterActive    = securityFilterActive;
+            advice.SecurityFilterPauseBot  = securityFilterActive;
+            advice.SecurityFilterPauseScope = securityFilterActive ? "BOT" : "NONE";
+            advice.SecurityFilterPauseComputer = securityFilterActive ? computer : "";
             advice.AvgHandSeconds          = avgHandSeconds;
             advice.LastHandDeltaSeconds    = lastHandDeltaSeconds;
             advice.CurrentStreak           = currentStreak;
