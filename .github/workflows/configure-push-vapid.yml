@@ -119,6 +119,8 @@ jobs:
           Write-Host "PUSH_SUBJECT=$($verify.Push.Subject)"
           Write-Host "PUSH_PUBLIC_KEY=$($verify.Push.VapidPublicKey)"
 
-          $response = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1/api/push/vapid-public-key' -TimeoutSec 15
-          Write-Host "LOCAL_PUSH_STATUS=$($response.StatusCode)"
-          Write-Host "LOCAL_PUSH_BODY=$($response.Content)"
+          $probe = & curl.exe -k -sS -w "`nHTTP_STATUS=%{http_code}`n" 'https://vps-b0942869.vps.ovh.net/api/push/vapid-public-key'
+          if ($LASTEXITCODE -ne 0) {
+            throw "Push endpoint probe failed with curl exit code $LASTEXITCODE"
+          }
+          Write-Host "PUSH_ENDPOINT_PROBE=$probe"
