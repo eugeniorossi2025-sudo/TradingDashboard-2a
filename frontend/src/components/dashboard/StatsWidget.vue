@@ -87,6 +87,16 @@ function isVeryFast(row) {
     return avg > 0 && avg < getNumber(securityFilterSetup.value.veryFastSeconds);
 }
 
+function isLastL6AvgFast(row) {
+    const avg = getNumber(row?.LastL6AuthorizationAvgHandSeconds);
+    return avg > 0 && avg < getNumber(securityFilterSetup.value.maxAvgSeconds);
+}
+
+function isLastL6VeryFast(row) {
+    const avg = getNumber(row?.LastL6AuthorizationAvgHandSeconds);
+    return avg > 0 && avg < getNumber(securityFilterSetup.value.veryFastSeconds);
+}
+
 function isStreakRisk(row) {
     return getNumber(row?.CurrentStreak) >= getNumber(securityFilterSetup.value.minStreak);
 }
@@ -418,27 +428,46 @@ function getScoreClass(row) {
                             <div class="text-xs text-muted-color mt-1">L6 prevenuti: {{ row.PreventedL6 ?? 0 }}</div>
                         </div>
 
-                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
-                            <div class="mb-2 font-semibold">Frequenza L6</div>
-                            <div class="flex flex-col gap-1 leading-tight">
-                                <span><strong>{{ row.L6PlayedCount ?? 0 }}</strong> giocati</span>
-                                <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastL6DeltaSeconds) }}</span>
-                                <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgL6DeltaSeconds) }}</span>
-                                <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinL6DeltaSeconds, row.MaxL6DeltaSeconds) }}</span>
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
+                            <div class="mb-2 font-semibold">Frequenza L6 e rischio ultimo L6</div>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <span><strong>{{ row.L6PlayedCount ?? 0 }}</strong> giocati</span>
+                                    <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastL6DeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgL6DeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinL6DeltaSeconds, row.MaxL6DeltaSeconds) }}</span>
+                                </div>
+                                <div class="flex flex-col gap-1 leading-tight">
+                                    <div>
+                                        <span class="font-semibold">Avg al L6</span>
+                                        {{ formatSeconds(row.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6AvgFast(row))">{{ getScorePoint(isLastL6AvgFast(row)) }}</span>
+                                    </div>
+                                    <div>
+                                        <span class="font-semibold">Very fast al L6</span>
+                                        {{ formatSeconds(row.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6VeryFast(row))">{{ getScorePoint(isLastL6VeryFast(row)) }}</span>
+                                    </div>
+                                    <span class="text-xs text-muted-color">Score al L6 {{ row.LastL6AuthorizationScore ?? 0 }}/4</span>
+                                    <span class="text-xs text-muted-color">Streak {{ row.LastL6AuthorizationStreak ?? 0 }} · Mano shoe {{ row.LastL6AuthorizationShoeHand ?? '-' }}</span>
+                                </div>
                             </div>
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
-                            <div class="mb-2 font-semibold">Frequenza L8 auth</div>
-                            <div class="grid grid-cols-1 gap-2 md:grid-cols-2">
+                            <div class="mb-2 font-semibold">Frequenza L8 auth e perdita</div>
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
                                     <span><strong>{{ row.AuthorizedL8LostCount ?? 0 }}</strong> L8 persi auth</span>
-                                    <span class="text-xs text-muted-color">Delta persi: ult {{ formatDuration(row.LastAuthorizedL8LostDeltaSeconds) }}, avg {{ formatDuration(row.AvgAuthorizedL8LostDeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Ult {{ formatDuration(row.LastAuthorizedL8LostDeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Avg {{ formatDuration(row.AvgAuthorizedL8LostDeltaSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Range {{ formatDurationRange(row.MinAuthorizedL8LostDeltaSeconds, row.MaxAuthorizedL8LostDeltaSeconds) }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span class="text-xs text-muted-color">Auth -> L8: {{ formatDuration(row.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Range auth -> L8: {{ formatDurationRange(row.MinAuthorizedL8LossFromAuthorizationSeconds, row.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Score auth: {{ Number(row.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${row.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
+                                    <span><strong>Auth -> L8</strong> {{ formatDuration(row.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Avg auth -> L8 {{ formatDuration(row.AvgAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Range auth -> L8 {{ formatDurationRange(row.MinAuthorizedL8LossFromAuthorizationSeconds, row.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Score auth {{ Number(row.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${row.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
                                 </div>
                             </div>
                         </div>
