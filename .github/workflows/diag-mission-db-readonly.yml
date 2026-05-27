@@ -187,7 +187,7 @@ jobs:
           Invoke-TableQuery 'Current bot status evidence' @"
           SELECT
             COUNT_BIG(*) AS PcCurrentRows,
-            MAX(LastUpdate) AS LastBotUpdate
+            MAX(LAST_UPDATE) AS LastBotUpdate
           FROM dbo.Pc_CurrentStatus;
           "@
 
