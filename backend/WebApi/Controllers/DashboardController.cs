@@ -257,6 +257,7 @@ public class DashboardTelemetry
     public int SpotPbHandsPlayed { get; set; }
     public int SpotAuthL6Counter { get; set; }
     public int SpotL5Loss { get; set; }
+    public bool SecurityFilterEnabled { get; set; } = true;
     public int TotalSecurityFilterActivated { get; set; }
     public int TotalSecurityFilterPreventedL6 { get; set; }
     public decimal LastAvgHandSeconds { get; set; }

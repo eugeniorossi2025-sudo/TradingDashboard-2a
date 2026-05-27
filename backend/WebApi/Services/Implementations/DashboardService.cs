@@ -191,6 +191,8 @@ public class DashboardService : IDashboardService
                     result.SpotAuthL6Counter = salc.GetInt32();
                 if (root.TryGetProperty("SpotL5Loss", out var sl5l))
                     result.SpotL5Loss = sl5l.GetInt32();
+                if (root.TryGetProperty("SecurityFilterEnabled", out var sfe))
+                    result.SecurityFilterEnabled = sfe.GetBoolean();
                 if (root.TryGetProperty("TotalSecurityFilterActivated", out var tsfa))
                     result.TotalSecurityFilterActivated = tsfa.GetInt32();
                 if (root.TryGetProperty("TotalSecurityFilterPreventedL6", out var tsfp))

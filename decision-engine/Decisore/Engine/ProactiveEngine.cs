@@ -68,6 +68,7 @@ namespace Decisore.Engine
         public int COOLDOWN_PAUSE_PB = 20;
 
         // Security Filter config
+        public bool   SECURITY_FILTER_ENABLED            = true;
         public int    SECURITY_FILTER_MAX_SHOE_HAND      = 20;
         public int    SECURITY_FILTER_MIN_STREAK         = 5;
         public double SECURITY_FILTER_MAX_AVG_SECONDS    = 23.5;
@@ -151,6 +152,7 @@ namespace Decisore.Engine
             telemetry.TotalPauseScalpingSoglieActivated = totalPauseScalpingSoglieActivated;
             telemetry.TotalPauseScalpingEWMAActivated = totalPauseScalpingEWMAActivated;
 
+            telemetry.SecurityFilterEnabled          = SECURITY_FILTER_ENABLED;
             telemetry.TotalSecurityFilterActivated   = totalSecurityFilterActivated;
             telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
             telemetry.LastAvgHandSeconds =
@@ -402,7 +404,7 @@ namespace Decisore.Engine
             if (handIndexMazzo <= SECURITY_FILTER_MAX_SHOE_HAND)                             securityScore++;
             if (avgHandSeconds  > 0 && avgHandSeconds < SECURITY_FILTER_VERY_FAST_SECONDS)  securityScore++;
 
-            bool securityFilterActive = securityScore >= SECURITY_FILTER_MIN_SCORE;
+            bool securityFilterActive = SECURITY_FILTER_ENABLED && securityScore >= SECURITY_FILTER_MIN_SCORE;
 
             // — contatori transizione false→true —
             bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
@@ -438,10 +440,13 @@ namespace Decisore.Engine
             botSecurity.HasL6Credit = _globalAuthL6Counter > 0;
             botSecurity.LastReason = securityFilterActive
                 ? $"SECURITY FILTER [score {securityScore}/4]"
+                : !SECURITY_FILTER_ENABLED
+                    ? $"disabled [score {securityScore}/4]"
                 : $"score {securityScore}/4";
             botSecurity.LastUpdatedUtc = nowUtc;
             botSecurity.HandSamples = _handDeltasWindow.TryGetValue(computer, out var samplesWindow) ? samplesWindow.Count : 0;
 
+            advice.SecurityFilterEnabled    = SECURITY_FILTER_ENABLED;
             advice.SecurityRiskScore       = securityScore;
             advice.SecurityFilterActive    = securityFilterActive;
             advice.SecurityFilterPauseBot  = securityFilterActive;

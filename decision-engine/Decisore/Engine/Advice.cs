@@ -22,6 +22,7 @@ public class Advice
     public int ActionCode { get; set; }
 
     // Security Filter — compressione temporale streak inizio shoe
+    public bool   SecurityFilterEnabled    { get; set; } = true;
     public int    SecurityRiskScore       { get; set; }
     public bool   SecurityFilterActive    { get; set; }
     public bool   SecurityFilterPauseBot  { get; set; }

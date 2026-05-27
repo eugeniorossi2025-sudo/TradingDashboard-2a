@@ -90,6 +90,10 @@ namespace Decisore.Services
                         ? JsonSerializer.Deserialize<int[][]>(hotzones).Select(x => (from: x[0], to: x[1])).ToArray()
                         : _engine.HOT_ZONES;
 
+                    _engine.SECURITY_FILTER_ENABLED = cfg.TryGetValue("SECURITY_FILTER_ENABLED", out var sfEnabled)
+                        ? ParseEnabledFlag(sfEnabled)
+                        : _engine.SECURITY_FILTER_ENABLED;
+
                     _engine.SECURITY_FILTER_MAX_SHOE_HAND = cfg.TryGetValue("SECURITY_FILTER_MAX_SHOE_HAND", out var sfMaxHand)
                         ? int.Parse(sfMaxHand, CultureInfo.InvariantCulture)
                         : _engine.SECURITY_FILTER_MAX_SHOE_HAND;
@@ -117,6 +121,14 @@ namespace Decisore.Services
                     Console.WriteLine(ex.Message);
                 }
             }
+        }
+
+        private static bool ParseEnabledFlag(string value)
+        {
+            return value.Trim().Equals("1", StringComparison.OrdinalIgnoreCase)
+                || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
+                || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
+                || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
         }
 
         public void emergencyStop()

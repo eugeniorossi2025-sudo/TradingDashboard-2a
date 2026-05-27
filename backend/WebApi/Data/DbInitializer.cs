@@ -30,6 +30,9 @@ public static class DbInitializer
         // 3. Create admin user if it doesn't exist
         await CreateAdminUserAsync(userManager, configuration, logger);
 
+        // 4. Ensure operational configuration keys exist in /pages/configuration
+        await SeedOperationalConfigurationsAsync(serviceProvider, logger);
+
         logger.LogInformation("Database initialization completed successfully");
     }
 
@@ -229,6 +232,82 @@ public static class DbInitializer
                 await userManager.UpdateAsync(adminUser);
                 logger.LogInformation($"✅ Updated Admin field for '{adminUsername}'");
             }
+        }
+    }
+
+    private static async Task SeedOperationalConfigurationsAsync(IServiceProvider serviceProvider, ILogger logger)
+    {
+        var context = serviceProvider.GetRequiredService<AppDbContext>();
+        var defaults = new[]
+        {
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_ENABLED",
+                Description = "Security Filter per-bot: 1 attivo, 0 spento.",
+                Value = "1",
+                Pos = 900
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_MAX_SHOE_HAND",
+                Description = "Security Filter: applica il filtro entro questa mano dello shoe.",
+                Value = "20",
+                Pos = 901
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_MIN_STREAK",
+                Description = "Security Filter: streak minimo richiesto per aumentare il rischio.",
+                Value = "5",
+                Pos = 902
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_MAX_AVG_SECONDS",
+                Description = "Security Filter: media secondi mano sotto questa soglia aumenta il rischio.",
+                Value = "23.5",
+                Pos = 903
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_VERY_FAST_SECONDS",
+                Description = "Security Filter: media secondi mano molto veloce, ulteriore punto rischio.",
+                Value = "21.0",
+                Pos = 904
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_DELTA_WINDOW",
+                Description = "Security Filter: numero campioni usati per la media tempi per bot.",
+                Value = "8",
+                Pos = 905
+            },
+            new Configuration
+            {
+                Key = "SECURITY_FILTER_MIN_SCORE",
+                Description = "Security Filter: score minimo su 4 per mettere in pausa solo quel bot.",
+                Value = "3",
+                Pos = 906
+            }
+        };
+
+        var added = 0;
+        foreach (var item in defaults)
+        {
+            var exists = await context.Configurations.FindAsync(item.Key);
+            if (exists != null)
+            {
+                continue;
+            }
+
+            context.Configurations.Add(item);
+            added++;
+        }
+
+        if (added > 0)
+        {
+            await context.SaveChangesAsync();
+            logger.LogInformation("Seeded {Count} missing Security Filter configuration keys", added);
         }
     }
 }

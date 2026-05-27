@@ -194,7 +194,12 @@ function formatSeconds(value) {
 
     <!-- ================= SECURITY FILTER ================= -->
     <div class="col-span-12 mt-6">
-        <h3 class="text-xl font-semibold mb-4">Security Filter (sperimentale)</h3>
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
+            <h3 class="text-xl font-semibold m-0">Security Filter (sperimentale)</h3>
+            <span class="text-sm" :class="telemetryData?.SecurityFilterEnabled === false ? 'text-red-500' : 'text-green-500'">
+                {{ telemetryData?.SecurityFilterEnabled === false ? 'Disattivato da Config' : 'Attivo da Config' }}
+            </span>
+        </div>
     </div>
 
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">

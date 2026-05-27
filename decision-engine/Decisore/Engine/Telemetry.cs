@@ -28,6 +28,7 @@ public class Telemetry
     public int TotalPauseScalpingEWMAActivated { get; set; } = 0;
 
     // Security Filter — filtro sperimentale compressione temporale streak
+    public bool   SecurityFilterEnabled          { get; set; } = true;
     public int    TotalSecurityFilterActivated    { get; set; } = 0;
     public int    TotalSecurityFilterPreventedL6  { get; set; } = 0;
     public double LastAvgHandSeconds              { get; set; } = 0;
