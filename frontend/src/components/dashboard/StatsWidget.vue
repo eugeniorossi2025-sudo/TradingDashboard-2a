@@ -607,7 +607,7 @@ function selectSecurityFilterBot(row) {
                             <div class="font-bold" :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</div>
                         </div>
                         <div>
-                            <div class="text-xs uppercase tracking-wide text-muted-color">Shoe</div>
+                            <div class="text-xs uppercase tracking-wide text-muted-color">Shoe processato</div>
                             <div class="font-bold">{{ row.LastShoeHand ?? '-' }}</div>
                         </div>
                     </div>
@@ -686,11 +686,12 @@ function selectSecurityFilterBot(row) {
                                     <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isStreakRisk(selectedSecurityFilterRow))">{{ getScorePoint(isStreakRisk(selectedSecurityFilterRow)) }}</span>
                                 </div>
                                 <div>
-                                    <div class="text-xs text-muted-color">Mano shoe</div>
+                                    <div class="text-xs text-muted-color">Mano processata</div>
                                     <div class="font-semibold">{{ selectedSecurityFilterRow.LastShoeHand ?? '-' }} / {{ securityFilterSetup.maxShoeHand }}</div>
                                     <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isShoeRisk(selectedSecurityFilterRow))">{{ getScorePoint(isShoeRisk(selectedSecurityFilterRow)) }}</span>
                                 </div>
                             </div>
+                            <div class="mt-3 text-xs text-muted-color">Telemetry = ultima mano processata dal Decisore, non stato live bot.</div>
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">

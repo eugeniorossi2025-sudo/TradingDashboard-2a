@@ -222,9 +222,9 @@ const refreshTelemetry = async () => {
 
 const startLiveDataPolling = () => {
     if (liveDataRefreshInterval) return;
-    liveDataRefreshInterval = window.setInterval(() => {
-        refreshTelemetry();
-        refreshProfitChart();
+    liveDataRefreshInterval = window.setInterval(async () => {
+        await Promise.all([refreshTelemetry(), refreshMissionState()]);
+        await refreshProfitChart();
     }, LIVE_DATA_REFRESH_INTERVAL_MS);
 };
 
