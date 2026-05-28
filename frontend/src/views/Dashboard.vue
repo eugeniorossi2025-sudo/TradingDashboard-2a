@@ -26,6 +26,8 @@ const statisticsData = ref([]);
 const isConnected = ref(false);
 const decisionMethod = ref(null);
 const missionState = ref(null);
+const TELEMETRY_REFRESH_INTERVAL_MS = 3000;
+let telemetryRefreshInterval = null;
 
 const { isAdmin } = useAuth();
 
@@ -200,18 +202,35 @@ const appendLiveProfitPoint = (payload) => {
 };
 
 const refreshTelemetry = async () => {
-    const telemetry = await DashboardService.getTelemetry();
-    if (!telemetry) return;
+    try {
+        const telemetry = await DashboardService.getTelemetry();
+        if (!telemetry) return;
 
-    statisticsData.value = [{
-        timestamp: telemetry.sessionStart ?? new Date().toISOString(),
-        sessionEnd: telemetry.sessionEnd ?? null,
-        margine: telemetry.margineTot ?? 0,
-        margineMin: telemetry.margineMin ?? 0,
-        margineMax: telemetry.margineMax ?? 0,
-        elapsed: telemetry.elapsed ?? 0,
-        telemetry: telemetry.rawTelemetry ?? null
-    }];
+        statisticsData.value = [{
+            timestamp: telemetry.sessionStart ?? new Date().toISOString(),
+            sessionEnd: telemetry.sessionEnd ?? null,
+            margine: telemetry.margineTot ?? 0,
+            margineMin: telemetry.margineMin ?? 0,
+            margineMax: telemetry.margineMax ?? 0,
+            elapsed: telemetry.elapsed ?? 0,
+            telemetry: telemetry.rawTelemetry ?? null
+        }];
+    } catch (error) {
+        console.error('❌ Error refreshing telemetry:', error);
+    }
+};
+
+const startTelemetryPolling = () => {
+    if (telemetryRefreshInterval) return;
+    telemetryRefreshInterval = window.setInterval(() => {
+        refreshTelemetry();
+    }, TELEMETRY_REFRESH_INTERVAL_MS);
+};
+
+const stopTelemetryPolling = () => {
+    if (!telemetryRefreshInterval) return;
+    window.clearInterval(telemetryRefreshInterval);
+    telemetryRefreshInterval = null;
 };
 
 const showResetDialog = ref(false);
@@ -377,6 +396,7 @@ onMounted(async () => {
     const decisionMethodResponse = await ConfigurationService.getConfigurationById('DECISION_METHOD');
     decisionMethod.value = decisionMethodResponse ? decisionMethodResponse.value : null;
     await fetchDashboardData();
+    startTelemetryPolling();
     try {
         await signalRService.startConnection('/dashboardHub');
         isConnected.value = true;
@@ -424,6 +444,7 @@ const latestStatisticData = computed(() => {
 
 onUnmounted(async () => {
     // Rimuovi i listener
+    stopTelemetryPolling();
     signalRService.off('ReceiveDashboardUpdate', onDashboardUpdate);
     await signalRService.stopConnection();
 });
