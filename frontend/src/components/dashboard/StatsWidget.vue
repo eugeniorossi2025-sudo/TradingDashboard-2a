@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = defineProps({
     telemetry: {
@@ -7,6 +7,8 @@ const props = defineProps({
         default: null
     }
 });
+
+const selectedSecurityFilterBot = ref(null);
 
 const telemetryData = computed(() => {
     if (!props.telemetry) return {};
@@ -26,8 +28,36 @@ const securityFilterRows = computed(() => {
             computer,
             ...(row || {})
         }))
-        .sort((a, b) => String(a.computer).localeCompare(String(b.computer)));
+        .sort((a, b) => {
+            const riskDelta = getRiskRank(b) - getRiskRank(a);
+            if (riskDelta !== 0) return riskDelta;
+
+            const levelDelta = getNumber(b?.Martingala) - getNumber(a?.Martingala);
+            if (levelDelta !== 0) return levelDelta;
+
+            const avgDelta = getNumber(a?.AvgHandSeconds, Number.MAX_SAFE_INTEGER) - getNumber(b?.AvgHandSeconds, Number.MAX_SAFE_INTEGER);
+            if (avgDelta !== 0) return avgDelta;
+
+            return getBotName(a).localeCompare(getBotName(b));
+        });
 });
+
+const selectedSecurityFilterRow = computed(() => {
+    if (!securityFilterRows.value.length) return null;
+    return securityFilterRows.value.find((row) => getBotName(row) === selectedSecurityFilterBot.value) ?? securityFilterRows.value[0];
+});
+
+const securityFilterRiskStrip = computed(() => {
+    const riskyRows = securityFilterRows.value.filter((row) => getRiskRank(row) >= 1);
+    if (!riskyRows.length) return 'Tutti i bot in stato normale';
+
+    return riskyRows
+        .slice(0, 4)
+        .map((row) => `${getBotName(row)} ${getRiskStripReason(row)}`)
+        .join(' · ');
+});
+
+const hasSecurityFilterRisk = computed(() => securityFilterRows.value.some((row) => getRiskRank(row) >= 1));
 
 const securityFilterSetup = computed(() => ({
     minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
@@ -67,6 +97,10 @@ function formatDurationRange(minValue, maxValue) {
 function getNumber(value, fallback = 0) {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function getBotName(row) {
+    return String(row?.Computer || row?.computer || '-');
 }
 
 function getRiskPillClass(active) {
@@ -213,6 +247,80 @@ function getScoreDotClass(row, point) {
     if (score >= 3) return 'bg-red-500';
     if (score === 2) return 'bg-orange-500';
     return 'bg-emerald-500';
+}
+
+function getRiskRank(row) {
+    const score = Number(row?.SecurityRiskScore ?? 0);
+    if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
+    if (score === 2 || getRapidDeltaCount(row) === 1) return 1;
+    return 0;
+}
+
+function getRiskLabel(row) {
+    if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
+    if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
+    if (getRiskRank(row) === 1) return 'ATTENZIONE';
+    return 'NORMALE';
+}
+
+function getRiskStripReason(row) {
+    if (row?.PauseBot || row?.SecurityFilterActive) return 'pausa';
+    if (isRapidTriggerActive(row)) return 'trigger L5';
+    if (Number(row?.SecurityRiskScore ?? 0) >= 3) return `score ${row.SecurityRiskScore}/4`;
+    if (getRapidDeltaCount(row) === 1) return '1 delta fast';
+    return 'attenzione ritmo';
+}
+
+function getRiskDotClass(row) {
+    const rank = getRiskRank(row);
+    if (rank === 2) return 'bg-red-500';
+    if (rank === 1) return 'bg-orange-500';
+    return 'bg-emerald-500';
+}
+
+function getRiskCardClass(row) {
+    const rank = getRiskRank(row);
+    const selected = selectedSecurityFilterRow.value && getBotName(selectedSecurityFilterRow.value) === getBotName(row);
+    if (rank === 2) return selected ? 'border-red-300 bg-red-50 dark:border-red-800 dark:bg-red-950/30' : 'border-red-200 bg-red-50/70 dark:border-red-900/70 dark:bg-red-950/20';
+    if (rank === 1) return selected ? 'border-orange-300 bg-orange-50 dark:border-orange-800 dark:bg-orange-950/30' : 'border-orange-200 bg-orange-50/70 dark:border-orange-900/70 dark:bg-orange-950/20';
+    return selected ? 'border-emerald-300 bg-emerald-50 dark:border-emerald-800 dark:bg-emerald-950/30' : 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/15';
+}
+
+function getRiskStatusClass(row) {
+    const rank = getRiskRank(row);
+    if (rank === 2) return 'border-red-200 bg-red-100 text-red-700 dark:border-red-800 dark:bg-red-900/30 dark:text-red-300';
+    if (rank === 1) return 'border-orange-200 bg-orange-100 text-orange-700 dark:border-orange-800 dark:bg-orange-900/30 dark:text-orange-300';
+    return 'border-emerald-200 bg-emerald-100 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300';
+}
+
+function getScoreBlockClass(row, point) {
+    const score = Number(row?.SecurityRiskScore ?? 0);
+    if (score < point) return 'bg-surface-200 dark:bg-surface-700';
+    if (score >= 3) return 'bg-red-500';
+    if (score === 2) return 'bg-orange-500';
+    return 'bg-emerald-500';
+}
+
+function getTriggerLabel(row) {
+    if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
+    if (isRapidTriggerActive(row)) return 'TRIGGER ON';
+    if (getRapidDeltaCount(row) === 1) return '1 FAST';
+    return 'OFF';
+}
+
+function getTriggerClass(row) {
+    const rank = getRiskRank(row);
+    if (rank === 2) return 'text-red-600 dark:text-red-300';
+    if (rank === 1) return 'text-orange-600 dark:text-orange-300';
+    return 'text-muted-color';
+}
+
+function shouldPulseCard(row) {
+    return isRapidTriggerActive(row) || row?.PauseBot || row?.SecurityFilterActive || Number(row?.SecurityRiskScore ?? 0) >= 3 || Number(row?.PreventedL6 ?? 0) > 0;
+}
+
+function selectSecurityFilterBot(row) {
+    selectedSecurityFilterBot.value = getBotName(row);
 }
 </script>
 
@@ -445,60 +553,119 @@ function getScoreDotClass(row, point) {
 
     <div class="col-span-12" v-if="securityFilterRows.length">
         <div class="card">
-            <div class="flex justify-between items-center mb-4">
-                <span class="block text-muted-color font-medium">Security Filter per bot</span>
-                <span class="text-sm text-muted-color">{{ securityFilterRows.length }} bot</span>
+            <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <span class="block text-muted-color font-medium">Security Filter Control Room</span>
+                    <div class="mt-1 text-sm text-muted-color">Overview compatta, ordinata per rischio operativo. Click su un bot per aprire il dettaglio.</div>
+                </div>
+                <div class="flex flex-wrap gap-2 text-xs font-semibold">
+                    <span class="inline-flex items-center gap-2 rounded-full bg-red-100 px-2.5 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                        <span class="h-2 w-2 rounded-full bg-red-500"></span>
+                        {{ securityFilterRows.filter((row) => getRiskRank(row) === 2).length }} rossi
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full bg-orange-100 px-2.5 py-1 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300">
+                        <span class="h-2 w-2 rounded-full bg-orange-500"></span>
+                        {{ securityFilterRows.filter((row) => getRiskRank(row) === 1).length }} arancioni
+                    </span>
+                    <span class="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-2.5 py-1 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                        <span class="h-2 w-2 rounded-full bg-emerald-500"></span>
+                        {{ securityFilterRows.filter((row) => getRiskRank(row) === 0).length }} verdi
+                    </span>
+                </div>
             </div>
-            <div class="grid grid-cols-1 gap-4">
-                <div v-for="row in securityFilterRows" :key="row.computer" class="rounded-2xl border border-surface-200 p-4 transition-colors dark:border-surface-700" :class="getSecurityFilterRowClass(row)">
-                    <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="inline-flex items-center gap-2 rounded-full bg-primary-100 px-3 py-1 font-semibold text-primary-700 dark:bg-primary-900/30 dark:text-primary-300">
-                                <span class="h-2 w-2 rounded-full" :class="row.SecurityFilterActive ? 'bg-red-500' : 'bg-emerald-500'"></span>
-                                {{ row.Computer || row.computer }}
-                            </span>
-                            <span class="rounded-full bg-surface-100 px-2.5 py-1 text-xs font-semibold text-muted-color dark:bg-surface-800">L{{ row.Martingala ?? '-' }}</span>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSummaryPillClass(row)">{{ getSummaryPill(row) }}</span>
+
+            <div
+                class="mb-4 flex flex-col gap-2 rounded-xl border p-3 text-sm md:flex-row md:items-center md:justify-between"
+                :class="hasSecurityFilterRisk ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900/70 dark:bg-red-950/25 dark:text-red-200' : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900/70 dark:bg-emerald-950/20 dark:text-emerald-200'"
+            >
+                <span class="font-semibold">{{ hasSecurityFilterRisk ? 'RISCHIO ATTIVO' : 'NESSUN RISCHIO ATTIVO' }}: {{ securityFilterRiskStrip }}</span>
+                <span class="text-xs text-muted-color">Rossi prima, poi arancioni, poi verdi</span>
+            </div>
+
+            <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <button
+                    v-for="row in securityFilterRows"
+                    :key="getBotName(row)"
+                    type="button"
+                    class="min-h-40 rounded-xl border p-4 text-left transition-colors hover:border-primary-300 focus:outline-none focus:ring-2 focus:ring-primary-300 dark:hover:border-primary-700"
+                    :class="[getRiskCardClass(row), shouldPulseCard(row) ? 'animate-pulse' : '']"
+                    @click="selectSecurityFilterBot(row)"
+                >
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <span class="inline-flex items-center gap-2 text-lg font-bold text-surface-900 dark:text-surface-0">
+                            <span class="h-2.5 w-2.5 rounded-full" :class="getRiskDotClass(row)"></span>
+                            {{ getBotName(row) }}
+                        </span>
+                        <span class="font-bold text-muted-color">L{{ row.Martingala ?? '-' }}</span>
+                    </div>
+
+                    <div class="mb-3 grid grid-cols-2 gap-3">
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-muted-color">Avg</div>
+                            <div class="font-bold" :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</div>
                         </div>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getScoreClass(row)">{{ row.SecurityRiskScore ?? 0 }}/4</span>
-                            <span class="rounded-full px-2.5 py-1 text-xs font-semibold" :class="getSecurityFilterStatusClass(row)">{{ getSecurityFilterStatus(row) }}</span>
-                            <span class="text-xs text-muted-color">pausa da {{ securityFilterSetup.minScore }}/4</span>
+                        <div>
+                            <div class="text-xs uppercase tracking-wide text-muted-color">Shoe</div>
+                            <div class="font-bold">{{ row.LastShoeHand ?? '-' }}</div>
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    <div class="mb-3 flex items-center justify-between gap-3">
+                        <div class="flex gap-1">
+                            <span v-for="point in 4" :key="point" class="inline-block h-2.5 w-6 rounded-sm" :class="getScoreBlockClass(row, point)"></span>
+                        </div>
+                        <span class="text-sm font-semibold text-muted-color">{{ row.SecurityRiskScore ?? 0 }}/4</span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-xs font-bold" :class="getTriggerClass(row)">{{ getTriggerLabel(row) }}</span>
+                        <span class="rounded-full border px-2.5 py-1 text-xs font-bold" :class="getRiskStatusClass(row)">{{ getRiskLabel(row) }}</span>
+                    </div>
+                </button>
+            </div>
+
+            <div v-if="selectedSecurityFilterRow" class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+                <div>
+                    <div class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <h4 class="m-0 text-xl font-semibold">Dettaglio aperto: {{ getBotName(selectedSecurityFilterRow) }}</h4>
+                            <div class="text-sm text-muted-color">Un solo bot espanso alla volta. Il resto rimane in overview compatta.</div>
+                        </div>
+                        <span class="w-fit rounded-full border px-3 py-1 text-xs font-bold" :class="getRiskStatusClass(selectedSecurityFilterRow)">{{ getRiskLabel(selectedSecurityFilterRow) }}</span>
+                    </div>
+
+                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
-                            <div class="mb-2 font-semibold">Ritmo mani bot</div>
+                            <div class="mb-2 font-semibold">Ritmo completo</div>
                             <div class="flex flex-col gap-1 leading-tight">
                                 <div>
-                                    <span class="font-semibold">Avg</span>
-                                    <span :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</span>
+                                    <span class="font-semibold">Avg ritmo</span>
+                                    <span :class="getPaceClass(selectedSecurityFilterRow.AvgHandSeconds)">{{ formatSeconds(selectedSecurityFilterRow.AvgHandSeconds) }}</span>
                                     / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
-                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAvgFast(row))">{{ getScorePoint(isAvgFast(row)) }}</span>
+                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAvgFast(selectedSecurityFilterRow))">{{ getScorePoint(isAvgFast(selectedSecurityFilterRow)) }}</span>
                                 </div>
                                 <div>
                                     <span class="font-semibold">Very fast</span>
-                                    <span :class="getPaceClass(row.AvgHandSeconds)">{{ formatSeconds(row.AvgHandSeconds) }}</span>
+                                    <span :class="getPaceClass(selectedSecurityFilterRow.AvgHandSeconds)">{{ formatSeconds(selectedSecurityFilterRow.AvgHandSeconds) }}</span>
                                     / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
-                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(row))">{{ getScorePoint(isVeryFast(row)) }}</span>
+                                    <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isVeryFast(selectedSecurityFilterRow))">{{ getScorePoint(isVeryFast(selectedSecurityFilterRow)) }}</span>
                                 </div>
-                                <div class="text-xs text-muted-color">
-                                    Ult <span :class="getPaceClass(row.LastHandDeltaSeconds)">{{ formatSeconds(row.LastHandDeltaSeconds) }}</span> / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
-                                </div>
-                                <div class="text-xs text-muted-color">Range storico bot {{ formatSeconds(row.MinHandDeltaSeconds) }} - {{ formatSeconds(row.MaxHandDeltaSeconds) }}</div>
+                                <div class="text-xs text-muted-color">Ult <span :class="getPaceClass(selectedSecurityFilterRow.LastHandDeltaSeconds)">{{ formatSeconds(selectedSecurityFilterRow.LastHandDeltaSeconds) }}</span> / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
+                                <div class="text-xs text-muted-color">Range storico bot {{ formatSeconds(selectedSecurityFilterRow.MinHandDeltaSeconds) }} - {{ formatSeconds(selectedSecurityFilterRow.MaxHandDeltaSeconds) }}</div>
                                 <div class="text-xs text-muted-color">Non usato direttamente nella media attuale</div>
-                                <div class="text-xs text-muted-color">Mani bot {{ formatHands(row.PBHandsPlayed) }}</div>
-                                <div class="text-xs" :class="getRapidTriggerClass(row)">
-                                    Ultimi 2: {{ formatLastTwoDeltas(row) }}
-                                </div>
-                                <div class="text-xs" :class="getRapidTriggerClass(row)">
-                                    Trigger rapido L5: ultimi 2 &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s · {{ isRapidTriggerActive(row) ? 'Attivo' : 'Non attivo' }}
-                                </div>
-                                <div class="mt-1 flex items-center gap-1 text-xs text-muted-color" :class="shouldBlinkScore(row) ? 'animate-pulse' : ''">
+                                <div class="text-xs text-muted-color">Mani bot {{ formatHands(selectedSecurityFilterRow.PBHandsPlayed) }}</div>
+                            </div>
+                        </div>
+
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
+                            <div class="mb-2 font-semibold">Ultimi delta / Trigger rapido</div>
+                            <div class="flex flex-col gap-1 leading-tight">
+                                <div class="text-xs" :class="getRapidTriggerClass(selectedSecurityFilterRow)">Ultimi 2: {{ formatLastTwoDeltas(selectedSecurityFilterRow) }}</div>
+                                <div class="text-xs" :class="getRapidTriggerClass(selectedSecurityFilterRow)">Trigger rapido L5: ultimi 2 &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s · {{ isRapidTriggerActive(selectedSecurityFilterRow) ? 'Attivo' : 'Non attivo' }}</div>
+                                <div class="mt-1 flex items-center gap-1 text-xs text-muted-color" :class="shouldBlinkScore(selectedSecurityFilterRow) ? 'animate-pulse' : ''">
                                     <span>Score filtro:</span>
-                                    <span v-for="point in 4" :key="point" class="inline-block h-2.5 w-2.5 rounded-full" :class="getScoreDotClass(row, point)"></span>
-                                    <span class="ml-1">{{ row.SecurityRiskScore ?? 0 }}/4</span>
+                                    <span v-for="point in 4" :key="point" class="inline-block h-2.5 w-6 rounded-sm" :class="getScoreBlockClass(selectedSecurityFilterRow, point)"></span>
+                                    <span class="ml-1">{{ selectedSecurityFilterRow.SecurityRiskScore ?? 0 }}/4</span>
                                 </div>
                             </div>
                         </div>
@@ -508,86 +675,97 @@ function getScoreDotClass(row, point) {
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <div class="text-xs text-muted-color">Streak</div>
-                                    <div class="font-semibold">{{ row.CurrentStreak ?? 0 }} / {{ securityFilterSetup.minStreak }}</div>
-                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isStreakRisk(row))">{{ getScorePoint(isStreakRisk(row)) }}</span>
+                                    <div class="font-semibold">{{ selectedSecurityFilterRow.CurrentStreak ?? 0 }} / {{ securityFilterSetup.minStreak }}</div>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isStreakRisk(selectedSecurityFilterRow))">{{ getScorePoint(isStreakRisk(selectedSecurityFilterRow)) }}</span>
                                 </div>
                                 <div>
                                     <div class="text-xs text-muted-color">Mano shoe</div>
-                                    <div class="font-semibold">{{ row.LastShoeHand ?? '-' }} / {{ securityFilterSetup.maxShoeHand }}</div>
-                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isShoeRisk(row))">{{ getScorePoint(isShoeRisk(row)) }}</span>
+                                    <div class="font-semibold">{{ selectedSecurityFilterRow.LastShoeHand ?? '-' }} / {{ securityFilterSetup.maxShoeHand }}</div>
+                                    <span class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isShoeRisk(selectedSecurityFilterRow))">{{ getScorePoint(isShoeRisk(selectedSecurityFilterRow)) }}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
-                            <div class="mb-2 font-semibold">Pausa</div>
+                            <div class="mb-2 font-semibold">Pausa / Scope</div>
                             <div class="grid grid-cols-1 gap-3 lg:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span :class="row.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
-                                        {{ row.PauseBot ? `Solo ${row.PauseComputer || row.Computer || row.computer}` : 'Nessuna' }}
+                                    <span :class="selectedSecurityFilterRow.PauseBot ? 'font-semibold text-red-500' : 'text-muted-color'">
+                                        {{ selectedSecurityFilterRow.PauseBot ? `Solo ${selectedSecurityFilterRow.PauseComputer || getBotName(selectedSecurityFilterRow)}` : 'Nessuna' }}
                                     </span>
-                                    <span class="text-xs text-muted-color">L6 prevenuti: {{ row.PreventedL6 ?? 0 }}</span>
+                                    <span class="text-xs text-muted-color">L6 prevenuti: {{ selectedSecurityFilterRow.PreventedL6 ?? 0 }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span><strong>Sintesi filtro</strong> {{ row.SecurityRiskScore ?? 0 }}/4</span>
+                                    <span><strong>Sintesi filtro</strong> {{ selectedSecurityFilterRow.SecurityRiskScore ?? 0 }}/4</span>
                                     <span class="text-xs text-muted-color">Pausa da {{ securityFilterSetup.minScore }}/4</span>
-                                    <span class="text-xs text-muted-color">Stato {{ getSecurityFilterStatus(row) }}</span>
-                                    <span class="text-xs text-muted-color">Scope corrente {{ row.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ row.Martingala ?? '-' }}</span>
+                                    <span class="text-xs text-muted-color">Stato {{ getSecurityFilterStatus(selectedSecurityFilterRow) }}</span>
+                                    <span class="text-xs text-muted-color">Scope corrente {{ selectedSecurityFilterRow.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ selectedSecurityFilterRow.Martingala ?? '-' }}</span>
                                     <span class="text-xs text-muted-color">Stato corrente bot, non storico L6/L8</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2">
                             <div class="mb-2 font-semibold">Ultimo L6 bot</div>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span><strong>L6 giocati</strong> {{ row.L6PlayedCount ?? 0 }}</span>
-                                    <span class="text-xs text-muted-color">Frequenza L6: ult {{ formatHands(row.LastL6DeltaHands) }} · avg {{ formatHands(row.AvgL6DeltaHands, 1) }}</span>
-                                    <span class="text-xs text-muted-color">Range L6 {{ formatHandsRange(row.MinL6DeltaHands, row.MaxL6DeltaHands) }}</span>
+                                    <span><strong>L6 giocati</strong> {{ selectedSecurityFilterRow.L6PlayedCount ?? 0 }}</span>
+                                    <span class="text-xs text-muted-color">Frequenza L6: ult {{ formatHands(selectedSecurityFilterRow.LastL6DeltaHands) }} · avg {{ formatHands(selectedSecurityFilterRow.AvgL6DeltaHands, 1) }}</span>
+                                    <span class="text-xs text-muted-color">Range L6 {{ formatHandsRange(selectedSecurityFilterRow.MinL6DeltaHands, selectedSecurityFilterRow.MaxL6DeltaHands) }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
                                     <div>
                                         <span class="font-semibold">Avg al L6</span>
-                                        {{ formatSeconds(row.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
-                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6AvgFast(row))">{{ getScorePoint(isLastL6AvgFast(row)) }}</span>
+                                        {{ formatSeconds(selectedSecurityFilterRow.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6AvgFast(selectedSecurityFilterRow))">{{ getScorePoint(isLastL6AvgFast(selectedSecurityFilterRow)) }}</span>
                                     </div>
                                     <div>
                                         <span class="font-semibold">Very fast al L6</span>
-                                        {{ formatSeconds(row.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
-                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6VeryFast(row))">{{ getScorePoint(isLastL6VeryFast(row)) }}</span>
+                                        {{ formatSeconds(selectedSecurityFilterRow.LastL6AuthorizationAvgHandSeconds) }} / {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isLastL6VeryFast(selectedSecurityFilterRow))">{{ getScorePoint(isLastL6VeryFast(selectedSecurityFilterRow)) }}</span>
                                     </div>
-                                    <span class="text-xs text-muted-color">Score al L6 {{ row.LastL6AuthorizationScore ?? 0 }}/4</span>
-                                    <span class="text-xs text-muted-color">Streak {{ row.LastL6AuthorizationStreak ?? 0 }} · Mano shoe {{ row.LastL6AuthorizationShoeHand ?? '-' }}</span>
+                                    <span class="text-xs text-muted-color">Score al L6 {{ selectedSecurityFilterRow.LastL6AuthorizationScore ?? 0 }}/4</span>
+                                    <span class="text-xs text-muted-color">Streak {{ selectedSecurityFilterRow.LastL6AuthorizationStreak ?? 0 }} · Mano shoe {{ selectedSecurityFilterRow.LastL6AuthorizationShoeHand ?? '-' }}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2 xl:col-span-2">
+                        <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900 md:col-span-2">
                             <div class="mb-2 font-semibold">L8 auth perso bot</div>
                             <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span><strong>{{ row.AuthorizedL8LostCount ?? 0 }}</strong> L8 persi auth</span>
-                                    <span class="text-xs text-muted-color">Frequenza L8 persi: ult {{ formatHands(row.LastAuthorizedL8LostDeltaHands) }} · avg {{ formatHands(row.AvgAuthorizedL8LostDeltaHands, 1) }}</span>
-                                    <span class="text-xs text-muted-color">Range L8 persi {{ formatHandsRange(row.MinAuthorizedL8LostDeltaHands, row.MaxAuthorizedL8LostDeltaHands) }}</span>
+                                    <span><strong>{{ selectedSecurityFilterRow.AuthorizedL8LostCount ?? 0 }}</strong> L8 persi auth</span>
+                                    <span class="text-xs text-muted-color">Frequenza L8 persi: ult {{ formatHands(selectedSecurityFilterRow.LastAuthorizedL8LostDeltaHands) }} · avg {{ formatHands(selectedSecurityFilterRow.AvgAuthorizedL8LostDeltaHands, 1) }}</span>
+                                    <span class="text-xs text-muted-color">Range L8 persi {{ formatHandsRange(selectedSecurityFilterRow.MinAuthorizedL8LostDeltaHands, selectedSecurityFilterRow.MaxAuthorizedL8LostDeltaHands) }}</span>
                                 </div>
                                 <div class="flex flex-col gap-1 leading-tight">
-                                    <span><strong>Auth -> L8</strong> {{ formatDuration(row.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span><strong>Auth -> L8</strong> {{ formatDuration(selectedSecurityFilterRow.LastAuthorizedL8LossFromAuthorizationSeconds) }}</span>
                                     <div>
                                         <span class="font-semibold">Ritmo auth -> L8</span>
-                                        {{ formatSeconds(row.LastAuthorizedL8LossSecondsPerHand) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
-                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAuthToL8PaceFast(row))">{{ getScorePoint(isAuthToL8PaceFast(row)) }}</span>
+                                        {{ formatSeconds(selectedSecurityFilterRow.LastAuthorizedL8LossSecondsPerHand) }} / {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s
+                                        <span class="ml-1 rounded-full px-2 py-0.5 text-xs font-semibold" :class="getRiskPillClass(isAuthToL8PaceFast(selectedSecurityFilterRow))">{{ getScorePoint(isAuthToL8PaceFast(selectedSecurityFilterRow)) }}</span>
                                     </div>
-                                    <span class="text-xs text-muted-color">Avg auth -> L8 {{ formatDuration(row.AvgAuthorizedL8LossFromAuthorizationSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Range auth -> L8 {{ formatDurationRange(row.MinAuthorizedL8LossFromAuthorizationSeconds, row.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
-                                    <span class="text-xs text-muted-color">Mani auth -> L8 {{ formatHands(row.LastAuthorizedL8LossFromAuthorizationHands) }}</span>
-                                    <span class="text-xs text-muted-color">Avg ritmo {{ formatSeconds(row.AvgAuthorizedL8LossSecondsPerHand) }}</span>
-                                    <span class="text-xs text-muted-color">Score auth {{ Number(row.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${row.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
+                                    <span class="text-xs text-muted-color">Avg auth -> L8 {{ formatDuration(selectedSecurityFilterRow.AvgAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Range auth -> L8 {{ formatDurationRange(selectedSecurityFilterRow.MinAuthorizedL8LossFromAuthorizationSeconds, selectedSecurityFilterRow.MaxAuthorizedL8LossFromAuthorizationSeconds) }}</span>
+                                    <span class="text-xs text-muted-color">Mani auth -> L8 {{ formatHands(selectedSecurityFilterRow.LastAuthorizedL8LossFromAuthorizationHands) }}</span>
+                                    <span class="text-xs text-muted-color">Avg ritmo {{ formatSeconds(selectedSecurityFilterRow.AvgAuthorizedL8LossSecondsPerHand) }}</span>
+                                    <span class="text-xs text-muted-color">Score auth {{ Number(selectedSecurityFilterRow.AuthorizedL8LostFromAuthorizationCount ?? 0) > 0 ? `${selectedSecurityFilterRow.LastAuthorizedL8LossAuthorizationScore ?? 0}/4` : '-' }}</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <aside class="h-fit rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm dark:border-surface-700 dark:bg-surface-900/40">
+                    <div class="mb-3 font-semibold">Regole layout</div>
+                    <div class="flex flex-col gap-2 text-muted-color">
+                        <span><strong class="text-surface-900 dark:text-surface-0">Desktop 1920px</strong>: 4 colonne compatte.</span>
+                        <span><strong class="text-surface-900 dark:text-surface-0">Card</strong>: min-height 10rem, padding 1rem, stile Dash2A.</span>
+                        <span><strong class="text-surface-900 dark:text-surface-0">Mobile</strong>: 1 colonna solo per responsive desktop; viste mobile dedicate non toccate.</span>
+                        <span><strong class="text-surface-900 dark:text-surface-0">20 bot</strong>: scroll ordinato, dettaglio unico.</span>
+                        <span><strong class="text-surface-900 dark:text-surface-0">Pulse</strong>: solo rischio reale.</span>
+                    </div>
+                </aside>
             </div>
         </div>
     </div>
