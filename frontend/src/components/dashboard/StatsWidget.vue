@@ -44,7 +44,8 @@ const securityFilterRows = computed(() => {
 
 const selectedSecurityFilterRow = computed(() => {
     if (!securityFilterRows.value.length) return null;
-    return securityFilterRows.value.find((row) => getBotName(row) === selectedSecurityFilterBot.value) ?? securityFilterRows.value[0];
+    if (!selectedSecurityFilterBot.value) return null;
+    return securityFilterRows.value.find((row) => getBotName(row) === selectedSecurityFilterBot.value) ?? null;
 });
 
 const securityFilterRiskStrip = computed(() => {
@@ -320,7 +321,8 @@ function shouldPulseCard(row) {
 }
 
 function selectSecurityFilterBot(row) {
-    selectedSecurityFilterBot.value = getBotName(row);
+    const botName = getBotName(row);
+    selectedSecurityFilterBot.value = selectedSecurityFilterBot.value === botName ? null : botName;
 }
 </script>
 
@@ -556,7 +558,7 @@ function selectSecurityFilterBot(row) {
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <span class="block text-muted-color font-medium">Security Filter Control Room</span>
-                    <div class="mt-1 text-sm text-muted-color">Overview compatta, ordinata per rischio operativo. Click su un bot per aprire il dettaglio.</div>
+                    <div class="mt-1 text-sm text-muted-color">Overview compatta, ordinata per rischio operativo. Click su un bot per aprire o chiudere il dettaglio.</div>
                 </div>
                 <div class="flex flex-wrap gap-2 text-xs font-semibold">
                     <span class="inline-flex items-center gap-2 rounded-full bg-red-100 px-2.5 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-300">
@@ -624,14 +626,19 @@ function selectSecurityFilterBot(row) {
                 </button>
             </div>
 
-            <div v-if="selectedSecurityFilterRow" class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+            <div v-if="selectedSecurityFilterRow" class="mt-5">
                 <div>
                     <div class="mb-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
                         <div>
                             <h4 class="m-0 text-xl font-semibold">Dettaglio aperto: {{ getBotName(selectedSecurityFilterRow) }}</h4>
                             <div class="text-sm text-muted-color">Un solo bot espanso alla volta. Il resto rimane in overview compatta.</div>
                         </div>
-                        <span class="w-fit rounded-full border px-3 py-1 text-xs font-bold" :class="getRiskStatusClass(selectedSecurityFilterRow)">{{ getRiskLabel(selectedSecurityFilterRow) }}</span>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="w-fit rounded-full border px-3 py-1 text-xs font-bold" :class="getRiskStatusClass(selectedSecurityFilterRow)">{{ getRiskLabel(selectedSecurityFilterRow) }}</span>
+                            <button type="button" class="rounded-full border border-surface-200 px-3 py-1 text-xs font-semibold text-muted-color hover:bg-surface-100 dark:border-surface-700 dark:hover:bg-surface-800" @click="selectedSecurityFilterBot = null">
+                                Chiudi dettaglio
+                            </button>
+                        </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -755,17 +762,6 @@ function selectSecurityFilterBot(row) {
                         </div>
                     </div>
                 </div>
-
-                <aside class="h-fit rounded-xl border border-surface-200 bg-surface-50 p-4 text-sm dark:border-surface-700 dark:bg-surface-900/40">
-                    <div class="mb-3 font-semibold">Regole layout</div>
-                    <div class="flex flex-col gap-2 text-muted-color">
-                        <span><strong class="text-surface-900 dark:text-surface-0">Desktop 1920px</strong>: 4 colonne compatte.</span>
-                        <span><strong class="text-surface-900 dark:text-surface-0">Card</strong>: min-height 10rem, padding 1rem, stile Dash2A.</span>
-                        <span><strong class="text-surface-900 dark:text-surface-0">Mobile</strong>: 1 colonna solo per responsive desktop; viste mobile dedicate non toccate.</span>
-                        <span><strong class="text-surface-900 dark:text-surface-0">20 bot</strong>: scroll ordinato, dettaglio unico.</span>
-                        <span><strong class="text-surface-900 dark:text-surface-0">Pulse</strong>: solo rischio reale.</span>
-                    </div>
-                </aside>
             </div>
         </div>
     </div>
