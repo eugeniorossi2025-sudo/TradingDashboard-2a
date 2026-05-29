@@ -115,7 +115,12 @@ public class MissionLifecycleService : IMissionLifecycleService
 
         var alreadyTracked = await _context.MissionSessions
             .AsNoTracking()
-            .AnyAsync(session => session.StartTime >= firstPoint.Timestamp, cancellationToken);
+            .AnyAsync(session =>
+                session.StartTime >= firstPoint.Timestamp
+                && (session.MissionKey == null
+                    || (!session.MissionKey.StartsWith("historical-demo-import:")
+                        && session.FinalizationReason != "HistoricalImport")),
+                cancellationToken);
         if (alreadyTracked)
             return null;
 
