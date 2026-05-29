@@ -1,0 +1,82 @@
+name: DASH2A Mission Migration VPS Dry-Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type MISSION_MIGRATION_VPS_DRY_RUN"
+        required: true
+        type: string
+      release_tag:
+        description: "GitHub release tag containing missions_export zip"
+        required: true
+        type: string
+        default: mission-migration-staging-20260530
+
+permissions:
+  contents: read
+
+jobs:
+  dryrun:
+    name: VPS dry-run Production 19 (INSERT preview only)
+    if: ${{ github.event.inputs.confirm == 'MISSION_MIGRATION_VPS_DRY_RUN' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 30
+
+    steps:
+      - name: Guard scope
+        shell: powershell
+        run: |
+          Write-Host 'SCOPE: dry-run only — no INSERT, UPDATE, DELETE, TRUNCATE, RESTORE'
+          Write-Host 'Tables: MissionSessions, MissionMarginSamples only'
+
+      - name: Checkout import scripts
+        uses: actions/checkout@v4
+
+      - name: Download export zip from release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'C:\inetpub\wwwroot\backups\mission-migration'
+          $staging = Join-Path $base 'staging'
+          New-Item -ItemType Directory -Force -Path $base, $staging | Out-Null
+          $tag = '${{ github.event.inputs.release_tag }}'
+          Set-Location $base
+          gh release download $tag --repo '${{ github.repository }}' --pattern 'missions_export*.zip' --dir $base
+          $zip = Get-ChildItem $base -Filter 'missions_export*.zip' | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+          if (-not $zip) { throw 'Export zip not found after release download' }
+          Write-Host "Downloaded: $($zip.FullName)"
+          Expand-Archive -LiteralPath $zip.FullName -DestinationPath $staging -Force
+          Get-ChildItem $staging -Recurse | Select-Object FullName, Length
+
+      - name: Run import dry-run on production DB
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = 'C:\inetpub\wwwroot\backups\mission-migration\staging'
+          $meta = Get-ChildItem $staging -Filter 'missions_export_meta_*.json' | Select-Object -First 1
+          if (-not $meta) { throw "Meta file not found in $staging" }
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/import-missions-to-prod.ps1'
+          & $script -MetaFile $meta.FullName -DryRun
+
+      - name: Post dry-run readonly counts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          foreach ($label in @('MissionSessions','MissionMarginSamples')) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.[$label]"
+            Write-Host "POST_DRYRUN_${label}=$($cmd.ExecuteScalar())"
+          }
+          $conn.Close()
+          Write-Host 'POST_DRYRUN: counts must match preflight (7 sessions, 4209 samples) — dry-run writes nothing'
