@@ -1,0 +1,119 @@
+name: DASH2A Mission Migration Apply Production 19
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_missione_ferma:
+        description: "Type MISSIONE_FERMA_CONFERMATA"
+        required: true
+        type: string
+      confirm_import:
+        description: "Type IMPORT_PRODUCTION_19_AUTORIZZATO"
+        required: true
+        type: string
+      export_meta_path:
+        description: "Absolute path to missions_export_meta_*.json on backend runner"
+        required: true
+        type: string
+        default: C:\inetpub\wwwroot\backups\mission-migration\staging\missions_export_meta_20260530_011346.json
+
+permissions:
+  contents: read
+
+jobs:
+  apply:
+    name: Backup + import 19 Production (INSERT only)
+    if: |
+      github.event.inputs.confirm_missione_ferma == 'MISSIONE_FERMA_CONFERMATA' &&
+      github.event.inputs.confirm_import == 'IMPORT_PRODUCTION_19_AUTORIZZATO'
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 120
+
+    steps:
+      - name: Guard scope and tokens
+        shell: powershell
+        run: |
+          Write-Host 'SCOPE: BACKUP + INSERT-only MissionSessions/MissionMarginSamples'
+          Write-Host 'FORBIDDEN: RESTORE, TRUNCATE, DELETE prod rows, EF migrations, Decisore, frontend'
+
+      - name: Checkout import scripts
+        uses: actions/checkout@v4
+
+      - name: Pre-import readonly gate (no open mission)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = 'SELECT COUNT(*) FROM dbo.MissionSessions WHERE Completed = 0'
+          $open = [int]$cmd.ExecuteScalar()
+          $cmd.CommandText = 'SELECT COUNT(*) FROM dbo.MissionSessions'
+          $sessions = [int]$cmd.ExecuteScalar()
+          $cmd.CommandText = 'SELECT COUNT(*) FROM dbo.MissionMarginSamples'
+          $samples = [int]$cmd.ExecuteScalar()
+          $conn.Close()
+          Write-Host "PRE_IMPORT_OPEN_MISSIONS=$open"
+          Write-Host "PRE_IMPORT_SESSIONS=$sessions"
+          Write-Host "PRE_IMPORT_SAMPLES=$samples"
+          if ($open -ne 0) { throw "Refusing import: $open open mission(s) still active." }
+
+      - name: Backup Eugenio-Demo10
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+          $backupDir = 'C:\inetpub\wwwroot\backups'
+          New-Item -ItemType Directory -Force -Path $backupDir | Out-Null
+          $bak = Join-Path $backupDir "Eugenio-Demo10_pre_mission_import_$stamp.bak"
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          $cmd = $conn.CreateCommand()
+          $cmd.CommandText = "BACKUP DATABASE [Eugenio-Demo10] TO DISK = @path WITH INIT, COMPRESSION, STATS = 5"
+          [void]$cmd.Parameters.AddWithValue('@path', $bak)
+          [void]$cmd.ExecuteNonQuery()
+          $verify = $conn.CreateCommand()
+          $verify.CommandText = "RESTORE VERIFYONLY FROM DISK = @path"
+          [void]$verify.Parameters.AddWithValue('@path', $bak)
+          [void]$verify.ExecuteNonQuery()
+          $conn.Close()
+          $sizeMb = [math]::Round((Get-Item -LiteralPath $bak).Length / 1MB, 2)
+          Write-Host "BACKUP_PATH=$bak"
+          Write-Host "BACKUP_SIZE_MB=$sizeMb"
+          Write-Host "BACKUP_VERIFY=OK"
+          "BACKUP_PATH=$bak" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run controlled import (real INSERT)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $meta = '${{ github.event.inputs.export_meta_path }}'
+          if (-not (Test-Path -LiteralPath $meta)) { throw "Export meta not found: $meta" }
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/import-missions-to-prod.ps1'
+          & $script -MetaFile $meta -SkipBackupRecommendation
+
+      - name: Post-import readonly counts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          foreach ($q in @(
+            'SELECT COUNT(*) FROM dbo.MissionSessions',
+            'SELECT COUNT(*) FROM dbo.MissionMarginSamples',
+            'SELECT COUNT(*) FROM (SELECT MissionKey FROM dbo.MissionSessions WHERE MissionKey IS NOT NULL GROUP BY MissionKey HAVING COUNT(*) > 1) d'
+          )) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = $q
+            Write-Host "$($q.Split(' ')[3].Trim('('))=$($cmd.ExecuteScalar())"
+          }
+          $conn.Close()
