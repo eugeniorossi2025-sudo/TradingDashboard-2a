@@ -113,16 +113,22 @@ const getStatusSeverity = (status) => {
 };
 
 const getPlayedColor = (row) => {
-    const value = row?.colore ?? row?.chosenColor ?? row?.chosen_color ?? '';
+    const value =
+        row?.chosenColor ??
+        row?.ChosenColor ??
+        row?.chosen_color ??
+        row?.colore ??
+        row?.Colore ??
+        '';
     return String(value).trim();
 };
 
 const normalizePlayedColor = (value) => {
     const color = String(value || '').trim().toUpperCase();
-    if (color === 'GREEN' || color === 'TIE') return 'T';
-    if (color === 'RED' || color === 'BANKER') return 'B';
-    if (color === 'BLUE' || color === 'PLAYER') return 'P';
-    return color;
+    if (color === 'P' || color === 'PLAYER' || color === 'BLU' || color === 'BLU_PLAY' || color === 'BLUE') return 'P';
+    if (color === 'B' || color === 'BANKER' || color === 'ROSSO' || color === 'RED' || color === 'RED_BANK') return 'B';
+    if (color === 'T' || color === 'TIE' || color === 'VERDE' || color === 'GREEN') return 'T';
+    return color.length === 1 ? color : '';
 };
 
 const getPlayedColorClass = (row) => {

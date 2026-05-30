@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.SignalR;
 using WebApi.Hubs;
+using WebApi.Services;
 
 namespace WebApi.Services.Implementations;
 
@@ -43,6 +44,9 @@ public class DashboardUpdateService : BackgroundService
                 {
                     var missionLifecycleService = scope.ServiceProvider.GetRequiredService<IMissionLifecycleService>();
                     await missionLifecycleService.ObserveLiveStateAsync(stoppingToken);
+
+                    var l7AlertWatchService = scope.ServiceProvider.GetRequiredService<IL7AlertWatchService>();
+                    await l7AlertWatchService.CheckAsync(stoppingToken);
 
                     var dashboardService = scope.ServiceProvider.GetRequiredService<IDashboardService>();
                     var dashboardData = await dashboardService.GetDashboardDataAsync();

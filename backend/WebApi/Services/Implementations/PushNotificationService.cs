@@ -114,6 +114,70 @@ public class PushNotificationService : IPushNotificationService
             }
         });
 
+        return await SendPayloadAsync(subscriptions, payload, publicKey, privateKey, subject, cancellationToken);
+    }
+
+    public async Task<int> SendAdminBotLevelAlertAsync(
+        string computer,
+        string? tavolo,
+        int level,
+        decimal margine,
+        CancellationToken cancellationToken = default)
+    {
+        var publicKey = _configuration["Push:VapidPublicKey"];
+        var privateKey = _configuration["Push:VapidPrivateKey"];
+        var subject = _configuration["Push:Subject"];
+
+        if (string.IsNullOrWhiteSpace(publicKey) ||
+            string.IsNullOrWhiteSpace(privateKey) ||
+            string.IsNullOrWhiteSpace(subject))
+        {
+            _logger.LogInformation("L7 push skipped because VAPID is not configured.");
+            return 0;
+        }
+
+        await EnsurePushSchemaAsync(cancellationToken);
+
+        var subscriptions = await _context.UserPushSubscriptions
+            .Where(row => row.Enabled)
+            .Join(
+                _context.Users.Where(user => user.Admin),
+                subscription => subscription.UserId,
+                user => user.Id,
+                (subscription, _) => subscription)
+            .ToListAsync(cancellationToken);
+
+        if (subscriptions.Count == 0)
+            return 0;
+
+        var tableLabel = string.IsNullOrWhiteSpace(tavolo) ? "?" : tavolo.Trim();
+        var payload = JsonSerializer.Serialize(new
+        {
+            title = $"Bot a L{level}",
+            body = $"{computer} · Tavolo {tableLabel} · Margine {margine:0.00} EUR",
+            data = new
+            {
+                url = "/admin/mobile-live",
+                type = "bot-level-alert",
+                computer,
+                tavolo = tableLabel,
+                level,
+                margine,
+                timestamp = DateTime.UtcNow
+            }
+        });
+
+        return await SendPayloadAsync(subscriptions, payload, publicKey, privateKey, subject, cancellationToken);
+    }
+
+    private async Task<int> SendPayloadAsync(
+        List<UserPushSubscription> subscriptions,
+        string payload,
+        string publicKey,
+        string privateKey,
+        string subject,
+        CancellationToken cancellationToken)
+    {
         var vapid = new VapidDetails(subject, publicKey, privateKey);
         using var client = new WebPushClient();
         var sent = 0;
@@ -134,7 +198,7 @@ public class PushNotificationService : IPushNotificationService
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "Mission push failed for subscription {SubscriptionId}", item.Id);
+                _logger.LogWarning(ex, "Push failed for subscription {SubscriptionId}", item.Id);
             }
         }
 

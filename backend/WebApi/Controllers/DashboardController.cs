@@ -176,6 +176,7 @@ public class DashboardTableRow
     public string? ValoreGiocato { get; set; }
     public string? Stato { get; set; }
     public string? Colore { get; set; }
+    public string? ChosenColor { get; set; }
     public string? Pbt { get; set; }
     public string? ColpoMartingala { get; set; }
     public string? Valutazione { get; set; }

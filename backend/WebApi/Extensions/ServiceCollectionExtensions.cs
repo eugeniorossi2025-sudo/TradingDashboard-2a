@@ -144,6 +144,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();
         services.AddScoped<IMissionLifecycleService, MissionLifecycleService>();
+        services.AddSingleton<IL7AlertWatchService, L7AlertWatchService>();
         
         // Add Background Services
         services.AddHostedService<DashboardUpdateService>();

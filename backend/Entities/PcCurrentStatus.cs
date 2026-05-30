@@ -54,6 +54,10 @@ public class PcCurrentStatus
     [MaxLength(20)]
     public string? Colore { get; set; }
 
+    [Column("CHOSEN_COLOR")]
+    [MaxLength(1)]
+    public string? ChosenColor { get; set; }
+
     [Column("MAZZO")]
     [MaxLength(50)]
     public string? Mazzo { get; set; }

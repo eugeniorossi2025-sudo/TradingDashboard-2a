@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Entities;
 using Microsoft.EntityFrameworkCore;
 using WebApi.Controllers;
 using WebApi.Data;
@@ -59,7 +60,8 @@ public class DashboardService : IDashboardService
                 Margine = v.Margine,
                 MediaOra = v.MediaOra,
                 Stato = v.Stato,
-                Colore = v.Colore,
+                Colore = ResolvePlayedColor(v),
+                ChosenColor = v.ChosenColor,
                 Pbt = v.Pbt,
                 ColpoMartingala = v.ColpoMartingala.ToString(),
                 ValoreGiocato = v.ValoreGiocato.ToString(),
@@ -353,5 +355,24 @@ public class DashboardService : IDashboardService
         {
             return null;
         }
+    }
+
+    private static string? ResolvePlayedColor(PcCurrentStatus row)
+    {
+        var chosen = row.ChosenColor?.Trim();
+        if (!string.IsNullOrEmpty(chosen))
+            return chosen.ToUpperInvariant();
+
+        var legacy = row.Colore?.Trim();
+        if (string.IsNullOrEmpty(legacy))
+            return null;
+
+        return legacy.ToUpperInvariant() switch
+        {
+            "P" or "PLAYER" or "BLU" or "BLU_PLAY" or "BLUE" => "P",
+            "B" or "BANKER" or "ROSSO" or "RED" or "RED_BANK" => "B",
+            "T" or "TIE" or "VERDE" or "GREEN" => "T",
+            _ => legacy.Length == 1 ? legacy.ToUpperInvariant() : legacy
+        };
     }
 }
