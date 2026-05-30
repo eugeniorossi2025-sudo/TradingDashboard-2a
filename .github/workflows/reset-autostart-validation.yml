@@ -1,0 +1,40 @@
+name: DASH2A Reset AutoStart Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RESET_AUTOSTART_VALIDATE"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Reset to AutoStart validation
+    if: ${{ github.event.inputs.confirm == 'RESET_AUTOSTART_VALIDATE' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run reset autostart validation
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          & (Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/validate-reset-autostart.ps1')
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reset-autostart-${{ github.run_id }}
+          path: ops/dash2a-readiness/exports/validation/**/*
+          if-no-files-found: warn

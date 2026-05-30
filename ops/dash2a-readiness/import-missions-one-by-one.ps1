@@ -6,7 +6,7 @@ param(
     [string]$LocalServer = '(localdb)\MSSQLLocalDB',
     [string]$LocalDb = 'Dash2A_LocalProdLike',
     [string]$MetaFile = '',
-    [ValidateSet('Production', 'All')]
+    [ValidateSet('Production', 'Demo', 'All')]
     [string]$RuntimeModeFilter = 'Production',
     [ValidateSet('DryRun', 'Apply')]
     [string]$Mode = 'DryRun',
@@ -72,7 +72,7 @@ function Get-ProdConnString([string]$ConfigPath) {
 
 function Load-SessionsFromLocalDb {
     param([string]$Server, [string]$Db, [string]$ModeFilter)
-    $where = if ($ModeFilter -eq 'All') { '1=1' } else { "RuntimeMode = 'Production'" }
+    $where = if ($ModeFilter -eq 'All') { '1=1' } else { "RuntimeMode = '$ModeFilter'" }
     $cs = "Server=$Server;Database=$Db;Trusted_Connection=True;TrustServerCertificate=True;"
     $conn = Open-Conn $cs
     $cmd = $conn.CreateCommand()
@@ -153,8 +153,8 @@ function Load-SessionsFromExport {
     $sessionFile = Join-Path $exportDir $meta.sessionFile
     $sessions = Get-Content -LiteralPath $sessionFile -Raw | ConvertFrom-Json
     if ($sessions -isnot [array]) { $sessions = @($sessions) }
-    if ($RuntimeModeFilter -eq 'Production') {
-        $sessions = @($sessions | Where-Object { $_.runtimeMode -eq 'Production' })
+    if ($RuntimeModeFilter -eq 'Production' -or $RuntimeModeFilter -eq 'Demo') {
+        $sessions = @($sessions | Where-Object { $_.runtimeMode -eq $RuntimeModeFilter })
     }
     $sessions = @($sessions | Sort-Object { [datetime]$_.startTime }, { [int]$_.sourceId })
     return @{ meta = $meta; exportDir = $exportDir; sessions = $sessions }
@@ -177,7 +177,8 @@ function Load-SamplesFromExport {
 }
 
 function Build-RegeneratedPlan {
-    param([array]$Sessions, [datetime]$StartDate, [int]$GapMinutes, [bool]$RegenDates)
+    param([array]$Sessions, [datetime]$StartDate, [int]$GapMinutes, [bool]$RegenDates, [string]$TargetRuntimeMode = 'Production')
+    $keyPrefix = if ($TargetRuntimeMode -eq 'Demo') { 'hist-demo-seq' } else { 'hist-seq' }
     $plan = @()
     $seq = 0
     foreach ($s in $Sessions) {
@@ -189,7 +190,7 @@ function Build-RegeneratedPlan {
         if ($RegenDates) {
             $newStart = $StartDate.AddMinutes(($seq - 1) * $GapMinutes)
             $newEnd = $newStart.Add($duration)
-            $newKey = ('hist-seq-{0:D4}-{1:yyyyMMddHHmmss}' -f $seq, $newStart)
+            $newKey = ('{0}-{1:D4}-{2:yyyyMMddHHmmss}' -f $keyPrefix, $seq, $newStart)
         }
         else {
             $newStart = $oldStart
@@ -205,7 +206,7 @@ function Build-RegeneratedPlan {
             newStartTime = $newStart.ToString('o')
             newEndTime = if ($newEnd) { $newEnd.ToString('o') } else { $null }
             durationMinutes = [math]::Round($duration.TotalMinutes, 2)
-            runtimeMode = 'Production'
+            runtimeMode = $TargetRuntimeMode
             completed = $true
             finalizationReason = 'OneByOneHistoricalImport'
             totalMargin = [decimal]$s.totalMargin
@@ -222,7 +223,7 @@ function Build-RegeneratedPlan {
 }
 
 function Shift-SampleTimestamps {
-    param([object]$Samples, [datetime]$OldStart, [datetime]$NewStart)
+    param([object]$Samples, [datetime]$OldStart, [datetime]$NewStart, [string]$TargetRuntimeMode = 'Production')
     if (-not $Samples -or $Samples.Count -eq 0) { return @() }
     $offset = $NewStart - $OldStart
     $shifted = @()
@@ -233,7 +234,7 @@ function Shift-SampleTimestamps {
             totalMargin = [decimal]$sample.totalMargin
             activeTables = [int]$sample.activeTables
             vmCurrent = [decimal]$sample.vmCurrent
-            runtimeMode = 'Production'
+            runtimeMode = $TargetRuntimeMode
         }
     }
     return $shifted
@@ -303,7 +304,7 @@ $samplesBySession = if ($Source -eq 'LocalDb') {
     Load-SamplesFromExport -ExportDir $exportDir -Meta $exportMeta
 }
 
-$plan = Build-RegeneratedPlan -Sessions $sessions -StartDate $SequenceStartDate -GapMinutes $SequenceGapMinutes -RegenDates $doRegenerateDates
+$plan = Build-RegeneratedPlan -Sessions $sessions -StartDate $SequenceStartDate -GapMinutes $SequenceGapMinutes -RegenDates $doRegenerateDates -TargetRuntimeMode $RuntimeModeFilter
 
 $candidates = @()
 foreach ($p in $plan) {
@@ -401,7 +402,7 @@ foreach ($item in $candidates) {
     $sourceSamples = if ($samplesBySession.ContainsKey([int]$item.sourceId)) { $samplesBySession[[int]$item.sourceId] } else { $null }
     $oldStart = [datetime]::Parse($item.sourceStartTime)
     $newStart = [datetime]::Parse($item.newStartTime)
-    $shiftedSamples = Shift-SampleTimestamps -Samples $sourceSamples -OldStart $oldStart -NewStart $newStart
+    $shiftedSamples = Shift-SampleTimestamps -Samples $sourceSamples -OldStart $oldStart -NewStart $newStart -TargetRuntimeMode $RuntimeModeFilter
 
     if ($dryRun -or -not $conn) {
         $missionLog.status = 'dry_run_ok'
@@ -445,7 +446,7 @@ VALUES (
         [void]$insert.Parameters.AddWithValue('@GlobalTarget', [decimal]$item.globalTarget)
         [void]$insert.Parameters.AddWithValue('@ActiveTables', [int]$item.activeTables)
         [void]$insert.Parameters.AddWithValue('@KFactor', [decimal]$item.kFactor)
-        [void]$insert.Parameters.AddWithValue('@RuntimeMode', 'Production')
+        [void]$insert.Parameters.AddWithValue('@RuntimeMode', $RuntimeModeFilter)
         [void]$insert.Parameters.AddWithValue('@Completed', $true)
         [void]$insert.Parameters.AddWithValue('@ReportPublishedAt', $now)
         [void]$insert.Parameters.AddWithValue('@FinalizationReason', 'OneByOneHistoricalImport')
@@ -470,7 +471,7 @@ VALUES (
             $row['TotalMargin'] = [decimal]$sample.totalMargin
             $row['ActiveTables'] = [int]$sample.activeTables
             $row['VmCurrent'] = [decimal]$sample.vmCurrent
-            $row['RuntimeMode'] = 'Production'
+            $row['RuntimeMode'] = $RuntimeModeFilter
             [void]$batch.Rows.Add($row)
             $insertedSamples++
 
