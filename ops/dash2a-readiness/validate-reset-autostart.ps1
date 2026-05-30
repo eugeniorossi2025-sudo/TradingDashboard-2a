@@ -29,12 +29,17 @@ function Add-Check($Id, $Name, [bool]$Pass, $Detail, $Evidence = $null) {
 
 function Open-Conn($Cs) { $c = New-Object System.Data.SqlClient.SqlConnection $Cs; $c.Open(); return $c }
 function Get-Scalar($Conn, $Sql) { $cmd = $Conn.CreateCommand(); $cmd.CommandText = $Sql; return $cmd.ExecuteScalar() }
-function Invoke-Api($Method, $Path, $Headers, $Body = $null) {
+function Invoke-Api {
+    param([string]$Method, [string]$Path, [hashtable]$Headers = @{}, $Body = $null)
     $uri = "$BaseUrl$Path"
     if ($Body) { return Invoke-RestMethod -Uri $uri -Method $Method -Headers $Headers -ContentType 'application/json' -Body ($Body | ConvertTo-Json) -TimeoutSec 90 }
     return Invoke-RestMethod -Uri $uri -Method $Method -Headers $Headers -TimeoutSec 90
 }
 function Unwrap($o) { if ($o.data) { return $o.data }; return $o }
+function Fmt-SqlDate($Value) {
+    if ($null -eq $Value -or $Value -is [DBNull]) { return $null }
+    return ([datetime]$Value).ToString('yyyy-MM-dd HH:mm:ss')
+}
 
 $config = Get-Content -LiteralPath $ProdConfigPath -Raw | ConvertFrom-Json
 $conn = Open-Conn ([string]$config.ConnectionStrings.DefaultConnection)
@@ -53,7 +58,7 @@ Add-Check 'PRE-01' 'Baseline: 27 sessions, 48856 samples, 0 open' `
 
 if ($baseline.open -gt 0) { throw "Refusing reset probe: $($baseline.open) open mission(s)" }
 
-$login = Unwrap (Invoke-Api POST '/api/Auth/login' @{} @{ username = $Username; password = $Password })
+$login = Unwrap (Invoke-Api -Method POST -Path '/api/Auth/login' -Headers @{} -Body @{ username = $Username; password = $Password })
 $token = if ($login.token) { $login.token } else { $login.Token }
 Add-Check 'RST-01' 'API login' ([bool]$token) "tokenLength=$($token.Length)"
 
@@ -63,7 +68,7 @@ $h = @{ Authorization = "Bearer $token" }
 $resetBefore = Get-Scalar $conn "SELECT TOP 1 Value FROM dbo.Configurations WHERE [K] = 'MISSION_LAST_RESET_AT_UTC'"
 $fpBefore = $null
 if ($resetBefore -and $resetBefore -isnot [DBNull]) {
-    $fpBefore = Get-Scalar $conn "SELECT MIN(Data) FROM dbo.Margini WHERE Data > '$([datetime]$resetBefore.ToString('yyyy-MM-dd HH:mm:ss'))'"
+    $fpBefore = Get-Scalar $conn "SELECT MIN(Data) FROM dbo.Margini WHERE Data > '$(Fmt-SqlDate $resetBefore)'"
 }
 $blockHist = 0
 if ($fpBefore -and $fpBefore -isnot [DBNull]) {
@@ -76,7 +81,7 @@ Add-Check 'GRD-01' 'hist-seq do not satisfy alreadyTracked StartTime gate' ($blo
     "blockingHist=$blockHist firstPoint=$fpBefore"
 
 # Reset dashboard
-$resetResp = Unwrap (Invoke-Api POST '/api/decider/reset' $h)
+$resetResp = Unwrap (Invoke-Api -Method POST -Path '/api/decider/reset' -Headers $h)
 Add-Check 'RST-02' 'POST /api/decider/reset' ($null -ne $resetResp) 'Reset OK' $resetResp
 
 Start-Sleep -Seconds 2
@@ -105,7 +110,7 @@ if ($SimulatePbtMarginProbe) {
 
 $newMission = $null
 try {
-    $startResp = Unwrap (Invoke-Api POST '/api/mission/start-current' $h)
+    $startResp = Unwrap (Invoke-Api -Method POST -Path '/api/mission/start-current' -Headers $h)
     $started = [bool]$startResp.missionStarted
     $openAfter = [int](Get-Scalar $conn 'SELECT COUNT(*) FROM dbo.MissionSessions WHERE Completed = 0')
     if ($started -and $openAfter -eq 1) {
@@ -135,7 +140,7 @@ catch {
 
 # Guard after reset with new firstPoint
 if ($newMission) {
-    $fpAfter = Get-Scalar $conn "SELECT MIN(Data) FROM dbo.Margini WHERE Data > '$([datetime]$resetAfter.ToString('yyyy-MM-dd HH:mm:ss'))'"
+    $fpAfter = Get-Scalar $conn "SELECT MIN(Data) FROM dbo.Margini WHERE Data > '$(Fmt-SqlDate $resetAfter)'"
     if ($fpAfter -and $fpAfter -isnot [DBNull]) {
         $fp = ([datetime]$fpAfter).ToString('yyyy-MM-dd HH:mm:ss')
         $blockHistAfter = [int](Get-Scalar $conn @"
