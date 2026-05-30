@@ -517,13 +517,18 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
 
         foreach (var sessionGroup in samples.GroupBy(sample => sample.SessionId))
         {
-            foreach (var dayGroup in sessionGroup.GroupBy(sample => RomeDate(sample.DateTime)))
+            decimal? previousEndMargin = null;
+            foreach (var dayGroup in sessionGroup.GroupBy(sample => RomeDate(sample.DateTime)).OrderBy(group => group.Key))
             {
                 var ordered = dayGroup.OrderBy(sample => AsUtc(sample.DateTime)).ToList();
                 if (ordered.Count == 0)
                     continue;
 
-                var netPnl = ordered.Count >= 2 ? ordered[^1].Margine - ordered[0].Margine : 0m;
+                var endMargin = ordered[^1].Margine;
+                var startMargin = previousEndMargin ?? ordered[0].Margine;
+                var netPnl = endMargin - startMargin;
+                previousEndMargin = endMargin;
+
                 if (!dailyTotals.TryGetValue(dayGroup.Key, out var existing))
                     existing = (0m, 0);
 
