@@ -44,4 +44,9 @@ export const DashboardService = {
         const response = await apiClient.get('/api/Dashboard/telemetry');
         return unwrap<any>(response) ?? null;
     },
+
+    async getSecurityFilterDetail(computer: string): Promise<any | null> {
+        const response = await apiClient.get(`/api/Dashboard/security-filter/${encodeURIComponent(computer)}`);
+        return unwrap<any>(response) ?? null;
+    },
 };

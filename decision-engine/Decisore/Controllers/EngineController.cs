@@ -1,5 +1,6 @@
 using System.Data;
 using Microsoft.AspNetCore.Mvc;
+using Decisore.Engine;
 using Decisore.Models;
 using Decisore.Services;
 using Decisore.Repository;
@@ -243,6 +244,21 @@ namespace Decisore.Controllers
             }
         }
 
+        /* ---------------- TELEMETRY DETAIL ---------------- */
+
+        [HttpGet("security-filter/{computer}")]
+        public IActionResult GetSecurityFilterBot(string computer)
+        {
+            if (string.IsNullOrWhiteSpace(computer))
+                return NotFound();
+
+            var bot = _engine.getSecurityFilterBot(computer.Trim());
+            if (bot == null)
+                return NotFound();
+
+            return Ok(bot);
+        }
+
         /* ---------------- RESET ---------------- */
 
         [HttpGet("reset")]
@@ -442,7 +458,16 @@ namespace Decisore.Controllers
                             action,
                             p.CHOSEN_COLOR);
                         
-                        _db.UpdateMargin(JsonSerializer.Serialize(telemetry), elapsedMinutesMax);
+                        var persistence = TelemetryPersistence.From(telemetry);
+                        var telemetryJson = JsonSerializer.Serialize(persistence);
+                        var securityFilterJson = JsonSerializer.Serialize(persistence.SecurityFilterByBot);
+                        var numeroBot = persistence.SecurityFilterByBot?.Count ?? 0;
+                        Console.WriteLine(
+                            $"TELEMETRY_SIZE telemetryJson.Length={telemetryJson.Length} numeroBot={numeroBot} dimensioneSecurityFilterByBot={securityFilterJson.Length}");
+                        _log.Log(
+                            $"TELEMETRY_SIZE telemetryJson.Length={telemetryJson.Length} numeroBot={numeroBot} dimensioneSecurityFilterByBot={securityFilterJson.Length}");
+
+                        _db.UpdateMargin(telemetryJson, elapsedMinutesMax);
                     }
                     catch { }
                 });

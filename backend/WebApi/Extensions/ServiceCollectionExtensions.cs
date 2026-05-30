@@ -29,6 +29,7 @@ public static class ServiceCollectionExtensions
         services.Configure<DeciderOptions>(configuration.GetSection(DeciderOptions.SectionName));
         services.Configure<CollaudoOptions>(configuration.GetSection(CollaudoOptions.SectionName));
         services.AddHttpClient(nameof(Controllers.DeciderController));
+        services.AddHttpClient(nameof(DashboardService));
 
         // Add DbContext
         services.AddDbContext<AppDbContext>(options =>

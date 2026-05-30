@@ -209,6 +209,14 @@ namespace Decisore.Services
             }
         }
 
+        public SecurityFilterBotTelemetry? getSecurityFilterBot(string computer)
+        {
+            lock (_sync)
+            {
+                return _engine?.getSecurityFilterBot(computer);
+            }
+        }
+
         public void updateCurrentBet(string computer, int tableId, double valoreGiocato, int handIndexMazzo)
         {
             lock (_sync)

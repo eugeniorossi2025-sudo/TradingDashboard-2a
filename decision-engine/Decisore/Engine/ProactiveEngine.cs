@@ -241,6 +241,11 @@ namespace Decisore.Engine
             
             return telemetry;
         }
+
+        public SecurityFilterBotTelemetry? getSecurityFilterBot(string computer)
+        {
+            return getTelemetry().SecurityFilterByBot.TryGetValue(computer, out var bot) ? bot : null;
+        }
         
         public void UpdateRealTimeBet(string computer, int tableId, double valoreGiocato, int handIndexMazzo)
         {

@@ -1,19 +1,35 @@
+using System.Globalization;
+using System.Net;
 using System.Text.Json;
 using Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using WebApi.Controllers;
 using WebApi.Data;
+using WebApi.Options;
 using WebApi.Services;
 
 namespace WebApi.Services.Implementations;
 
 public class DashboardService : IDashboardService
 {
-    private readonly AppDbContext _context;
+    private static readonly JsonSerializerOptions DeciderJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
-    public DashboardService(AppDbContext context)
+    private readonly AppDbContext _context;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly DeciderOptions _deciderOptions;
+
+    public DashboardService(
+        AppDbContext context,
+        IHttpClientFactory httpClientFactory,
+        IOptions<DeciderOptions> deciderOptions)
     {
         _context = context;
+        _httpClientFactory = httpClientFactory;
+        _deciderOptions = deciderOptions.Value;
     }
 
     public async Task<DashboardStatistics> GetDashboardStatisticsAsync()
@@ -275,7 +291,90 @@ public class DashboardService : IDashboardService
             catch { /* telemetry JSON malformed — return partial result */ }
         }
 
+        await ApplySecurityFilterConfigAsync(result);
         return result;
+    }
+
+    public async Task<SecurityFilterBotTelemetryDto?> GetSecurityFilterBotDetailAsync(string computer, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(computer) || !_deciderOptions.Enabled)
+            return null;
+
+        var client = _httpClientFactory.CreateClient(nameof(DashboardService));
+        client.Timeout = TimeSpan.FromSeconds(10);
+
+        var url = _deciderOptions.ProactiveUrl($"security-filter/{Uri.EscapeDataString(computer.Trim())}");
+        try
+        {
+            using var response = await client.GetAsync(url, cancellationToken);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+                return null;
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
+            return await JsonSerializer.DeserializeAsync<SecurityFilterBotTelemetryDto>(stream, DeciderJsonOptions, cancellationToken);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private async Task ApplySecurityFilterConfigAsync(DashboardTelemetry result)
+    {
+        var keys = new[]
+        {
+            "SECURITY_FILTER_ENABLED",
+            "SECURITY_FILTER_MIN_SCORE",
+            "SECURITY_FILTER_MIN_STREAK",
+            "SECURITY_FILTER_MAX_SHOE_HAND",
+            "SECURITY_FILTER_MAX_AVG_SECONDS",
+            "SECURITY_FILTER_VERY_FAST_SECONDS",
+            "SECURITY_FILTER_DELTA_WINDOW"
+        };
+
+        var configs = await _context.Configurations
+            .AsNoTracking()
+            .Where(c => keys.Contains(c.Key))
+            .ToDictionaryAsync(c => c.Key, c => c.Value);
+
+        if (configs.TryGetValue("SECURITY_FILTER_ENABLED", out var enabled))
+            result.SecurityFilterEnabled = ParseEnabledFlag(enabled);
+
+        if (configs.TryGetValue("SECURITY_FILTER_MIN_SCORE", out var minScore) &&
+            int.TryParse(minScore, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms))
+            result.SecurityFilterMinScore = ms;
+
+        if (configs.TryGetValue("SECURITY_FILTER_MIN_STREAK", out var minStreak) &&
+            int.TryParse(minStreak, NumberStyles.Integer, CultureInfo.InvariantCulture, out var mst))
+            result.SecurityFilterMinStreak = mst;
+
+        if (configs.TryGetValue("SECURITY_FILTER_MAX_SHOE_HAND", out var maxShoe) &&
+            int.TryParse(maxShoe, NumberStyles.Integer, CultureInfo.InvariantCulture, out var msh))
+            result.SecurityFilterMaxShoeHand = msh;
+
+        if (configs.TryGetValue("SECURITY_FILTER_MAX_AVG_SECONDS", out var maxAvg) &&
+            double.TryParse(maxAvg, NumberStyles.Float, CultureInfo.InvariantCulture, out var mas))
+            result.SecurityFilterMaxAvgSeconds = (decimal)mas;
+
+        if (configs.TryGetValue("SECURITY_FILTER_VERY_FAST_SECONDS", out var veryFast) &&
+            double.TryParse(veryFast, NumberStyles.Float, CultureInfo.InvariantCulture, out var vfs))
+            result.SecurityFilterVeryFastSeconds = (decimal)vfs;
+
+        if (configs.TryGetValue("SECURITY_FILTER_DELTA_WINDOW", out var deltaWindow) &&
+            int.TryParse(deltaWindow, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dw))
+            result.SecurityFilterDeltaWindow = dw;
+    }
+
+    private static bool ParseEnabledFlag(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return true;
+
+        return value.Trim().Equals("1", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<bool> GetSecurityFilterEnabledAsync()
@@ -286,12 +385,7 @@ public class DashboardService : IDashboardService
             .Select(c => c.Value)
             .FirstOrDefaultAsync();
 
-        if (string.IsNullOrWhiteSpace(value)) return true;
-
-        return value.Trim().Equals("1", StringComparison.OrdinalIgnoreCase)
-            || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
-            || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
-            || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
+        return ParseEnabledFlag(value);
     }
 
     private Task<List<Entities.PcCurrentStatus>> GetCurrentStatusRowsAsync()

@@ -149,6 +149,32 @@ public class DashboardController : ControllerBase
                 ApiResponse<object>.ErrorResponse($"Error retrieving telemetry: {ex.Message}"));
         }
     }
+
+    /// <summary>
+    /// Full Security Filter telemetry for one bot (proxied from Decisore in-memory state).
+    /// </summary>
+    [HttpGet("security-filter/{computer}")]
+    [Authorize]
+    [ProducesResponseType(typeof(ApiResponse<SecurityFilterBotTelemetryDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetSecurityFilterBot(string computer, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var detail = await _dashboardService.GetSecurityFilterBotDetailAsync(computer, cancellationToken);
+            if (detail == null)
+            {
+                return NotFound(ApiResponse<object>.ErrorResponse($"Security filter detail not available for '{computer}'."));
+            }
+
+            return Ok(ApiResponse<SecurityFilterBotTelemetryDto>.SuccessResponse(detail));
+        }
+        catch (Exception ex)
+        {
+            return StatusCode(500,
+                ApiResponse<object>.ErrorResponse($"Error retrieving security filter detail: {ex.Message}"));
+        }
+    }
 }
 
 /// <summary>
@@ -282,6 +308,8 @@ public class SecurityFilterBotTelemetryDto
     public string Computer { get; set; } = "";
     public decimal AvgHandSeconds { get; set; }
     public decimal LastHandDeltaSeconds { get; set; }
+    public double[] LastTwoHandDeltaSeconds { get; set; } = Array.Empty<double>();
+    public bool RapidL5TriggerActive { get; set; }
     public decimal MinHandDeltaSeconds { get; set; }
     public decimal MaxHandDeltaSeconds { get; set; }
     public int L6PlayedCount { get; set; }

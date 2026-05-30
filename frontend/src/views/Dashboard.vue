@@ -213,7 +213,8 @@ const refreshTelemetry = async () => {
             margineMin: telemetry.margineMin ?? 0,
             margineMax: telemetry.margineMax ?? 0,
             elapsed: telemetry.elapsed ?? 0,
-            telemetry: telemetry.rawTelemetry ?? null
+            telemetry: telemetry.rawTelemetry ?? null,
+            telemetryParsed: telemetry
         }];
     } catch (error) {
         console.error('❌ Error refreshing telemetry:', error);
@@ -517,7 +518,7 @@ onUnmounted(async () => {
             <div class="col-span-12">
                 <TableBots :tableData="tableData || []" :decisionMethod="decisionMethod || ''" />
             </div>
-            <StatsWidget :telemetry="latestStatisticData?.telemetry" />
+            <StatsWidget :telemetry="latestStatisticData?.telemetry" :telemetry-parsed="latestStatisticData?.telemetryParsed" />
             <div class="col-span-12">
                 <ProfitsChats :title="'Profits Chart'" :chartData="marginiChartData.length ? marginiChartData : (chartData || [])" />
             </div>

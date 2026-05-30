@@ -1,22 +1,89 @@
 <script setup>
 import { computed, ref } from 'vue';
+import { DashboardService } from '@/service/DashboardService';
 
 const props = defineProps({
     telemetry: {
         type: String,
         default: null
+    },
+    telemetryParsed: {
+        type: Object,
+        default: null
     }
 });
 
 const selectedSecurityFilterBot = ref(null);
+const securityFilterBotDetails = ref({});
+const securityFilterDetailLoading = ref(false);
+const securityFilterDetailUnavailable = ref(false);
+
+function mergeTelemetryFromApi(api) {
+    if (!api || typeof api !== 'object') return {};
+    return {
+        TotalAuthL6Authorized: api.totalAuthL6Authorized,
+        TotalL5Played: api.totalL5Played,
+        TotalL5Won: api.totalL5Won,
+        TotalL5Lost: api.totalL5Lost,
+        TotalPBHandsPlayed: api.totalPbHandsPlayed,
+        TotalL8Played: api.totalL8Played,
+        TotalL8Won: api.totalL8Won,
+        TotalL8Lost: api.totalL8Lost,
+        SpotID: api.spotId,
+        SpotPBHandsPlayed: api.spotPbHandsPlayed,
+        SpotAuthL6Counter: api.spotAuthL6Counter,
+        SpotL5Loss: api.spotL5Loss,
+        GlobalPauseScalping: api.globalPauseScalping,
+        GlobalPauseScalpingDetails: api.globalPauseScalpingDetails,
+        GlobalPauseScalpingDuration: api.globalPauseScalpingDuration,
+        INC: api.inc,
+        EWMA: api.ewma,
+        TotalPauseScalpingSoglieActivated: api.totalPauseScalpingSoglieActivated,
+        TotalPauseScalpingEWMAActivated: api.totalPauseScalpingEWMAActivated,
+        SecurityFilterEnabled: api.securityFilterEnabled,
+        SecurityFilterMinScore: api.securityFilterMinScore,
+        SecurityFilterMinStreak: api.securityFilterMinStreak,
+        SecurityFilterMaxShoeHand: api.securityFilterMaxShoeHand,
+        SecurityFilterMaxAvgSeconds: api.securityFilterMaxAvgSeconds,
+        SecurityFilterVeryFastSeconds: api.securityFilterVeryFastSeconds,
+        SecurityFilterDeltaWindow: api.securityFilterDeltaWindow,
+        TotalSecurityFilterActivated: api.totalSecurityFilterActivated,
+        TotalSecurityFilterPreventedL6: api.totalSecurityFilterPreventedL6,
+        LastAvgHandSeconds: api.lastAvgHandSeconds,
+        ActiveSecurityFilterBots: api.activeSecurityFilterBots
+    };
+}
+
+function toPascalCaseKeys(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return obj;
+    const out = {};
+    for (const [key, value] of Object.entries(obj)) {
+        if (!key) continue;
+        out[key.charAt(0).toUpperCase() + key.slice(1)] = value;
+    }
+    return out;
+}
 
 const telemetryData = computed(() => {
-    if (!props.telemetry) return {};
-    try {
-        return JSON.parse(props.telemetry);
-    } catch {
-        return {};
+    let fromRaw = {};
+    if (props.telemetry) {
+        try {
+            fromRaw = JSON.parse(props.telemetry);
+        } catch {
+            fromRaw = {};
+        }
     }
+
+    const fromApi = mergeTelemetryFromApi(props.telemetryParsed);
+    const merged = { ...fromApi, ...fromRaw };
+
+    for (const [key, value] of Object.entries(fromApi)) {
+        if (value !== undefined && value !== null && (merged[key] === undefined || merged[key] === null)) {
+            merged[key] = value;
+        }
+    }
+
+    return merged;
 });
 
 const securityFilterRows = computed(() => {
@@ -26,6 +93,7 @@ const securityFilterRows = computed(() => {
     return Object.entries(byBot)
         .map(([computer, row]) => ({
             computer,
+            Computer: computer,
             ...(row || {})
         }))
         .sort((a, b) => {
@@ -43,9 +111,15 @@ const securityFilterRows = computed(() => {
 });
 
 const selectedSecurityFilterRow = computed(() => {
-    if (!securityFilterRows.value.length) return null;
     if (!selectedSecurityFilterBot.value) return null;
-    return securityFilterRows.value.find((row) => getBotName(row) === selectedSecurityFilterBot.value) ?? null;
+
+    const summary = securityFilterRows.value.find((row) => getBotName(row) === selectedSecurityFilterBot.value);
+    if (!summary) return null;
+
+    const detail = securityFilterBotDetails.value[selectedSecurityFilterBot.value];
+    if (!detail) return summary;
+
+    return { ...summary, ...toPascalCaseKeys(detail) };
 });
 
 const securityFilterRiskStrip = computed(() => {
@@ -322,7 +396,35 @@ function shouldPulseCard(row) {
 
 function selectSecurityFilterBot(row) {
     const botName = getBotName(row);
-    selectedSecurityFilterBot.value = selectedSecurityFilterBot.value === botName ? null : botName;
+    if (selectedSecurityFilterBot.value === botName) {
+        selectedSecurityFilterBot.value = null;
+        securityFilterDetailUnavailable.value = false;
+        return;
+    }
+
+    selectedSecurityFilterBot.value = botName;
+    securityFilterDetailUnavailable.value = false;
+
+    if (securityFilterBotDetails.value[botName]) return;
+
+    securityFilterDetailLoading.value = true;
+    DashboardService.getSecurityFilterDetail(botName)
+        .then((detail) => {
+            if (detail) {
+                securityFilterBotDetails.value = {
+                    ...securityFilterBotDetails.value,
+                    [botName]: detail
+                };
+            } else {
+                securityFilterDetailUnavailable.value = true;
+            }
+        })
+        .catch(() => {
+            securityFilterDetailUnavailable.value = true;
+        })
+        .finally(() => {
+            securityFilterDetailLoading.value = false;
+        });
 }
 </script>
 
@@ -632,6 +734,8 @@ function selectSecurityFilterBot(row) {
                         <div>
                             <h4 class="m-0 text-xl font-semibold">Dettaglio aperto: {{ getBotName(selectedSecurityFilterRow) }}</h4>
                             <div class="text-sm text-muted-color">Un solo bot espanso alla volta. Il resto rimane in overview compatta.</div>
+                            <div v-if="securityFilterDetailLoading" class="mt-1 text-xs text-muted-color">Caricamento dettaglio completo…</div>
+                            <div v-else-if="securityFilterDetailUnavailable" class="mt-1 text-xs text-orange-600 dark:text-orange-300">Dettaglio esteso non disponibile — mostrata solo la sintesi live.</div>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="w-fit rounded-full border px-3 py-1 text-xs font-bold" :class="getRiskStatusClass(selectedSecurityFilterRow)">{{ getRiskLabel(selectedSecurityFilterRow) }}</span>

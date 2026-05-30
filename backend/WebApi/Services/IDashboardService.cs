@@ -28,4 +28,9 @@ public interface IDashboardService
     /// Gets the latest session telemetry from dbo.Statistiche.
     /// </summary>
     Task<DashboardTelemetry> GetLatestTelemetryAsync();
+
+    /// <summary>
+    /// Gets full Security Filter telemetry for one bot from the Decisore (on-demand detail).
+    /// </summary>
+    Task<SecurityFilterBotTelemetryDto?> GetSecurityFilterBotDetailAsync(string computer, CancellationToken cancellationToken = default);
 }

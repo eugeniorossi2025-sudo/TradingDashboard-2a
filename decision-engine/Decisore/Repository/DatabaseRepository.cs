@@ -488,7 +488,7 @@ namespace Decisore.Repository
                     closeStatsCmd.ExecuteNonQuery();
                 }
 
-                var telemetryJson = JsonSerializer.Serialize(new Telemetry());
+                var telemetryJson = JsonSerializer.Serialize(TelemetryPersistence.From(new Telemetry()));
 
                 var isStatisticheIdIdentity = false;
                 using (var identityCmd = new SqlCommand(@"
