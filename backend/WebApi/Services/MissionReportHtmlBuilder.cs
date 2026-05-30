@@ -12,9 +12,14 @@ public static class MissionReportHtmlBuilder
         var culture = CultureInfo.GetCultureInfo("it-IT");
         var title = report.IsDemoMode ? "Mission Report DEMO" : "Mission Report Production";
         var statement = report.IsDemoMode ? "Demo Statement" : "Official Production Statement";
-        var generated = report.GeneratedAt.ToLocalTime().ToString("HH:mm", culture);
+        var generated = TimeZoneInfo.ConvertTimeFromUtc(
+            report.GeneratedAt.Kind == DateTimeKind.Utc ? report.GeneratedAt : report.GeneratedAt.ToUniversalTime(),
+            ResolveRomeTimeZone()).ToString("HH:mm", culture);
         var period = $"{report.From:dd MMMM yyyy} - {report.To:dd MMMM yyyy}";
-        var subtitle = $"Reporting period: {period} • Strategy mode: {Html(report.RuntimeMode)} • Generated at {generated}";
+        var subtitle = $"Reporting period: {period} • Strategy mode: {Html(report.RuntimeMode)} • Generated at {generated} (Europe/Rome)";
+        var periodResult = report.Totals.PeriodResultEuro;
+        var periodTone = Tone(periodResult);
+        var periodLabel = periodResult > 0 ? "Periodo positivo" : periodResult < 0 ? "Periodo negativo" : "Periodo in pari";
 
         var sb = new StringBuilder();
         sb.AppendLine("<!doctype html><html lang=\"it\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">");
@@ -27,7 +32,7 @@ public static class MissionReportHtmlBuilder
 .topRule{height:6px;background:#111827;margin:-12mm -12mm 10mm}.header{display:flex;justify-content:space-between;gap:20px;align-items:flex-start}
 .brandKicker{font-size:12px;text-transform:uppercase;letter-spacing:.16em;color:var(--muted);font-weight:800}.h1{font-size:28px;font-weight:850;margin-top:4px}.sub{margin-top:8px;color:var(--muted);font-size:13px}
 .seal{border:1px solid var(--line);border-radius:999px;padding:10px 14px;font-size:12px;font-weight:800;white-space:nowrap}.actions{margin-top:16px}.btn{border:1px solid #111827;background:#111827;color:#fff;border-radius:999px;padding:10px 15px;font-weight:800;cursor:pointer}
-.hero{margin:20px 0;padding:14px;border:1px solid var(--line);background:var(--soft)}.heroTitle{font-size:16px;font-weight:850}.heroText{color:var(--muted);line-height:1.45;margin-bottom:0}
+.hero{margin:20px 0;padding:18px;border:1px solid var(--line);background:var(--soft)}.heroTitle{font-size:13px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);font-weight:800}.heroValue{font-size:34px;font-weight:900;margin-top:8px}.heroSub{margin-top:6px;color:var(--muted);font-size:13px}
 .summaryGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.card{border:1px solid var(--line);padding:10px;min-height:72px}.k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-weight:800}.v{font-size:18px;font-weight:850;margin-top:8px}.v.small{font-size:14px}.focus{background:#f9fafb}
 .pos{color:var(--ok)}.neg{color:var(--bad)}.neutral{color:var(--ink)}.methodNote,.sectionSub,.footerMeta{color:var(--muted);font-size:11px;line-height:1.35}.section{margin-top:20px}h2{font-size:16px;margin:0 0 7px}
 .chartWrap{border:1px solid var(--line);padding:10px}.chart{width:100%;height:155px}.axis{stroke:#d0d5dd}.curve{fill:none;stroke:#111827;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
@@ -42,13 +47,16 @@ public static class MissionReportHtmlBuilder
         sb.AppendLine("<div class=\"header\"><div><div class=\"brandKicker\">Eugenio Trading</div>");
         sb.AppendLine($"<div class=\"h1\">{Html(title)}</div><div class=\"sub\">{subtitle}</div></div>");
         sb.AppendLine($"<div><div class=\"seal\">{Html(statement)}</div><div class=\"actions noprint\"><button class=\"btn\" onclick=\"window.print()\">Print / Export PDF</button></div></div></div>");
-        sb.AppendLine($"<div class=\"hero\"><div class=\"heroTitle\">{Html(statement)}</div><p class=\"heroText\">{Html(statement)} for the reporting period {Html(period)}.</p></div>");
+
+        sb.AppendLine("<div class=\"hero\">");
+        sb.AppendLine("<div class=\"heroTitle\">Risultato periodo</div>");
+        sb.AppendLine($"<div class=\"heroValue {periodTone}\">{Html(FormatEuro(periodResult))}</div>");
+        sb.AppendLine($"<div class=\"heroSub\">{Html(periodLabel)} • {Html(FormatPercent(report.Totals.PeriodReturnPct))} sul capitale base • {report.Totals.WorkingDays.ToString(CultureInfo.InvariantCulture)} giorni operativi</div>");
+        sb.AppendLine("</div>");
 
         var q = report.QualityMetrics;
         sb.AppendLine("<div class=\"summaryGrid\">");
         AddCard(sb, "Invested Capital", "€ •••••••", "neutral");
-        AddCard(sb, "Net P&L", FormatEuro(report.Totals.TotalMarginEuro), Tone(report.Totals.TotalMarginEuro), true);
-        AddCard(sb, "Final Margin", FormatEuro(report.Totals.FinalMarginEuro), Tone(report.Totals.FinalMarginEuro));
         AddCard(sb, "Period Return", FormatPercent(report.Totals.PeriodReturnPct), Tone(report.Totals.PeriodReturnPct));
         AddCard(sb, "Annualised Return", FormatPercent(report.Totals.AnnualisedReturnPct), Tone(report.Totals.AnnualisedReturnPct));
         AddCard(sb, "Average Daily P&L", FormatEuro(report.Totals.AverageDailyPnl), Tone(report.Totals.AverageDailyPnl));
@@ -59,7 +67,7 @@ public static class MissionReportHtmlBuilder
         AddCard(sb, "Real Hands", report.Totals.RealHandsCount.ToString(CultureInfo.InvariantCulture), "neutral");
         AddCard(sb, "Tables", report.Totals.ActiveTables.ToString(CultureInfo.InvariantCulture), "neutral");
         sb.AppendLine("</div>");
-        sb.AppendLine("<p class=\"methodNote\">Invested capital is withheld for privacy. Performance ratios are calculated on the configured capital base. Annualised return is calculated from the observed period performance and does not represent a guaranteed future return.</p>");
+        sb.AppendLine("<p class=\"methodNote\">Il Risultato periodo è la somma dei P&amp;L missione nel periodo selezionato (sample clippati su Europe/Rome). Il capitale investito è mascherato per privacy. Il rendimento annualizzato è una proiezione da performance osservata e non rappresenta un rendimento garantito.</p>");
 
         sb.AppendLine("<div class=\"section\"><h2>Risk / Quality Metrics</h2><div class=\"sectionSub\">Calculated from real daily observations in the selected reporting period.</div><div class=\"summaryGrid\">");
         AddCard(sb, "Best Day", FormatEuro(q.BestDay), Tone(q.BestDay));
@@ -73,16 +81,16 @@ public static class MissionReportHtmlBuilder
 
         if (report.DailyRows.Count > 0)
         {
-            sb.AppendLine("<div class=\"section\"><h2>Net P&L Curve</h2><div class=\"chartWrap\">");
+            sb.AppendLine("<div class=\"section\"><h2>Curva risultato periodo</h2><div class=\"chartWrap\">");
             sb.AppendLine(BuildChart(report.DailyRows.Select(r => r.CumulativePnl).ToList()));
             sb.AppendLine("</div></div>");
 
-            sb.AppendLine("<div class=\"section\"><h2>Daily Performance</h2><table class=\"table\"><thead><tr><th>Date</th><th>Net P&amp;L</th><th>Daily Return</th></tr></thead><tbody>");
+            sb.AppendLine("<div class=\"section\"><h2>Daily Performance</h2><table class=\"table\"><thead><tr><th>Date</th><th>P&amp;L giorno</th><th>Daily Return</th></tr></thead><tbody>");
             foreach (var row in report.DailyRows)
             {
                 sb.AppendLine($"<tr><td>{row.Date.ToString("dd MMMM yyyy", culture)}</td><td class=\"ledgerAmount {Tone(row.NetPnl)}\">{FormatEuro(row.NetPnl)}</td><td class=\"mono {Tone(row.DailyReturnPct)}\">{FormatPercent(row.DailyReturnPct)}</td></tr>");
             }
-            sb.AppendLine($"<tr><td><b>Total Period</b></td><td class=\"ledgerAmount {Tone(report.Totals.TotalMarginEuro)}\"><b>{FormatEuro(report.Totals.TotalMarginEuro)}</b></td><td class=\"mono {Tone(report.Totals.PeriodReturnPct)}\"><b>{FormatPercent(report.Totals.PeriodReturnPct)}</b></td></tr>");
+            sb.AppendLine($"<tr><td><b>Risultato periodo</b></td><td class=\"ledgerAmount {periodTone}\"><b>{FormatEuro(periodResult)}</b></td><td class=\"mono {periodTone}\"><b>{FormatPercent(report.Totals.PeriodReturnPct)}</b></td></tr>");
             sb.AppendLine("</tbody></table></div>");
         }
         else
@@ -92,10 +100,10 @@ public static class MissionReportHtmlBuilder
 
         if (report.Sessions.Count > 0)
         {
-            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>Net P&amp;L</th><th>Final Margin</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
+            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><div class=\"sectionSub\">Margine PBT a chiusura = livello assoluto del margine al termine della finestra; non è il profitto del periodo.</div><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>P&amp;L periodo</th><th>Margine PBT a chiusura</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
             foreach (var session in report.Sessions)
             {
-                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td class=\"ledgerAmount {Tone(session.FinalMarginEuro)}\">{FormatEuro(session.FinalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
+                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td class=\"ledgerAmount neutral\">{FormatEuro(session.FinalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
             }
             sb.AppendLine("</tbody></table></div>");
         }
@@ -124,7 +132,7 @@ public static class MissionReportHtmlBuilder
             return $"{(index == 0 ? "M" : "L")}{x.ToString("0.0", CultureInfo.InvariantCulture)} {y.ToString("0.0", CultureInfo.InvariantCulture)}";
         });
 
-        return $"<svg class=\"chart\" viewBox=\"0 0 700 180\" role=\"img\" aria-label=\"Net P and L curve\"><line class=\"axis\" x1=\"10\" y1=\"160\" x2=\"690\" y2=\"160\"/><path class=\"curve\" d=\"{string.Join(" ", points)}\"/></svg>";
+        return $"<svg class=\"chart\" viewBox=\"0 0 700 180\" role=\"img\" aria-label=\"Period result curve\"><line class=\"axis\" x1=\"10\" y1=\"160\" x2=\"690\" y2=\"160\"/><path class=\"curve\" d=\"{string.Join(" ", points)}\"/></svg>";
     }
 
     private static string FormatEuro(decimal value)
@@ -142,4 +150,16 @@ public static class MissionReportHtmlBuilder
     private static string Tone(decimal value) => value > 0 ? "pos" : value < 0 ? "neg" : "neutral";
 
     private static string Html(string value) => WebUtility.HtmlEncode(value);
+
+    private static TimeZoneInfo ResolveRomeTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Rome");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
+        }
+    }
 }

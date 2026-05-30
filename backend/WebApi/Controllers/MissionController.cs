@@ -20,6 +20,7 @@ public class MissionController : ControllerBase
     private const string Production = "Production";
     private const string Demo = "Demo";
     private const string InvestedCapitalBaseKey = "REPORT_INVESTED_CAPITAL_BASE";
+    private static readonly TimeZoneInfo RomeTimeZone = ResolveRomeTimeZone();
 
     private readonly AppDbContext _context;
     private readonly IMissionLifecycleService _missionLifecycleService;
@@ -125,10 +126,12 @@ public class MissionController : ControllerBase
         limit = Math.Clamp(limit, 1, 500);
         skip = Math.Max(0, skip);
 
+        var (periodStartUtc, periodEndUtc) = GetPeriodBoundsUtc(fromDate, toExclusive);
+
         var query = _context.MissionSessions
             .AsNoTracking()
-            .Where(session => (session.EndTime ?? session.StartTime) >= fromDate
-                              && session.StartTime < toExclusive);
+            .Where(session => (session.EndTime ?? session.StartTime) >= periodStartUtc
+                              && session.StartTime < periodEndUtc);
 
         if (!includeAllModes)
             query = query.Where(session => session.RuntimeMode == mode);
@@ -165,11 +168,13 @@ public class MissionController : ControllerBase
             ? new Dictionary<int, int>()
             : await _context.MissionMarginSamples
                 .AsNoTracking()
-                .Where(sample => ids.Contains(sample.SessionId))
+                .Where(sample => ids.Contains(sample.SessionId)
+                                 && sample.Timestamp >= periodStartUtc
+                                 && sample.Timestamp < periodEndUtc)
                 .GroupBy(sample => sample.SessionId)
                 .Select(group => new { SessionId = group.Key, Count = group.Count() })
                 .ToDictionaryAsync(row => row.SessionId, row => row.Count);
-        var sampleSummaries = await GetSampleSummariesAsync(ids);
+        var sampleSummaries = await GetSampleSummariesAsync(ids, periodStartUtc, periodEndUtc);
 
         var response = new MissionReportsIndexResponse
         {
@@ -188,7 +193,7 @@ public class MissionController : ControllerBase
                     Completed = session.Completed,
                     RuntimeMode = session.RuntimeMode,
                     TotalMarginEuro = summary?.NetPnl ?? 0m,
-                    FinalMarginEuro = summary?.FinalMargin ?? session.TotalMargin,
+                    FinalMarginEuro = summary?.FinalMargin ?? 0m,
                     GlobalTargetEuro = session.GlobalTarget,
                     KFactor = session.KFactor,
                     ActiveTables = session.ActiveTables,
@@ -211,7 +216,9 @@ public class MissionController : ControllerBase
         if (session == null)
             return NotFound(ApiResponse<object>.ErrorResponse("Mission session not found"));
 
-        var report = await BuildReportAsync(session.StartTime.Date, (session.EndTime ?? session.StartTime).Date.AddDays(1), session.RuntimeMode);
+        var fromDate = session.StartTime.Date;
+        var toDateExclusive = (session.EndTime ?? session.StartTime).Date.AddDays(1);
+        var report = await BuildReportAsync(fromDate, toDateExclusive, session.RuntimeMode);
         report.Sessions = report.Sessions
             .Where(row => row.SessionId == sessionId)
             .ToList();
@@ -219,27 +226,9 @@ public class MissionController : ControllerBase
             .Where(row => row.SessionId == sessionId)
             .OrderBy(row => row.DateTime)
             .ToList();
-        report.DailyRows = BuildDailyRows(report.Samples, session.StartTime.Date, (session.EndTime ?? session.StartTime).Date.AddDays(1), await GetInvestedCapitalBaseAsync());
+
         var investedCapitalBase = await GetInvestedCapitalBaseAsync();
-        var reportingDays = Math.Max(1, ((session.EndTime ?? session.StartTime).Date.AddDays(1) - session.StartTime.Date).Days);
-        var workingDays = report.DailyRows.Count(row => row.SampleCount > 0);
-        report.Totals.TotalMarginEuro = report.DailyRows.Sum(row => row.NetPnl);
-        report.Totals.FinalMarginEuro = report.Samples.LastOrDefault()?.Margine ?? report.Sessions.Sum(row => row.FinalMarginEuro);
-        report.Totals.GlobalTargetEuro = report.Sessions.Sum(row => row.GlobalTargetEuro);
-        report.Totals.ProgressPct = report.Totals.GlobalTargetEuro == 0 ? 0 : Math.Round(report.Totals.TotalMarginEuro / report.Totals.GlobalTargetEuro * 100, 2);
-        report.Totals.SampleCount = report.Samples.Count;
-        report.Totals.MargineMin = report.Samples.Count == 0 ? 0 : report.Samples.Min(row => row.Margine);
-        report.Totals.MargineMax = report.Samples.Count == 0 ? 0 : report.Samples.Max(row => row.Margine);
-        report.Totals.SessionCount = report.Sessions.Count;
-        report.Totals.RealHandsCount = report.Sessions.Sum(row => row.RealHandsCount);
-        report.Totals.ActiveTables = report.Sessions.Count == 0 ? 0 : report.Sessions.Max(row => row.ActiveTables);
-        report.Totals.ReportingDays = reportingDays;
-        report.Totals.WorkingDays = workingDays;
-        report.Totals.PeriodReturnPct = investedCapitalBase > 0 ? Math.Round(report.Totals.TotalMarginEuro / investedCapitalBase * 100, 2) : 0;
-        report.Totals.AverageDailyPnl = workingDays > 0 ? Math.Round(report.Totals.TotalMarginEuro / workingDays, 2) : 0;
-        report.Totals.AverageDailyReturnPct = investedCapitalBase > 0 ? Math.Round(report.Totals.AverageDailyPnl / investedCapitalBase * 100, 2) : 0;
-        report.Totals.AnnualisedReturnPct = reportingDays > 0 ? Math.Round(report.Totals.PeriodReturnPct / reportingDays * 365, 2) : 0;
-        report.QualityMetrics = BuildQualityMetrics(report.DailyRows);
+        ApplyCanonicalAccounting(report, fromDate, toDateExclusive, investedCapitalBase);
 
         if (string.Equals(format, "json", StringComparison.OrdinalIgnoreCase))
             return Ok(ApiResponse<MissionRangeReportResponse>.SuccessResponse(report));
@@ -313,12 +302,13 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
 
     private async Task<MissionRangeReportResponse> BuildReportAsync(DateTime fromDate, DateTime toDateExclusive, string mode)
     {
+        var (periodStartUtc, periodEndUtc) = GetPeriodBoundsUtc(fromDate, toDateExclusive);
         var sessions = await _context.MissionSessions
             .AsNoTracking()
             .Where(s => s.RuntimeMode == mode
                         && s.Completed
-                        && (s.EndTime ?? s.StartTime) >= fromDate
-                        && s.StartTime < toDateExclusive)
+                        && (s.EndTime ?? s.StartTime) >= periodStartUtc
+                        && s.StartTime < periodEndUtc)
             .OrderBy(s => s.StartTime)
             .ThenBy(s => s.Id)
             .Select(s => new
@@ -339,7 +329,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             ? new List<MissionReportSample>()
             : await _context.MissionMarginSamples
                 .AsNoTracking()
-                .Where(sample => sessionIds.Contains(sample.SessionId))
+                .Where(sample => sessionIds.Contains(sample.SessionId)
+                                 && sample.Timestamp >= periodStartUtc
+                                 && sample.Timestamp < periodEndUtc)
                 .OrderBy(sample => sample.Timestamp)
                 .Select(sample => new MissionReportSample
                 {
@@ -349,76 +341,103 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
                     ActiveTables = sample.ActiveTables
                 })
                 .ToListAsync();
-        var sampleSummaries = BuildSampleSummaries(samples);
 
-        var dailyRows = BuildDailyRows(samples, fromDate, toDateExclusive, await GetInvestedCapitalBaseAsync());
-        var totalMargin = dailyRows.Sum(row => row.NetPnl);
-        var qualityMetrics = BuildQualityMetrics(dailyRows);
-        var target = sessions.Sum(s => s.GlobalTarget);
         var investedCapitalBase = await GetInvestedCapitalBaseAsync();
-        var reportingDays = Math.Max(1, (toDateExclusive.Date - fromDate.Date).Days);
-        var workingDays = dailyRows.Count(row => row.SampleCount > 0);
-        var periodReturnPct = investedCapitalBase > 0 ? totalMargin / investedCapitalBase * 100 : 0;
-        var averageDailyPnl = workingDays > 0 ? totalMargin / workingDays : 0;
-        var averageDailyReturnPct = investedCapitalBase > 0 ? averageDailyPnl / investedCapitalBase * 100 : 0;
-        var annualisedReturnPct = reportingDays > 0 ? periodReturnPct / reportingDays * 365 : 0;
-
-        return new MissionRangeReportResponse
+        var report = new MissionRangeReportResponse
         {
             RuntimeMode = mode,
             IsDemoMode = string.Equals(mode, Demo, StringComparison.OrdinalIgnoreCase),
             From = fromDate,
             To = toDateExclusive.AddDays(-1),
             GeneratedAt = DateTime.UtcNow,
-            Totals = new MissionRangeTotals
+            Sessions = sessions.Select(s => new MissionReportSession
             {
-                TotalMarginEuro = totalMargin,
-                FinalMarginEuro = sampleSummaries.Count == 0 ? sessions.Sum(s => s.TotalMargin) : sampleSummaries.Values.Sum(row => row.FinalMargin),
-                GlobalTargetEuro = target,
-                ProgressPct = target == 0 ? 0 : Math.Round(totalMargin / target * 100, 2),
-                SampleCount = samples.Count,
-                MargineMin = samples.Count == 0 ? 0 : samples.Min(s => s.Margine),
-                MargineMax = samples.Count == 0 ? 0 : samples.Max(s => s.Margine),
-                SessionCount = sessions.Count,
-                RealHandsCount = sessions.Sum(s => s.RealHandsCount),
-                ActiveTables = sessions.Count == 0 ? 0 : sessions.Max(s => s.ActiveTables),
-                PeriodReturnPct = Math.Round(periodReturnPct, 2),
-                AnnualisedReturnPct = Math.Round(annualisedReturnPct, 2),
-                AverageDailyPnl = Math.Round(averageDailyPnl, 2),
-                AverageDailyReturnPct = Math.Round(averageDailyReturnPct, 2),
-                WorkingDays = workingDays,
-                ReportingDays = reportingDays
-            },
-            QualityMetrics = qualityMetrics,
-            DailyRows = dailyRows,
-            Sessions = sessions.Select(s =>
-            {
-                var summary = sampleSummaries.GetValueOrDefault(s.Id);
-                return new MissionReportSession
-                {
-                    SessionId = s.Id,
-                    StartTime = s.StartTime,
-                    EndTime = s.EndTime,
-                    RuntimeMode = s.RuntimeMode,
-                    TotalMarginEuro = summary?.NetPnl ?? 0m,
-                    FinalMarginEuro = summary?.FinalMargin ?? s.TotalMargin,
-                    GlobalTargetEuro = s.GlobalTarget,
-                    ActiveTables = s.ActiveTables,
-                    RealHandsCount = s.RealHandsCount
-                };
+                SessionId = s.Id,
+                StartTime = s.StartTime,
+                EndTime = s.EndTime,
+                RuntimeMode = s.RuntimeMode,
+                GlobalTargetEuro = s.GlobalTarget,
+                ActiveTables = s.ActiveTables,
+                RealHandsCount = s.RealHandsCount
             }).ToList(),
             Samples = samples
         };
+
+        ApplyCanonicalAccounting(report, fromDate, toDateExclusive, investedCapitalBase);
+        return report;
     }
 
-    private async Task<Dictionary<int, MissionSampleSummary>> GetSampleSummariesAsync(int[] sessionIds)
+    private static void ApplyCanonicalAccounting(
+        MissionRangeReportResponse report,
+        DateTime fromDate,
+        DateTime toDateExclusive,
+        decimal investedCapitalBase)
+    {
+        var sampleSummaries = BuildSampleSummaries(report.Samples);
+        foreach (var session in report.Sessions)
+        {
+            var summary = sampleSummaries.GetValueOrDefault(session.SessionId);
+            session.TotalMarginEuro = summary?.NetPnl ?? 0m;
+            session.FinalMarginEuro = summary?.FinalMargin ?? 0m;
+        }
+
+        var dailyRows = BuildDailyRows(report.Samples, fromDate, toDateExclusive, investedCapitalBase);
+        report.DailyRows = dailyRows;
+
+        var periodResult = Math.Round(sampleSummaries.Values.Sum(row => row.NetPnl), 2);
+        var workingDays = dailyRows.Count;
+        var reportingDays = Math.Max(1, (toDateExclusive.Date - fromDate.Date).Days);
+        var periodReturnPct = investedCapitalBase > 0 ? periodResult / investedCapitalBase * 100 : 0;
+        var averageDailyPnl = workingDays > 0 ? periodResult / workingDays : 0;
+        var averageDailyReturnPct = investedCapitalBase > 0 ? averageDailyPnl / investedCapitalBase * 100 : 0;
+        var target = report.Sessions.Sum(s => s.GlobalTargetEuro);
+
+        report.Totals.PeriodResultEuro = periodResult;
+        report.Totals.TotalMarginEuro = periodResult;
+        report.Totals.FinalMarginEuro = Math.Round(report.Sessions.Sum(s => s.FinalMarginEuro), 2);
+        report.Totals.GlobalTargetEuro = target;
+        report.Totals.ProgressPct = target == 0 ? 0 : Math.Round(periodResult / target * 100, 2);
+        report.Totals.SampleCount = report.Samples.Count;
+        report.Totals.MargineMin = report.Samples.Count == 0 ? 0 : report.Samples.Min(s => s.Margine);
+        report.Totals.MargineMax = report.Samples.Count == 0 ? 0 : report.Samples.Max(s => s.Margine);
+        report.Totals.SessionCount = report.Sessions.Count;
+        report.Totals.RealHandsCount = report.Sessions.Sum(s => s.RealHandsCount);
+        report.Totals.ActiveTables = report.Sessions.Count == 0 ? 0 : report.Sessions.Max(s => s.ActiveTables);
+        report.Totals.PeriodReturnPct = Math.Round(periodReturnPct, 2);
+        report.Totals.AnnualisedReturnPct = CalculateAnnualisedReturnPct(periodReturnPct, workingDays);
+        report.Totals.AverageDailyPnl = Math.Round(averageDailyPnl, 2);
+        report.Totals.AverageDailyReturnPct = Math.Round(averageDailyReturnPct, 2);
+        report.Totals.WorkingDays = workingDays;
+        report.Totals.ReportingDays = reportingDays;
+        report.QualityMetrics = BuildQualityMetrics(dailyRows, investedCapitalBase);
+
+        EnsureReportCoherence(report);
+    }
+
+    private static void EnsureReportCoherence(MissionRangeReportResponse report)
+    {
+        var periodResult = Math.Round(report.Totals.PeriodResultEuro, 2);
+        var sessionSum = Math.Round(report.Sessions.Sum(s => s.TotalMarginEuro), 2);
+        var dailySum = Math.Round(report.DailyRows.Sum(r => r.NetPnl), 2);
+        var lastCurve = Math.Round(report.DailyRows.LastOrDefault()?.CumulativePnl ?? 0m, 2);
+
+        if (periodResult != sessionSum || periodResult != dailySum || periodResult != lastCurve)
+        {
+            throw new InvalidOperationException(
+                $"Report accounting incoherent: periodResult={periodResult}, sessionSum={sessionSum}, dailySum={dailySum}, lastCurve={lastCurve}");
+        }
+    }
+
+    private async Task<Dictionary<int, MissionSampleSummary>> GetSampleSummariesAsync(int[] sessionIds, DateTime periodStartUtc, DateTime periodEndUtc)
     {
         if (sessionIds.Length == 0)
             return new Dictionary<int, MissionSampleSummary>();
 
         var samples = await _context.MissionMarginSamples
             .AsNoTracking()
-            .Where(sample => sessionIds.Contains(sample.SessionId))
+            .Where(sample => sessionIds.Contains(sample.SessionId)
+                             && sample.Timestamp >= periodStartUtc
+                             && sample.Timestamp < periodEndUtc)
             .OrderBy(sample => sample.Timestamp)
             .Select(sample => new MissionReportSample
             {
@@ -440,7 +459,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
                 group => group.Key,
                 group =>
                 {
-                    var ordered = group.OrderBy(sample => sample.DateTime).ToList();
+                    var ordered = group.OrderBy(sample => AsUtc(sample.DateTime)).ToList();
+                    if (ordered.Count == 0)
+                        return new MissionSampleSummary(0m, 0m);
+                    if (ordered.Count == 1)
+                        return new MissionSampleSummary(0m, ordered[0].Margine);
                     var first = ordered.First().Margine;
                     var last = ordered.Last().Margine;
                     return new MissionSampleSummary(last - first, last);
@@ -484,35 +507,55 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             : 5000m;
     }
 
-    private static List<MissionDailyPerformance> BuildDailyRows(List<MissionReportSample> samples, DateTime fromDate, DateTime toDateExclusive, decimal investedCapitalBase)
+    private static List<MissionDailyPerformance> BuildDailyRows(
+        List<MissionReportSample> samples,
+        DateTime fromDate,
+        DateTime toDateExclusive,
+        decimal investedCapitalBase)
     {
+        var dailyTotals = new SortedDictionary<DateOnly, (decimal NetPnl, int SampleCount)>();
+
+        foreach (var sessionGroup in samples.GroupBy(sample => sample.SessionId))
+        {
+            foreach (var dayGroup in sessionGroup.GroupBy(sample => RomeDate(sample.DateTime)))
+            {
+                var ordered = dayGroup.OrderBy(sample => AsUtc(sample.DateTime)).ToList();
+                if (ordered.Count == 0)
+                    continue;
+
+                var netPnl = ordered.Count >= 2 ? ordered[^1].Margine - ordered[0].Margine : 0m;
+                if (!dailyTotals.TryGetValue(dayGroup.Key, out var existing))
+                    existing = (0m, 0);
+
+                dailyTotals[dayGroup.Key] = (existing.NetPnl + netPnl, existing.SampleCount + ordered.Count);
+            }
+        }
+
         var rows = new List<MissionDailyPerformance>();
         decimal cumulative = 0;
+        var periodStart = DateOnly.FromDateTime(fromDate.Date);
+        var periodEndExclusive = DateOnly.FromDateTime(toDateExclusive.Date);
 
-        foreach (var group in samples.GroupBy(sample => sample.DateTime.Date).OrderBy(group => group.Key))
+        for (var day = periodStart; day < periodEndExclusive; day = day.AddDays(1))
         {
-            var ordered = group.OrderBy(sample => sample.DateTime).ToList();
-            if (ordered.Count == 0) continue;
+            if (!dailyTotals.TryGetValue(day, out var totals))
+                continue;
 
-            var first = ordered.First().Margine;
-            var last = ordered.Last().Margine;
-            var netPnl = last - first;
-            cumulative += netPnl;
-
+            cumulative += totals.NetPnl;
             rows.Add(new MissionDailyPerformance
             {
-                Date = group.Key,
-                NetPnl = Math.Round(netPnl, 2),
-                DailyReturnPct = investedCapitalBase > 0 ? Math.Round(netPnl / investedCapitalBase * 100, 2) : 0,
+                Date = day.ToDateTime(TimeOnly.MinValue),
+                NetPnl = Math.Round(totals.NetPnl, 2),
+                DailyReturnPct = investedCapitalBase > 0 ? Math.Round(totals.NetPnl / investedCapitalBase * 100, 2) : 0,
                 CumulativePnl = Math.Round(cumulative, 2),
-                SampleCount = ordered.Count
+                SampleCount = totals.SampleCount
             });
         }
 
         return rows;
     }
 
-    private static MissionQualityMetrics BuildQualityMetrics(List<MissionDailyPerformance> rows)
+    private static MissionQualityMetrics BuildQualityMetrics(List<MissionDailyPerformance> rows, decimal investedCapitalBase)
     {
         if (rows.Count == 0)
         {
@@ -532,26 +575,71 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             WorstDay = pnls.Min(),
             PositiveDays = pnls.Count(value => value > 0),
             WinRatePct = Math.Round(pnls.Count(value => value > 0) / (decimal)pnls.Count * 100, 2),
-            MaxDrawdownPct = Math.Round(CalculateMaxDrawdownPct(rows), 2),
+            MaxDrawdownPct = Math.Round(CalculateMaxDrawdownPct(rows, investedCapitalBase), 2),
             DailyVolatilityPct = Math.Round(volatility, 2),
             SharpeRatio = volatility > 0 ? Math.Round(averageReturn / volatility * (decimal)Math.Sqrt(365), 2) : 0
         };
     }
 
-    private static decimal CalculateMaxDrawdownPct(List<MissionDailyPerformance> rows)
+    private static decimal CalculateMaxDrawdownPct(List<MissionDailyPerformance> rows, decimal investedCapitalBase)
     {
-        decimal peak = 0;
+        decimal peakEquity = investedCapitalBase;
         decimal maxDrawdown = 0;
 
         foreach (var row in rows)
         {
-            peak = Math.Max(peak, row.CumulativePnl);
-            var drawdown = peak - row.CumulativePnl;
-            maxDrawdown = Math.Max(maxDrawdown, drawdown);
+            var equity = investedCapitalBase + row.CumulativePnl;
+            peakEquity = Math.Max(peakEquity, equity);
+            maxDrawdown = Math.Max(maxDrawdown, peakEquity - equity);
         }
 
-        var basis = rows.Select(row => Math.Abs(row.CumulativePnl)).DefaultIfEmpty(0).Max();
-        return basis > 0 ? maxDrawdown / basis * 100 : 0;
+        return peakEquity > 0 ? maxDrawdown / peakEquity * 100 : 0;
+    }
+
+    private static decimal CalculateAnnualisedReturnPct(decimal periodReturnPct, int workingDays)
+    {
+        if (workingDays <= 0)
+            return 0;
+
+        var periodReturnDecimal = periodReturnPct / 100m;
+        var annualised = (decimal)(Math.Pow((double)(1 + periodReturnDecimal), 365d / workingDays) - 1d) * 100;
+        return Math.Round(annualised, 2);
+    }
+
+    private static (DateTime PeriodStartUtc, DateTime PeriodEndUtc) GetPeriodBoundsUtc(DateTime fromDate, DateTime toDateExclusive)
+    {
+        var startLocal = DateTime.SpecifyKind(fromDate.Date, DateTimeKind.Unspecified);
+        var endLocalExclusive = DateTime.SpecifyKind(toDateExclusive.Date, DateTimeKind.Unspecified);
+        return (
+            TimeZoneInfo.ConvertTimeToUtc(startLocal, RomeTimeZone),
+            TimeZoneInfo.ConvertTimeToUtc(endLocalExclusive, RomeTimeZone));
+    }
+
+    private static DateOnly RomeDate(DateTime timestamp)
+    {
+        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(AsUtc(timestamp), RomeTimeZone));
+    }
+
+    private static DateTime AsUtc(DateTime value)
+    {
+        return value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
+    }
+
+    private static TimeZoneInfo ResolveRomeTimeZone()
+    {
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("Europe/Rome");
+        }
+        catch (TimeZoneNotFoundException)
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("W. Europe Standard Time");
+        }
     }
 
     private static string BuildCsv(MissionRangeReportResponse report)
@@ -604,6 +692,7 @@ public class MissionRangeReportResponse
 
 public class MissionRangeTotals
 {
+    public decimal PeriodResultEuro { get; set; }
     public decimal TotalMarginEuro { get; set; }
     public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
