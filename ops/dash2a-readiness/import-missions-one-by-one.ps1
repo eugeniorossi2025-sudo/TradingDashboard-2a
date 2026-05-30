@@ -45,9 +45,10 @@ function Open-Conn([string]$Cs) {
     return $c
 }
 
-function Get-Scalar($Conn, [string]$Sql) {
+function Get-Scalar($Conn, [string]$Sql, $Transaction = $null) {
     $cmd = $Conn.CreateCommand()
     $cmd.CommandText = $Sql
+    if ($Transaction) { $cmd.Transaction = $Transaction }
     return $cmd.ExecuteScalar()
 }
 
@@ -400,11 +401,11 @@ foreach ($item in $candidates) {
     }
 
     # --- Apply: one transaction per mission ---
+    $beforeSessions = [int](Get-Scalar $conn 'SELECT COUNT(*) FROM dbo.MissionSessions')
+    $beforeSamples = [int](Get-Scalar $conn 'SELECT COUNT(*) FROM dbo.MissionMarginSamples')
+
     $tx = $conn.BeginTransaction()
     try {
-        $beforeSessions = [int](Get-Scalar $conn 'SELECT COUNT(*) FROM dbo.MissionSessions')
-        $beforeSamples = [int](Get-Scalar $conn 'SELECT COUNT(*) FROM dbo.MissionMarginSamples')
-
         $insert = $conn.CreateCommand()
         $insert.Transaction = $tx
         $insert.CommandText = @'
