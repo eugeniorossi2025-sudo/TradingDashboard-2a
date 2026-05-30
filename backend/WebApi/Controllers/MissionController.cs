@@ -128,10 +128,10 @@ public class MissionController : ControllerBase
 
         var (periodStartUtc, periodEndUtc) = GetPeriodBoundsUtc(fromDate, toExclusive);
 
-        var query = _context.MissionSessions
-            .AsNoTracking()
-            .Where(session => (session.EndTime ?? session.StartTime) >= periodStartUtc
-                              && session.StartTime < periodEndUtc);
+        var query = ApplyAccountingPeriodSessionFilterWithSamples(
+            _context.MissionSessions.AsNoTracking(),
+            periodStartUtc,
+            periodEndUtc);
 
         if (!includeAllModes)
             query = query.Where(session => session.RuntimeMode == mode);
@@ -216,8 +216,10 @@ public class MissionController : ControllerBase
         if (session == null)
             return NotFound(ApiResponse<object>.ErrorResponse("Mission session not found"));
 
-        var fromDate = session.StartTime.Date;
-        var toDateExclusive = (session.EndTime ?? session.StartTime).Date.AddDays(1);
+        var romeStart = RomeDate(session.StartTime);
+        var romeEnd = RomeDate(session.EndTime ?? session.StartTime);
+        var fromDate = romeStart.ToDateTime(TimeOnly.MinValue);
+        var toDateExclusive = romeEnd.AddDays(1).ToDateTime(TimeOnly.MinValue);
         var report = await BuildReportAsync(fromDate, toDateExclusive, session.RuntimeMode);
         report.Sessions = report.Sessions
             .Where(row => row.SessionId == sessionId)
@@ -303,12 +305,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
     private async Task<MissionRangeReportResponse> BuildReportAsync(DateTime fromDate, DateTime toDateExclusive, string mode)
     {
         var (periodStartUtc, periodEndUtc) = GetPeriodBoundsUtc(fromDate, toDateExclusive);
-        var sessions = await _context.MissionSessions
-            .AsNoTracking()
-            .Where(s => s.RuntimeMode == mode
-                        && s.Completed
-                        && (s.EndTime ?? s.StartTime) >= periodStartUtc
-                        && s.StartTime < periodEndUtc)
+        var candidateSessions = await ApplyAccountingPeriodSessionFilter(
+                _context.MissionSessions.AsNoTracking()
+                    .Where(s => s.RuntimeMode == mode && s.Completed),
+                periodStartUtc,
+                periodEndUtc)
             .OrderBy(s => s.StartTime)
             .ThenBy(s => s.Id)
             .Select(s => new
@@ -324,12 +325,12 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
             })
             .ToListAsync();
 
-        var sessionIds = sessions.Select(s => s.Id).ToArray();
-        var samples = sessionIds.Length == 0
+        var candidateIds = candidateSessions.Select(s => s.Id).ToArray();
+        var samples = candidateIds.Length == 0
             ? new List<MissionReportSample>()
             : await _context.MissionMarginSamples
                 .AsNoTracking()
-                .Where(sample => sessionIds.Contains(sample.SessionId)
+                .Where(sample => candidateIds.Contains(sample.SessionId)
                                  && sample.Timestamp >= periodStartUtc
                                  && sample.Timestamp < periodEndUtc)
                 .OrderBy(sample => sample.Timestamp)
@@ -341,6 +342,11 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
                     ActiveTables = sample.ActiveTables
                 })
                 .ToListAsync();
+
+        var sessionIdsWithSamples = samples.Select(sample => sample.SessionId).Distinct().ToHashSet();
+        var sessions = candidateSessions
+            .Where(session => sessionIdsWithSamples.Contains(session.Id))
+            .ToList();
 
         var investedCapitalBase = await GetInvestedCapitalBaseAsync();
         var report = new MissionRangeReportResponse
@@ -601,14 +607,38 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
         return peakEquity > 0 ? maxDrawdown / peakEquity * 100 : 0;
     }
 
-    private static decimal CalculateAnnualisedReturnPct(decimal periodReturnPct, int workingDays)
+    private const int MinimumWorkingDaysForAnnualisedReturn = 7;
+
+    private static decimal? CalculateAnnualisedReturnPct(decimal periodReturnPct, int workingDays)
     {
-        if (workingDays <= 0)
-            return 0;
+        if (workingDays < MinimumWorkingDaysForAnnualisedReturn)
+            return null;
 
         var periodReturnDecimal = periodReturnPct / 100m;
         var annualised = (decimal)(Math.Pow((double)(1 + periodReturnDecimal), 365d / workingDays) - 1d) * 100;
         return Math.Round(annualised, 2);
+    }
+
+    private static IQueryable<MissionSession> ApplyAccountingPeriodSessionFilter(
+        IQueryable<MissionSession> query,
+        DateTime periodStartUtc,
+        DateTime periodEndUtc)
+    {
+        return query.Where(session =>
+            session.StartTime >= periodStartUtc
+            && session.StartTime < periodEndUtc);
+    }
+
+    private IQueryable<MissionSession> ApplyAccountingPeriodSessionFilterWithSamples(
+        IQueryable<MissionSession> query,
+        DateTime periodStartUtc,
+        DateTime periodEndUtc)
+    {
+        return ApplyAccountingPeriodSessionFilter(query, periodStartUtc, periodEndUtc)
+            .Where(session => _context.MissionMarginSamples.Any(sample =>
+                sample.SessionId == session.Id
+                && sample.Timestamp >= periodStartUtc
+                && sample.Timestamp < periodEndUtc));
     }
 
     private static (DateTime PeriodStartUtc, DateTime PeriodEndUtc) GetPeriodBoundsUtc(DateTime fromDate, DateTime toDateExclusive)
@@ -709,7 +739,7 @@ public class MissionRangeTotals
     public int RealHandsCount { get; set; }
     public int ActiveTables { get; set; }
     public decimal PeriodReturnPct { get; set; }
-    public decimal AnnualisedReturnPct { get; set; }
+    public decimal? AnnualisedReturnPct { get; set; }
     public decimal AverageDailyPnl { get; set; }
     public decimal AverageDailyReturnPct { get; set; }
     public int WorkingDays { get; set; }

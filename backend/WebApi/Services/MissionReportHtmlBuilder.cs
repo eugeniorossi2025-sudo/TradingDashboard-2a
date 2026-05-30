@@ -58,7 +58,7 @@ public static class MissionReportHtmlBuilder
         sb.AppendLine("<div class=\"summaryGrid\">");
         AddCard(sb, "Invested Capital", "€ •••••••", "neutral");
         AddCard(sb, "Period Return", FormatPercent(report.Totals.PeriodReturnPct), Tone(report.Totals.PeriodReturnPct));
-        AddCard(sb, "Annualised Return", FormatPercent(report.Totals.AnnualisedReturnPct), Tone(report.Totals.AnnualisedReturnPct));
+        AddCard(sb, "Annualised Return", FormatAnnualisedReturn(report.Totals.AnnualisedReturnPct), FormatAnnualisedTone(report.Totals.AnnualisedReturnPct));
         AddCard(sb, "Average Daily P&L", FormatEuro(report.Totals.AverageDailyPnl), Tone(report.Totals.AverageDailyPnl));
         AddCard(sb, "Average Daily Return", FormatPercent(report.Totals.AverageDailyReturnPct), Tone(report.Totals.AverageDailyReturnPct));
         AddCard(sb, "Working Days", report.Totals.WorkingDays.ToString(CultureInfo.InvariantCulture), "neutral");
@@ -67,7 +67,7 @@ public static class MissionReportHtmlBuilder
         AddCard(sb, "Real Hands", report.Totals.RealHandsCount.ToString(CultureInfo.InvariantCulture), "neutral");
         AddCard(sb, "Tables", report.Totals.ActiveTables.ToString(CultureInfo.InvariantCulture), "neutral");
         sb.AppendLine("</div>");
-        sb.AppendLine("<p class=\"methodNote\">Il Risultato periodo è la somma dei P&amp;L missione nel periodo selezionato (sample clippati su Europe/Rome). Il capitale investito è mascherato per privacy. Il rendimento annualizzato è una proiezione da performance osservata e non rappresenta un rendimento garantito.</p>");
+        sb.AppendLine("<p class=\"methodNote\">Il Risultato periodo è la somma dei P&amp;L missione nel periodo selezionato (sample clippati su Europe/Rome). Il capitale investito è mascherato per privacy. Il rendimento annualizzato è mostrato solo con almeno 7 giorni operativi osservati; altrimenti N/D.</p>");
 
         sb.AppendLine("<div class=\"section\"><h2>Risk / Quality Metrics</h2><div class=\"sectionSub\">Calculated from real daily observations in the selected reporting period.</div><div class=\"summaryGrid\">");
         AddCard(sb, "Best Day", FormatEuro(q.BestDay), Tone(q.BestDay));
@@ -100,10 +100,10 @@ public static class MissionReportHtmlBuilder
 
         if (report.Sessions.Count > 0)
         {
-            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><div class=\"sectionSub\">Margine PBT a chiusura = livello assoluto del margine al termine della finestra; non è il profitto del periodo.</div><table class=\"table\"><thead><tr><th>Session</th><th>Start</th><th>End</th><th>Runtime</th><th>P&amp;L periodo</th><th>Margine PBT a chiusura</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
+            sb.AppendLine("<div class=\"section\"><h2>Mission Sessions</h2><div class=\"sectionSub\">Missioni con Start (Europe/Rome) nel periodo selezionato e almeno un sample clippato nella finestra. Margine PBT a chiusura = livello assoluto del margine al termine della finestra; non è il profitto del periodo.</div><table class=\"table\"><thead><tr><th>Session</th><th>Start (Europe/Rome)</th><th>End (Europe/Rome)</th><th>Runtime</th><th>P&amp;L periodo</th><th>Margine PBT a chiusura</th><th>Real Hands</th><th>Tables</th></tr></thead><tbody>");
             foreach (var session in report.Sessions)
             {
-                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{session.StartTime.ToString("dd MMMM yyyy HH:mm", culture)}</td><td>{(session.EndTime.HasValue ? session.EndTime.Value.ToString("dd MMMM yyyy HH:mm", culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td class=\"ledgerAmount neutral\">{FormatEuro(session.FinalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
+                sb.AppendLine($"<tr><td>#{session.SessionId}</td><td>{FormatRomeDateTime(session.StartTime, culture)}</td><td>{(session.EndTime.HasValue ? FormatRomeDateTime(session.EndTime.Value, culture) : "-")}</td><td>{Html(session.RuntimeMode)}</td><td class=\"ledgerAmount {Tone(session.TotalMarginEuro)}\">{FormatEuro(session.TotalMarginEuro)}</td><td class=\"ledgerAmount neutral\">{FormatEuro(session.FinalMarginEuro)}</td><td>{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td><td>{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td></tr>");
             }
             sb.AppendLine("</tbody></table></div>");
         }
@@ -145,6 +145,24 @@ public static class MissionReportHtmlBuilder
     {
         var sign = value > 0 ? "+" : value < 0 ? "-" : "";
         return $"{sign}{Math.Abs(value).ToString("0.00", CultureInfo.InvariantCulture)}%";
+    }
+
+    private static string FormatAnnualisedReturn(decimal? value)
+        => value.HasValue ? FormatPercent(value.Value) : "N/D";
+
+    private static string FormatAnnualisedTone(decimal? value)
+        => value.HasValue ? Tone(value.Value) : "neutral";
+
+    private static string FormatRomeDateTime(DateTime timestamp, CultureInfo culture)
+    {
+        var utc = timestamp.Kind switch
+        {
+            DateTimeKind.Utc => timestamp,
+            DateTimeKind.Local => timestamp.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+        };
+        var rome = TimeZoneInfo.ConvertTimeFromUtc(utc, ResolveRomeTimeZone());
+        return rome.ToString("dd MMMM yyyy HH:mm", culture);
     }
 
     private static string Tone(decimal value) => value > 0 ? "pos" : value < 0 ? "neg" : "neutral";
