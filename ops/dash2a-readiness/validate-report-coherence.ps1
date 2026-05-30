@@ -62,6 +62,9 @@ if ($session6) {
     $session6Detail = "romeStart=$($session6Rome.ToString('yyyy-MM-dd'))"
 }
 
+$sessionTargetMax = if ($d.sessions.Count -gt 0) { [decimal](($d.sessions | Measure-Object globalTargetEuro -Maximum).Maximum) } else { [decimal]0 }
+$headerTarget = [decimal]$d.totals.globalTargetEuro
+
 $checks = @(
     @{ id = 'ACC-01'; name = 'periodResultEuro present'; pass = ($null -ne $d.totals.periodResultEuro); detail = "periodResult=$period" }
     @{ id = 'ACC-02'; name = 'periodResultEuro = totalMarginEuro (compat)'; pass = ($period -eq $legacy); detail = "legacy=$legacy" }
@@ -72,6 +75,7 @@ $checks = @(
     @{ id = 'ACC-07'; name = 'Annualised null/N/D when workingDays < 7'; pass = $annualisedOk; detail = "workingDays=$workingDays annualised=$annualised" }
     @{ id = 'ACC-08'; name = 'HTML Start/End labelled Europe/Rome'; pass = $htmlHasRomeHeaders; detail = "headers=$htmlHasRomeHeaders" }
     @{ id = 'ACC-09'; name = 'HTML Annualised N/D on short period'; pass = $htmlShowsNd; detail = "workingDays=$workingDays" }
+    @{ id = 'ACC-12'; name = 'Header Target = max Stop Win per mission (not Σ sessions)'; pass = ($headerTarget -eq $sessionTargetMax); detail = "headerTarget=$headerTarget sessionMax=$sessionTargetMax sessions=$($d.sessions.Count)" }
 )
 
 if ($From -eq '2026-05-29' -and $To -eq '2026-05-30') {

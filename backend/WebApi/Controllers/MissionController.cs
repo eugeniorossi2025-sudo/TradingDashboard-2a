@@ -396,7 +396,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
         var periodReturnPct = investedCapitalBase > 0 ? periodResult / investedCapitalBase * 100 : 0;
         var averageDailyPnl = workingDays > 0 ? periodResult / workingDays : 0;
         var averageDailyReturnPct = investedCapitalBase > 0 ? averageDailyPnl / investedCapitalBase * 100 : 0;
-        var target = report.Sessions.Sum(s => s.GlobalTargetEuro);
+        // Stop Win is per-mission; period header must not sum targets across sessions.
+        var target = report.Sessions.Count == 0
+            ? 0m
+            : report.Sessions.Max(s => s.GlobalTargetEuro);
 
         report.Totals.PeriodResultEuro = periodResult;
         report.Totals.TotalMarginEuro = periodResult;

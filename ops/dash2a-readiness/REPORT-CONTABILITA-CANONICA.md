@@ -88,6 +88,7 @@ Ordinati per Timestamp ASC
 2. **Curva equity:** ultimo punto cumulativo = `RisultatoPeriodoEuro`.
 3. **Σ giorni (Daily Net P&L)** = `RisultatoPeriodoEuro` (daily costruito come in §3.2).
 4. **Final Margin non entra** nel calcolo del Risultato Periodo.
+5. **Stop Win (Target header):** valore **per missione**, non somma su N sessioni. Con più missioni nel periodo: `GlobalTargetEuro` header = `MAX(session.GlobalTargetEuro)`, non `SUM`.
 
 ---
 
