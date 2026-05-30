@@ -1,0 +1,53 @@
+name: DASH2A Post-Import Production Validation
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type POST_IMPORT_PRODUCTION_VALIDATE"
+        required: true
+        type: string
+      run_reset_autostart_probe:
+        description: "Run reset + start-current probe (production must be stopped, no open mission)"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Post-import Production validation
+    if: ${{ github.event.inputs.confirm == 'POST_IMPORT_PRODUCTION_VALIDATE' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run validation script (DB + API)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          [System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/validate-post-import-production.ps1'
+          $probe = [System.Convert]::ToBoolean('${{ github.event.inputs.run_reset_autostart_probe }}')
+          if ($probe) {
+            & $script -BaseUrl 'http://localhost' -RunResetAutostartProbe
+          } else {
+            & $script -BaseUrl 'http://localhost'
+          }
+
+      - name: Upload validation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: post-import-production-validation-${{ github.run_id }}
+          path: ops/dash2a-readiness/exports/validation/**/*
+          if-no-files-found: warn
