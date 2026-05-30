@@ -1,12 +1,14 @@
-<script setup>
+<script setup lang="ts">
 import { FinancialReportService } from '@/service/FinancialReportService';
+import { DEMO_REPORT_ANCHOR, REPORT_PERIOD_CHIPS, getPeriodRange, type ReportPeriodChip } from '@/composables/useReportPeriod';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
 const router = useRouter();
-const today = new Date();
-const from = ref(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10));
-const to = ref(today.toISOString().slice(0, 10));
+const from = ref('');
+const to = ref('');
+const periodChip = ref<ReportPeriodChip>('month');
+const periodChips = REPORT_PERIOD_CHIPS;
 const runtimeMode = ref('Production');
 const report = ref(null);
 const loading = ref(false);
@@ -48,17 +50,18 @@ function toneClass(value) {
     return 'neutral';
 }
 
-function setCurrentMonth() {
-    from.value = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-    to.value = new Date().toISOString().slice(0, 10);
+function applyPeriodChip(chip: ReportPeriodChip) {
+    periodChip.value = chip;
+    const anchor = runtimeMode.value === 'Demo' ? new Date(`${DEMO_REPORT_ANCHOR}T12:00:00Z`) : new Date();
+    const range = getPeriodRange(chip, anchor);
+    from.value = range.from;
+    to.value = range.to;
     loadReport();
 }
 
-function setToday() {
-    const current = new Date().toISOString().slice(0, 10);
-    from.value = current;
-    to.value = current;
-    loadReport();
+function onRuntimeModeChange(mode: 'Production' | 'Demo') {
+    runtimeMode.value = mode;
+    applyPeriodChip(periodChip.value);
 }
 
 function goBack() {
@@ -117,7 +120,7 @@ async function download(format) {
     }
 }
 
-onMounted(loadReport);
+onMounted(() => applyPeriodChip('month'));
 </script>
 
 <template>
@@ -127,54 +130,65 @@ onMounted(loadReport);
                 <div class="intro-head">
                     <div>
                         <div class="intro-kicker">Admin mobile</div>
-                        <div class="intro-title">Report finanziari</div>
-                        <div class="intro-copy">Scegli periodo e modalità, poi scarica i report reali.</div>
+                        <div class="intro-title">Financial reports</div>
+                        <div class="intro-copy">Pick period and mode, then download live reports.</div>
                     </div>
                     <button type="button" class="link-btn" @click="goBack">Live</button>
                 </div>
             </section>
 
             <div v-if="error" class="error-banner">{{ error }}</div>
-            <div v-else-if="isDemoEmpty" class="error-banner demo-empty">Nessuna missione Demo nel periodo. Import Demo non ancora applicato in produzione oppure nessuna sessione completata.</div>
+            <div v-else-if="isDemoEmpty" class="error-banner demo-empty">No Demo missions in this period.</div>
 
             <section class="panel section">
                 <div class="section-head">
                     <div>
-                        <div class="section-title">Scelte report</div>
-                        <div class="section-copy">Periodo selezionato: {{ periodLabel }}</div>
+                        <div class="section-title">Report options</div>
+                        <div class="section-copy">Selected period: {{ periodLabel }}</div>
                     </div>
                     <div class="mini-label">{{ runtimeMode }}</div>
                 </div>
 
                 <div class="mode-tabs">
-                    <button type="button" :class="{ active: runtimeMode === 'Production' }" @click="runtimeMode = 'Production'; loadReport()">Production</button>
-                    <button type="button" :class="{ active: runtimeMode === 'Demo' }" @click="runtimeMode = 'Demo'; loadReport()">Demo</button>
+                    <button type="button" :class="{ active: runtimeMode === 'Production' }" @click="onRuntimeModeChange('Production')">Production</button>
+                    <button type="button" :class="{ active: runtimeMode === 'Demo' }" @click="onRuntimeModeChange('Demo')">Demo</button>
+                </div>
+
+                <div class="period-chips">
+                    <button
+                        v-for="chip in periodChips"
+                        :key="chip.id"
+                        type="button"
+                        class="period-chip"
+                        :class="{ active: periodChip === chip.id }"
+                        @click="applyPeriodChip(chip.id)"
+                    >
+                        {{ chip.label }}
+                    </button>
                 </div>
 
                 <div class="date-grid">
                     <label>
-                        Da
+                        From
                         <input v-model="from" type="date" @change="loadReport" />
                     </label>
                     <label>
-                        A
+                        To
                         <input v-model="to" type="date" @change="loadReport" />
                     </label>
                 </div>
 
                 <div class="quick-actions">
-                    <button type="button" class="ghost-btn" @click="setToday">Oggi</button>
-                    <button type="button" class="ghost-btn" @click="setCurrentMonth">Mese corrente</button>
-                    <button type="button" class="ghost-btn" @click="loadReport">Aggiorna</button>
+                    <button type="button" class="ghost-btn" @click="loadReport">Refresh</button>
                 </div>
             </section>
 
             <section class="panel hero">
                 <div class="hero-top">
                     <div>
-                        <div class="eyebrow">Risultato periodo</div>
+                        <div class="eyebrow">Period result</div>
                         <div class="mega-value" :class="toneClass(periodResultEuro)">{{ loading ? '...' : formatMoney(periodResultEuro) }}</div>
-                        <div class="hero-note">{{ report?.totals?.sampleCount || 0 }} campioni reali · Agg. {{ lastSync || '--' }}</div>
+                        <div class="hero-note">{{ report?.totals?.sampleCount || 0 }} live samples · Upd. {{ lastSync || '--' }}</div>
                     </div>
                 </div>
 
@@ -184,7 +198,7 @@ onMounted(loadReport);
                         <div class="summary-value">{{ formatMoney(report?.totals?.globalTargetEuro) }}</div>
                     </div>
                     <div class="summary-card">
-                        <div class="mini-label">Avanzamento</div>
+                        <div class="mini-label">Progress</div>
                         <div class="summary-value">{{ formatPercent(report?.totals?.progressPct) }}</div>
                     </div>
                     <div class="summary-card">
@@ -192,7 +206,7 @@ onMounted(loadReport);
                         <div class="summary-value small">{{ formatMoney(report?.totals?.margineMin) }} / {{ formatMoney(report?.totals?.margineMax) }}</div>
                     </div>
                     <div class="summary-card">
-                        <div class="mini-label">Media giorno</div>
+                        <div class="mini-label">Daily avg</div>
                         <div class="summary-value small">{{ formatMoney(report?.totals?.averageDailyPnl) }}</div>
                     </div>
                 </div>
@@ -311,6 +325,31 @@ onMounted(loadReport);
 }
 .mode-tabs button.active,
 .download-btn.primary {
+    border-color: color-mix(in srgb, var(--primary-color) 38%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 16%, transparent);
+    color: var(--primary-color);
+    font-weight: 800;
+}
+.period-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+.period-chip {
+    min-height: 36px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+.period-chip.active {
     border-color: color-mix(in srgb, var(--primary-color) 38%, transparent);
     background: color-mix(in srgb, var(--primary-color) 16%, transparent);
     color: var(--primary-color);

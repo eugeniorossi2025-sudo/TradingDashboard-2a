@@ -2,6 +2,7 @@
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
+import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -15,9 +16,11 @@ const productionReport = ref(null);
 const demoReport = ref(null);
 const lastSync = ref('');
 
-const today = new Date();
-const from = ref(new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10));
-const to = ref(today.toISOString().slice(0, 10));
+const { periodChip, from, to, demoFrom, demoTo, applyPeriodChip, formatPeriod, formatDemoPeriod } = useReportPeriod('month');
+const periodChips = REPORT_PERIOD_CHIPS;
+
+const demoPeriodResult = computed(() => Number(demoReport.value?.totals?.periodResultEuro ?? demoReport.value?.totals?.totalMarginEuro ?? 0));
+const productionPeriodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? productionReport.value?.totals?.totalMarginEuro ?? 0));
 
 const liveMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
 const reportMargin = computed(() => Number(productionReport.value?.totals?.totalMarginEuro ?? liveMargin.value ?? 0));
@@ -66,10 +69,18 @@ function formatPercent(value) {
     return `${new Intl.NumberFormat('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(Number(value || 0))}%`;
 }
 
-function formatPeriod() {
-    const [, fm, fd] = from.value.split('-');
-    const [, tm, td] = to.value.split('-');
-    return `${fd}/${fm} - ${td}/${tm}`;
+function formatPeriodRange() {
+    return formatPeriod();
+}
+
+async function setReportPeriod(chip) {
+    applyPeriodChip(chip);
+    await loadReports();
+}
+
+async function loadReports() {
+    productionReport.value = await FinancialReportService.getRangeReport('Production', from.value, to.value);
+    demoReport.value = await FinancialReportService.getRangeReport('Demo', demoFrom.value, demoTo.value);
 }
 
 function buildPath(rows, selector) {
@@ -101,8 +112,7 @@ async function loadData() {
         chartRows.value = Array.isArray(chart) ? chart : [];
 
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
-        productionReport.value = await FinancialReportService.getRangeReport('Production', from.value, to.value);
-        demoReport.value = await FinancialReportService.getRangeReport('Demo', from.value, to.value);
+        await loadReports();
         lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
         console.error('Client mobile load error:', err);
@@ -187,36 +197,47 @@ onMounted(loadData);
             <section class="panel">
                 <div class="month-report-head">
                     <div>
-                        <div class="eyebrow">Report mese</div>
-                        <div class="subline">Production e Demo da inizio mese</div>
+                        <div class="eyebrow">Financial reports</div>
+                        <div class="subline">Production {{ formatPeriodRange() }} · Demo {{ formatDemoPeriod() }}</div>
                     </div>
-                    <div class="month-report-period">{{ formatPeriod() }}</div>
+                </div>
+                <div class="period-chips">
+                    <button
+                        v-for="chip in periodChips"
+                        :key="chip.id"
+                        type="button"
+                        class="period-chip"
+                        :class="{ active: periodChip === chip.id }"
+                        @click="setReportPeriod(chip.id)"
+                    >
+                        {{ chip.label }}
+                    </button>
                 </div>
                 <div class="month-report-grid">
                     <article class="month-report-card">
                         <div class="month-report-label">Production</div>
-                        <div class="month-report-value" :class="toneClass(productionReport?.totals?.totalMarginEuro)">
-                            {{ formatMoney(productionReport?.totals?.totalMarginEuro) }}
+                        <div class="month-report-value" :class="toneClass(productionPeriodResult)">
+                            {{ formatMoney(productionPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
                             Target {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />
-                            Avanzamento {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} campioni<br />
-                            contabilita ufficiale
+                            Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />
+                            official accounting
                         </div>
                     </article>
                     <article class="month-report-card">
                         <div class="month-report-label">Demo</div>
-                        <div class="month-report-value" :class="toneClass(demoReport?.totals?.totalMarginEuro)">
-                            {{ formatMoney(demoReport?.totals?.totalMarginEuro) }}
+                        <div class="month-report-value" :class="toneClass(demoPeriodResult)">
+                            {{ formatMoney(demoPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
                             Target {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />
-                            Avanzamento {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} campioni<br />
-                            non contabile
+                            Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />
+                            non-accountable
                         </div>
                     </article>
                 </div>
-                <div class="month-report-foot">Aggiornato {{ lastSync || '--' }} · solo dati reali</div>
+                <div class="month-report-foot">Updated {{ lastSync || '--' }} · live data only</div>
             </section>
 
             <section class="panel">
@@ -416,6 +437,30 @@ h1 {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 10px;
+    margin-top: 12px;
+}
+.period-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+.period-chip {
+    min-height: 34px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--surface-border);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-color-secondary);
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+.period-chip.active {
+    color: var(--primary-color);
+    border-color: color-mix(in srgb, var(--primary-color) 45%, transparent);
+    background: color-mix(in srgb, var(--primary-color) 14%, transparent);
 }
 .month-report-card,
 .watch-item,
