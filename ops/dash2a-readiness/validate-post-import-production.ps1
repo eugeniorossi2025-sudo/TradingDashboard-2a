@@ -86,7 +86,7 @@ Add-Check -Id 'DB-04' -Area 'DB' -Name 'Live sessions 1-8 intact' -Pass ($dbLive
 Add-Check -Id 'DB-05' -Area 'DB' -Name 'Imported hist-seq count 19' -Pass ($dbHist -eq 19) -Detail "histSeq=$dbHist" -Evidence @{ histSeq = $dbHist }
 
 # R9 guard simulation
-$resetAtObj = Get-Scalar $conn "SELECT TOP 1 Value FROM dbo.Configurations WHERE [Key] = 'MISSION_LAST_RESET_AT'"
+$resetAtObj = Get-Scalar $conn "SELECT TOP 1 Value FROM dbo.Configurations WHERE [K] = 'MISSION_LAST_RESET_AT_UTC'"
 $resetAt = if ($resetAtObj -is [DBNull] -or -not $resetAtObj) { $null } else { [datetime]$resetAtObj }
 $firstPointObj = $null
 if ($resetAt) {
