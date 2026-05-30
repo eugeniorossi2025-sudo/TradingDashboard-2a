@@ -239,6 +239,20 @@ function Shift-SampleTimestamps {
     return $shifted
 }
 
+function New-SampleBulkCopy {
+    param($Conn, $Tx, [int]$BatchSize)
+    $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($Conn, [System.Data.SqlClient.SqlBulkCopyOptions]::Default, $Tx)
+    $bulk.DestinationTableName = 'dbo.MissionMarginSamples'
+    $bulk.BatchSize = $BatchSize
+    [void]$bulk.ColumnMappings.Add('SessionId', 'SessionId')
+    [void]$bulk.ColumnMappings.Add('Timestamp', 'Timestamp')
+    [void]$bulk.ColumnMappings.Add('TotalMargin', 'TotalMargin')
+    [void]$bulk.ColumnMappings.Add('ActiveTables', 'ActiveTables')
+    [void]$bulk.ColumnMappings.Add('VmCurrent', 'VmCurrent')
+    [void]$bulk.ColumnMappings.Add('RuntimeMode', 'RuntimeMode')
+    return $bulk
+}
+
 function Write-RollbackSql {
     param([string]$Path, [int]$ProdSessionId, [string]$MissionKey, [int]$SampleCount)
     $generatedAt = (Get-Date).ToUniversalTime().ToString('o')
@@ -461,17 +475,13 @@ VALUES (
             $insertedSamples++
 
             if ($batch.Rows.Count -ge $SampleBatchSize) {
-                $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($conn, [System.Data.SqlClient.SqlBulkCopyOptions]::Default, $tx)
-                $bulk.DestinationTableName = 'dbo.MissionMarginSamples'
-                $bulk.BatchSize = $SampleBatchSize
+                $bulk = New-SampleBulkCopy -Conn $conn -Tx $tx -BatchSize $SampleBatchSize
                 $bulk.WriteToServer($batch)
                 $batch.Rows.Clear()
             }
         }
         if ($batch.Rows.Count -gt 0) {
-            $bulk = New-Object System.Data.SqlClient.SqlBulkCopy($conn, [System.Data.SqlClient.SqlBulkCopyOptions]::Default, $tx)
-            $bulk.DestinationTableName = 'dbo.MissionMarginSamples'
-            $bulk.BatchSize = $SampleBatchSize
+            $bulk = New-SampleBulkCopy -Conn $conn -Tx $tx -BatchSize $SampleBatchSize
             $bulk.WriteToServer($batch)
         }
 
