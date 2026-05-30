@@ -1,8 +1,9 @@
 # DASH2A — Infrastruttura Definitiva
 
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
+> **Prima di qualsiasi attività:** leggere [`ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md`](ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md) ed eseguire la checklist git obbligatoria.
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-28 00:30 CEST** — aggiunto runbook blindato patch `ProactiveEngine` / note UX frontend con test locali, gate di approvazione e blocco esplicito di qualunque deploy/smoke remoto quando una missione live è attiva. DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`. Prima di lavorare o deployare verificare sempre `git remote -v`.
+> **Ultimo aggiornamento: 2026-05-30** — aggiunto `DASH2A-WORKSPACE-GUARD.md` come guardia operativa anti-contesto errato (repo/clone/branch). DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`.
 
 ---
 
