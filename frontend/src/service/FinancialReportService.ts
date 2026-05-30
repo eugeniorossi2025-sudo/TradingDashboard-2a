@@ -17,6 +17,7 @@ export interface MissionRangeReport {
     generatedAt?: string;
     totals: {
         totalMarginEuro: number;
+        periodResultEuro?: number;
         globalTargetEuro: number;
         progressPct: number;
         sampleCount: number;

@@ -15,6 +15,43 @@ const accessLoading = ref(false);
 const selectedUser = ref(null);
 const accessEvents = ref([]);
 const roleOptions = ['User', 'Admin', 'BotOperator'];
+const passwordHint = 'Min 8 caratteri, maiuscola, minuscola, numero e carattere speciale. Username: solo lettere, numeri e _';
+
+function readApiError(error, fallback = 'Operazione non riuscita') {
+    const errors = error?.response?.data?.errors;
+    if (Array.isArray(errors) && errors.length) {
+        return errors.join(' · ');
+    }
+
+    return error?.response?.data?.message || error?.message || fallback;
+}
+
+function validateNewUserInput() {
+    const username = newUser.value.username.trim();
+    const password = newUser.value.password;
+
+    if (!username || !password) {
+        return 'Username e password obbligatori';
+    }
+
+    if (username.length < 3) {
+        return 'Username: minimo 3 caratteri';
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+        return 'Username: solo lettere, numeri e underscore';
+    }
+
+    if (password.length < 8) {
+        return 'Password: minimo 8 caratteri';
+    }
+
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/[0-9]/.test(password) || !/[^a-zA-Z0-9]/.test(password)) {
+        return passwordHint;
+    }
+
+    return '';
+}
 
 onMounted(async () => {
     await loadPage();
@@ -37,17 +74,20 @@ async function loadPage() {
 }
 
 async function createUser() {
-    if (!newUser.value.username || !newUser.value.password) {
-        toast.add({ severity: 'warn', summary: 'Campi richiesti', detail: 'Username e password obbligatori', life: 3000 });
+    const validationError = validateNewUserInput();
+    if (validationError) {
+        toast.add({ severity: 'warn', summary: 'Controlla i campi', detail: validationError, life: 6000 });
         return;
     }
+
+    const username = newUser.value.username.trim();
 
     try {
         await UserService.createUser(
             {
-                username: newUser.value.username,
+                username,
                 password: newUser.value.password,
-                email: `${newUser.value.username}@dash2a.local`,
+                email: `${username}@dash2a.local`,
                 description: '',
                 isAdmin: newUser.value.roleName === 'Admin'
             },
@@ -58,7 +98,7 @@ async function createUser() {
         await loadPage();
     } catch (error) {
         console.error('Create user failed', error);
-        toast.add({ severity: 'error', summary: 'Errore', detail: 'Creazione utente fallita', life: 5000 });
+        toast.add({ severity: 'error', summary: 'Errore', detail: readApiError(error, 'Creazione utente fallita'), life: 7000 });
     }
 }
 
@@ -194,7 +234,8 @@ function formatDate(value) {
             <div class="rounded border border-surface-200 dark:border-surface-700 p-4 mb-4">
                 <h4 class="mt-0">Nuovo Utente</h4>
                 <p class="text-muted-color mt-1">Username + password</p>
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+                <p class="text-muted-color mt-1 mb-0 text-sm">{{ passwordHint }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end mt-3">
                     <div class="flex flex-col gap-2">
                         <label class="font-semibold">Username</label>
                         <InputText v-model="newUser.username" placeholder="Username" />

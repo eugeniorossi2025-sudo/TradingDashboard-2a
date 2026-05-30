@@ -142,8 +142,6 @@ export const UserService = {
 
     // 🔹 CREATE USER (Admin only)
     async createUser(userData: CreateUserDTO, roleName?: string): Promise<User> {
-        const userApi = new UserApi(getApiConfiguration());
-        
         const createRequest: CreateUserRequest = {
             username: userData.username,
             email: userData.email,
@@ -152,12 +150,15 @@ export const UserService = {
             isAdmin: userData.isAdmin,
         };
 
-        const response = await userApi.apiUserPost(roleName, createRequest);
-        
-        if (response.data.data) {
-            return mapApiUser(response.data.data);
+        const response = await apiClient.post('/api/User', createRequest, {
+            params: roleName ? { roleName } : undefined,
+        });
+
+        const payload = response.data as { data?: ApiUser };
+        if (payload?.data) {
+            return mapApiUser(payload.data);
         }
-        
+
         throw new Error('Failed to create user');
     },
 

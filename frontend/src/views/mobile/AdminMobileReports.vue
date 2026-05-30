@@ -22,6 +22,14 @@ const periodLabel = computed(() => {
 
 const isRangeValid = computed(() => Boolean(from.value && to.value && from.value <= to.value));
 
+const periodResultEuro = computed(() => {
+    const totals = report.value?.totals;
+    if (!totals) return 0;
+    return Number(totals.periodResultEuro ?? totals.totalMarginEuro ?? 0);
+});
+
+const isDemoEmpty = computed(() => runtimeMode.value === 'Demo' && !loading.value && !error.value && (report.value?.totals?.sampleCount ?? 0) === 0);
+
 function formatMoney(value) {
     const number = Number(value || 0);
     const abs = new Intl.NumberFormat('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(number));
@@ -74,7 +82,12 @@ async function loadReport() {
         lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
     } catch (err) {
         console.error('Admin mobile reports load error:', err);
-        error.value = 'Report reale non disponibile per il periodo selezionato.';
+        const status = err?.response?.status;
+        if (runtimeMode.value === 'Demo' && status === 200) {
+            error.value = '';
+        } else {
+            error.value = err?.response?.data?.message || 'Report non disponibile per il periodo selezionato.';
+        }
     } finally {
         loading.value = false;
     }
@@ -122,6 +135,7 @@ onMounted(loadReport);
             </section>
 
             <div v-if="error" class="error-banner">{{ error }}</div>
+            <div v-else-if="isDemoEmpty" class="error-banner demo-empty">Nessuna missione Demo nel periodo. Import Demo non ancora applicato in produzione oppure nessuna sessione completata.</div>
 
             <section class="panel section">
                 <div class="section-head">
@@ -159,7 +173,7 @@ onMounted(loadReport);
                 <div class="hero-top">
                     <div>
                         <div class="eyebrow">Risultato periodo</div>
-                        <div class="mega-value" :class="toneClass(report?.totals?.totalMarginEuro)">{{ loading ? '...' : formatMoney(report?.totals?.totalMarginEuro) }}</div>
+                        <div class="mega-value" :class="toneClass(periodResultEuro)">{{ loading ? '...' : formatMoney(periodResultEuro) }}</div>
                         <div class="hero-note">{{ report?.totals?.sampleCount || 0 }} campioni reali · Agg. {{ lastSync || '--' }}</div>
                     </div>
                 </div>
