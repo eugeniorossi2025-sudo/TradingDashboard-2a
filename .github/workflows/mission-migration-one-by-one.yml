@@ -1,0 +1,160 @@
+name: DASH2A Mission Migration One-By-One
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "DryRun: MISSION_ONE_BY_ONE_DRY_RUN | Apply: MISSION_ONE_BY_ONE_APPLY"
+        required: true
+        type: string
+      mode:
+        description: "DryRun or Apply"
+        required: true
+        type: choice
+        options:
+          - DryRun
+          - Apply
+        default: DryRun
+      runtime_mode_filter:
+        description: "Production or All"
+        required: true
+        type: choice
+        options:
+          - Production
+          - All
+        default: Production
+      release_tag:
+        description: "GitHub release tag with missions_export zip (Export source)"
+        required: true
+        type: string
+        default: mission-migration-staging-20260530
+      regenerate_dates:
+        description: "Regenerate MissionKey and timeline (true recommended)"
+        required: true
+        type: boolean
+        default: true
+      max_missions:
+        description: "0 = all candidates"
+        required: false
+        type: string
+        default: "0"
+
+permissions:
+  contents: read
+
+jobs:
+  one-by-one:
+    name: One-by-one mission import (${{ github.event.inputs.mode }})
+    if: |
+      (github.event.inputs.mode == 'DryRun' && github.event.inputs.confirm == 'MISSION_ONE_BY_ONE_DRY_RUN') ||
+      (github.event.inputs.mode == 'Apply' && github.event.inputs.confirm == 'MISSION_ONE_BY_ONE_APPLY')
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 120
+
+    steps:
+      - name: Guard scope
+        shell: powershell
+        run: |
+          Write-Host 'SCOPE: MissionSessions + MissionMarginSamples INSERT only (one transaction per mission)'
+          Write-Host 'NO RESTORE | NO UPDATE | NO DELETE/TRUNCATE on existing prod rows'
+          Write-Host "Mode: ${{ github.event.inputs.mode }}"
+
+      - name: Checkout scripts
+        uses: actions/checkout@v4
+
+      - name: Download export zip from release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = 'C:\inetpub\wwwroot\backups\mission-migration'
+          $staging = Join-Path $base 'staging'
+          New-Item -ItemType Directory -Force -Path $base, $staging | Out-Null
+          $tag = '${{ github.event.inputs.release_tag }}'
+          $repo = '${{ github.repository }}'
+          $headers = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/vnd.github+json'
+            'X-GitHub-Api-Version' = '2022-11-28'
+          }
+          $release = Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases/tags/$tag" -Headers $headers
+          $asset = $release.assets | Where-Object { $_.name -like 'missions_export*.zip' } | Select-Object -First 1
+          if (-not $asset) { throw "Export zip asset not found on release tag $tag" }
+          $dest = Join-Path $base $asset.name
+          $downloadHeaders = @{
+            Authorization = "Bearer $env:GH_TOKEN"
+            Accept = 'application/octet-stream'
+          }
+          Invoke-WebRequest -Uri $asset.url -Headers $downloadHeaders -OutFile $dest
+          Expand-Archive -LiteralPath $dest -DestinationPath $staging -Force
+          Get-ChildItem $staging -Recurse -File | Select-Object FullName, Length
+
+      - name: Preflight prod (readonly)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          foreach ($label in @('MissionSessions','MissionMarginSamples')) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.[$label]"
+            Write-Host "PREFLIGHT_${label}=$($cmd.ExecuteScalar())"
+          }
+          $openCmd = $conn.CreateCommand()
+          $openCmd.CommandText = 'SELECT COUNT(*) FROM dbo.MissionSessions WHERE Completed = 0'
+          $open = [int]$openCmd.ExecuteScalar()
+          Write-Host "PREFLIGHT_OPEN_MISSIONS=$open"
+          if ('${{ github.event.inputs.mode }}' -eq 'Apply' -and $open -gt 0) {
+            throw "Refusing Apply: $open open mission(s) in production."
+          }
+          $conn.Close()
+
+      - name: Run one-by-one import script
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $staging = 'C:\inetpub\wwwroot\backups\mission-migration\staging'
+          $meta = Get-ChildItem $staging -Filter 'missions_export_meta_*.json' | Select-Object -First 1
+          if (-not $meta) { throw "Meta file not found in $staging" }
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/import-missions-one-by-one.ps1'
+          $max = [int]'${{ github.event.inputs.max_missions }}'
+          $regen = [System.Convert]::ToBoolean('${{ github.event.inputs.regenerate_dates }}')
+          & $script `
+            -Source Export `
+            -MetaFile $meta.FullName `
+            -RuntimeModeFilter '${{ github.event.inputs.runtime_mode_filter }}' `
+            -Mode '${{ github.event.inputs.mode }}' `
+            -RegenerateDates:$regen `
+            -OneByOne:$true `
+            -MaxMissions $max `
+            -OutDir 'C:\inetpub\wwwroot\backups\mission-migration\one-by-one'
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: one-by-one-${{ github.event.inputs.mode }}-${{ github.run_id }}
+          path: C:\inetpub\wwwroot\backups\mission-migration\one-by-one\**\*
+          if-no-files-found: warn
+
+      - name: Post-run readonly counts
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $conn = New-Object System.Data.SqlClient.SqlConnection($config.ConnectionStrings.DefaultConnection)
+          $conn.Open()
+          foreach ($label in @('MissionSessions','MissionMarginSamples')) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = "SELECT COUNT(*) FROM dbo.[$label]"
+            Write-Host "POST_${label}=$($cmd.ExecuteScalar())"
+          }
+          $conn.Close()
