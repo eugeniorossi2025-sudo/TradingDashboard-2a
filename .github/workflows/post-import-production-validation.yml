@@ -39,9 +39,9 @@ jobs:
           $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/validate-post-import-production.ps1'
           $probe = [System.Convert]::ToBoolean('${{ github.event.inputs.run_reset_autostart_probe }}')
           if ($probe) {
-            & $script -BaseUrl 'http://localhost' -RunResetAutostartProbe
+            & $script -RunResetAutostartProbe
           } else {
-            & $script -BaseUrl 'http://localhost'
+            & $script
           }
 
       - name: Upload validation report

@@ -1,12 +1,18 @@
 # Post-import Production validation (read-only + controlled reset/autostart probe).
 param(
-    [string]$BaseUrl = 'http://localhost',
+    [string]$BaseUrl = '',
     [string]$Username = 'admin',
     [string]$Password = 'Admin@123456',
     [string]$ProdConfigPath = 'C:\inetpub\wwwroot\shared\appsettings.Production.json',
     [string]$OutDir = '',
     [switch]$RunResetAutostartProbe
 )
+
+if (-not $BaseUrl) {
+    $BaseUrl = 'https://localhost'
+}
+[System.Net.ServicePointManager]::ServerCertificateValidationCallback = { $true }
+[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12
 
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Data
@@ -143,25 +149,37 @@ if ($token) {
 
     try {
         $idx2025 = Unwrap-Api (Invoke-Api -Method GET -Path '/api/mission/reports/index?runtimeMode=Production&fromUtc=2025-01-01&toUtc=2025-12-31&skip=0&limit=200' -Headers $h)
-        $total2025 = [int]$idx2025.total
-        $items2025 = @($idx2025.items)
-        $histIn2025 = @($items2025 | Where-Object { $_.missionKey -like 'hist-seq-*' -or $_.sessionId -ge 10 }).Count
-        Add-Check -Id 'API-02' -Area 'API' -Name 'Index Production 2025 returns 19 imported sessions' -Pass ($total2025 -eq 19) `
-            -Detail "total2025=$total2025 items=$($items2025.Count)" `
-            -Evidence @{ total = $total2025; sessionIds = @($items2025 | ForEach-Object { $_.sessionId }) }
+        Add-Check -Id 'API-02' -Area 'API' -Name 'Index Production 2025 returns 19 imported sessions' -Pass ([int]$idx2025.total -eq 19) `
+            -Detail "total2025=$($idx2025.total)" `
+            -Evidence @{ total = [int]$idx2025.total; sessionIds = @(@($idx2025.items) | ForEach-Object { $_.sessionId }) }
+    }
+    catch {
+        Add-Check -Id 'API-02' -Area 'API' -Name 'Index Production 2025 returns 19 imported sessions' -Pass $false -Detail $_.Exception.Message
+    }
 
+    try {
         $idxAll = Unwrap-Api (Invoke-Api -Method GET -Path '/api/mission/reports/index?runtimeMode=Production&fromUtc=2025-01-01&toUtc=2026-12-31&skip=0&limit=200' -Headers $h)
         Add-Check -Id 'API-03' -Area 'API' -Name 'Index Production 2025-2026 returns 27 sessions' -Pass ([int]$idxAll.total -eq 27) `
             -Detail "total=$($idxAll.total)" `
-            -Evidence @{ total = [int]$idxAll.total; liveIds = @($idxAll.items | Where-Object { $_.sessionId -le 8 } | ForEach-Object { $_.sessionId }) }
+            -Evidence @{ total = [int]$idxAll.total; liveIds = @(@($idxAll.items) | Where-Object { $_.sessionId -le 8 } | ForEach-Object { $_.sessionId }) }
+    }
+    catch {
+        Add-Check -Id 'API-03' -Area 'API' -Name 'Index Production 2025-2026 returns 27 sessions' -Pass $false -Detail $_.Exception.Message
+    }
 
+    try {
         $range2025 = Unwrap-Api (Invoke-Api -Method GET -Path '/api/mission/report/range?runtimeMode=Production&from=2025-01-01&to=2025-12-31&format=json&summary=true' -Headers $h)
         $rangeSamples = [int]$range2025.sampleCount
         $importedSampleSum = [int](Get-Scalar $conn "SELECT COUNT(*) FROM dbo.MissionMarginSamples s INNER JOIN dbo.MissionSessions m ON m.ID = s.SessionId WHERE m.MissionKey LIKE 'hist-seq-%'")
         Add-Check -Id 'API-04' -Area 'API' -Name 'Range Production 2025 sampleCount matches imported samples' -Pass ($rangeSamples -eq $importedSampleSum) `
             -Detail "rangeSamples=$rangeSamples importedSamples=$importedSampleSum" `
             -Evidence @{ rangeSamples = $rangeSamples; importedSampleSum = $importedSampleSum; totals = $range2025.totals }
+    }
+    catch {
+        Add-Check -Id 'API-04' -Area 'API' -Name 'Range Production 2025 sampleCount matches imported samples' -Pass $false -Detail $_.Exception.Message
+    }
 
+    try {
         $sessionChecks = @(10, 16, 28)
         $sessionEvidence = @()
         $sessionPass = $true
@@ -181,13 +199,18 @@ if ($token) {
         }
         Add-Check -Id 'API-05' -Area 'API' -Name 'Individual session reports load (10,16,28)' -Pass $sessionPass `
             -Detail 'Compared API sample counts vs DB per session' -Evidence $sessionEvidence
+    }
+    catch {
+        Add-Check -Id 'API-05' -Area 'API' -Name 'Individual session reports load (10,16,28)' -Pass $false -Detail $_.Exception.Message
+    }
 
+    try {
         $current = Unwrap-Api (Invoke-Api -Method GET -Path '/api/mission/current' -Headers $h)
         Add-Check -Id 'API-06' -Area 'API' -Name 'No open mission in /mission/current' -Pass (-not $current.hasOpenMission) `
             -Detail "hasOpenMission=$($current.hasOpenMission)" -Evidence $current
     }
     catch {
-        Add-Check -Id 'API-ERR' -Area 'API' -Name 'Mission API batch' -Pass $false -Detail $_.Exception.Message
+        Add-Check -Id 'API-06' -Area 'API' -Name 'No open mission in /mission/current' -Pass $false -Detail $_.Exception.Message
     }
 }
 
@@ -207,7 +230,7 @@ if ($RunResetAutostartProbe -and $token) {
             Add-Check -Id 'RST-01' -Area 'Reset' -Name 'Dashboard reset API' -Pass $true -Detail 'POST /api/decider/reset OK' -Evidence $resetData
 
             Start-Sleep -Seconds 2
-            $resetAtAfter = Get-Scalar $conn "SELECT TOP 1 Value FROM dbo.Configurations WHERE [Key] = 'MISSION_LAST_RESET_AT'"
+            $resetAtAfter = Get-Scalar $conn "SELECT TOP 1 Value FROM dbo.Configurations WHERE [K] = 'MISSION_LAST_RESET_AT_UTC'"
             Add-Check -Id 'RST-02' -Area 'Reset' -Name 'Reset boundary recorded' -Pass ($null -ne $resetAtAfter -and $resetAtAfter -isnot [DBNull]) `
                 -Detail "MISSION_LAST_RESET_AT=$resetAtAfter" -Evidence @{ value = [string]$resetAtAfter }
 
