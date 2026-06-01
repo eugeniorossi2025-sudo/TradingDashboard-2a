@@ -27,10 +27,24 @@ public class SmtpEmailSender : IEmailSender
         var username = _configuration["Smtp:Username"];
         var password = _configuration["Smtp:Password"];
 
-        using var message = new MailMessage(from, to, subject, body)
+        using var message = new MailMessage
         {
+            From = new MailAddress(from),
+            Subject = subject,
+            Body = body,
             IsBodyHtml = false
         };
+
+        message.To.Add(from);
+        foreach (var recipient in SplitRecipients(to))
+        {
+            message.Bcc.Add(recipient);
+        }
+
+        if (message.Bcc.Count == 0)
+        {
+            throw new InvalidOperationException("Nessun destinatario email valido.");
+        }
 
         using var client = new SmtpClient(host, port)
         {
@@ -43,5 +57,12 @@ public class SmtpEmailSender : IEmailSender
         }
 
         await client.SendMailAsync(message);
+    }
+
+    private static IEnumerable<string> SplitRecipients(string recipients)
+    {
+        return recipients
+            .Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(recipient => !string.IsNullOrWhiteSpace(recipient));
     }
 }
