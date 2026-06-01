@@ -19,13 +19,20 @@ jobs:
     timeout-minutes: 5
 
     steps:
-      - name: Update SMTP sender without changing password
+      - name: Update SMTP sender and password
         shell: powershell
+        env:
+          SMTP_APP_PASSWORD: ${{ secrets.DASH2A_SMTP_APP_PASSWORD }}
         run: |
           $ErrorActionPreference = 'Stop'
           Import-Module WebAdministration
 
           $email = 'eugeniorossi2025@gmail.com'
+          $smtpPassword = ([string]$env:SMTP_APP_PASSWORD).Trim().Replace(' ', '')
+          if ([string]::IsNullOrWhiteSpace($smtpPassword)) {
+            throw 'Missing repository secret DASH2A_SMTP_APP_PASSWORD.'
+          }
+
           $siteName = 'demoapp'
           $appPoolName = 'demoapp'
           $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
@@ -48,6 +55,7 @@ jobs:
             $json.Smtp.Host = 'smtp.gmail.com'
             $json.Smtp.Port = '587'
             $json.Smtp.EnableSsl = 'true'
+            $json.Smtp.Password = $smtpPassword
 
             $json | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $path -Encoding UTF8
             Write-Host "UPDATED=$path"
