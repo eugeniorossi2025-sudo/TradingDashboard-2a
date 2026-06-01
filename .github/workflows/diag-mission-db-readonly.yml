@@ -4,17 +4,39 @@ on:
   workflow_dispatch:
     inputs:
       confirm:
-        description: "Type MISSION_DB_READONLY to run read-only mission DB checks"
+        description: "Readonly: MISSION_DB_READONLY | DryRun: RELABEL_COMPLETED_PRODUCTION_DRY_RUN | Apply: RELABEL_COMPLETED_PRODUCTION_APPLY"
         required: true
         type: string
+      mode:
+        description: "ReadOnly, DryRun, or Apply"
+        required: true
+        type: choice
+        options:
+          - ReadOnly
+          - DryRun
+          - Apply
+        default: ReadOnly
+      expected_completed_production:
+        description: "Safety gate: expected completed Production sessions to relabel"
+        required: true
+        type: string
+        default: "34"
+      expected_open_production:
+        description: "Safety gate: expected open Production sessions to leave untouched"
+        required: true
+        type: string
+        default: "1"
 
 permissions:
   contents: read
 
 jobs:
   diag:
-    name: Read-only MissionSessions and MissionMarginSamples diagnostic
-    if: ${{ github.event.inputs.confirm == 'MISSION_DB_READONLY' }}
+    name: MissionSessions and MissionMarginSamples diagnostic
+    if: |
+      (github.event.inputs.mode == 'ReadOnly' && github.event.inputs.confirm == 'MISSION_DB_READONLY') ||
+      (github.event.inputs.mode == 'DryRun' && github.event.inputs.confirm == 'RELABEL_COMPLETED_PRODUCTION_DRY_RUN') ||
+      (github.event.inputs.mode == 'Apply' && github.event.inputs.confirm == 'RELABEL_COMPLETED_PRODUCTION_APPLY')
     runs-on:
       - self-hosted
       - Windows
@@ -23,15 +45,24 @@ jobs:
     timeout-minutes: 10
 
     steps:
-      - name: Guard read-only scope
+      - name: Guard scope
         shell: powershell
         run: |
-          if ('${{ github.event.inputs.confirm }}' -ne 'MISSION_DB_READONLY') {
-            throw 'Manual confirmation input is invalid.'
+          $mode = '${{ github.event.inputs.mode }}'
+          $confirm = '${{ github.event.inputs.confirm }}'
+          $valid =
+            ($mode -eq 'ReadOnly' -and $confirm -eq 'MISSION_DB_READONLY') -or
+            ($mode -eq 'DryRun' -and $confirm -eq 'RELABEL_COMPLETED_PRODUCTION_DRY_RUN') -or
+            ($mode -eq 'Apply' -and $confirm -eq 'RELABEL_COMPLETED_PRODUCTION_APPLY')
+
+          if (-not $valid) {
+            throw "Manual confirmation input is invalid for mode $mode."
           }
 
-          Write-Host 'Mission DB readonly diagnostic confirmed.'
-          Write-Host 'READ ONLY: no INSERT, UPDATE, DELETE, MERGE, ALTER, DROP, TRUNCATE, or EF migrations.'
+          Write-Host "Mission DB operation confirmed. MODE=$mode"
+          Write-Host 'READONLY STEP: no INSERT, UPDATE, DELETE, MERGE, ALTER, DROP, TRUNCATE, or EF migrations.'
+          Write-Host 'RELABEL SCOPE: if mode is Apply, only completed Production MissionSessions and their MissionMarginSamples are updated to Demo.'
+          Write-Host 'RELABEL RULE: open Production missions remain untouched.'
 
       - name: Read mission DB state from production runtime config
         shell: powershell
@@ -190,5 +221,177 @@ jobs:
             MAX(LAST_UPDATE) AS LastBotUpdate
           FROM dbo.Pc_CurrentStatus;
           "@
+
+          $connection.Close()
+
+      - name: Relabel completed Production missions to Demo
+        if: ${{ github.event.inputs.mode == 'DryRun' || github.event.inputs.mode == 'Apply' }}
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+
+          $mode = '${{ github.event.inputs.mode }}'
+          $expectedCompleted = [int]'${{ github.event.inputs.expected_completed_production }}'
+          $expectedOpen = [int]'${{ github.event.inputs.expected_open_production }}'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            throw 'DefaultConnection missing from shared production config.'
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          Write-Host "SQL_CONFIG_USER=$($parts['User Id'])"
+          Write-Host "SQL_CONFIG_PASSWORD_PRESENT=$([bool]$parts['Password'])"
+
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing relabel: runtime SQL server is not the expected 1434 endpoint. Server=$($parts['Server'])"
+          }
+
+          $connection = New-Object System.Data.SqlClient.SqlConnection($connString)
+          $connection.Open()
+
+          function Invoke-Scalar([System.Data.SqlClient.SqlConnection] $conn, [string] $sql) {
+            $cmd = $conn.CreateCommand()
+            $cmd.CommandText = $sql
+            $cmd.CommandTimeout = 120
+            return $cmd.ExecuteScalar()
+          }
+
+          $completedProduction = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Production' AND Completed = 1;")
+          $openProduction = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Production' AND Completed = 0;")
+          $completedProductionSamples = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionMarginSamples s INNER JOIN dbo.MissionSessions m ON m.ID = s.SessionId WHERE m.RuntimeMode = 'Production' AND m.Completed = 1;")
+          $openProductionSamples = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionMarginSamples s INNER JOIN dbo.MissionSessions m ON m.ID = s.SessionId WHERE m.RuntimeMode = 'Production' AND m.Completed = 0;")
+          $demoSessionsBefore = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Demo';")
+          $demoSamplesBefore = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionMarginSamples WHERE RuntimeMode = 'Demo';")
+
+          Write-Host "BEFORE_COMPLETED_PRODUCTION_SESSIONS=$completedProduction"
+          Write-Host "BEFORE_OPEN_PRODUCTION_SESSIONS=$openProduction"
+          Write-Host "BEFORE_COMPLETED_PRODUCTION_SAMPLES=$completedProductionSamples"
+          Write-Host "BEFORE_OPEN_PRODUCTION_SAMPLES=$openProductionSamples"
+          Write-Host "BEFORE_DEMO_SESSIONS=$demoSessionsBefore"
+          Write-Host "BEFORE_DEMO_SAMPLES=$demoSamplesBefore"
+
+          if ($completedProduction -ne $expectedCompleted) {
+            throw "Safety gate failed: completed Production sessions expected $expectedCompleted but found $completedProduction."
+          }
+          if ($openProduction -ne $expectedOpen) {
+            throw "Safety gate failed: open Production sessions expected $expectedOpen but found $openProduction."
+          }
+
+          if ($mode -eq 'DryRun') {
+            Write-Host 'DRY_RUN_ONLY=True'
+            Write-Host 'APPLY_SKIPPED=True'
+            $connection.Close()
+            exit 0
+          }
+
+          $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
+          $sqlBackupDir = 'C:\Program Files\Microsoft SQL Server\MSSQL17.SQLEXPRESS01\MSSQL\Backup'
+          if (-not (Test-Path -LiteralPath $sqlBackupDir)) {
+            throw "SQL backup directory not found: $sqlBackupDir"
+          }
+
+          $backupPath = Join-Path $sqlBackupDir "Eugenio-Demo10_pre_completed_production_to_demo_$stamp.bak"
+          $backup = $connection.CreateCommand()
+          $backup.CommandTimeout = 600
+          $backup.CommandText = "BACKUP DATABASE [Eugenio-Demo10] TO DISK = @path WITH INIT, COMPRESSION, STATS = 5"
+          [void]$backup.Parameters.AddWithValue('@path', $backupPath)
+          [void]$backup.ExecuteNonQuery()
+
+          $verify = $connection.CreateCommand()
+          $verify.CommandTimeout = 600
+          $verify.CommandText = "RESTORE VERIFYONLY FROM DISK = @path"
+          [void]$verify.Parameters.AddWithValue('@path', $backupPath)
+          [void]$verify.ExecuteNonQuery()
+
+          $sizeMb = [math]::Round((Get-Item -LiteralPath $backupPath).Length / 1MB, 2)
+          Write-Host "BACKUP_PATH=$backupPath"
+          Write-Host "BACKUP_SIZE_MB=$sizeMb"
+          Write-Host 'BACKUP_VERIFY=OK'
+
+          $transaction = $connection.BeginTransaction()
+          try {
+            $cmd = $connection.CreateCommand()
+            $cmd.Transaction = $transaction
+            $cmd.CommandTimeout = 300
+            $cmd.CommandText = @"
+          DECLARE @UpdatedSessions TABLE (ID int NOT NULL PRIMARY KEY);
+
+          UPDATE dbo.MissionSessions
+          SET RuntimeMode = 'Demo'
+          OUTPUT inserted.ID INTO @UpdatedSessions(ID)
+          WHERE RuntimeMode = 'Production'
+            AND Completed = 1;
+
+          DECLARE @UpdatedSessionRows int = @@ROWCOUNT;
+
+          UPDATE s
+          SET RuntimeMode = 'Demo'
+          FROM dbo.MissionMarginSamples s
+          INNER JOIN @UpdatedSessions u ON u.ID = s.SessionId
+          WHERE s.RuntimeMode = 'Production';
+
+          DECLARE @UpdatedSampleRows int = @@ROWCOUNT;
+
+          SELECT
+            @UpdatedSessionRows AS UpdatedSessionRows,
+            @UpdatedSampleRows AS UpdatedSampleRows;
+          "@
+            $reader = $cmd.ExecuteReader()
+            if (-not $reader.Read()) {
+              throw 'Relabel command returned no result.'
+            }
+            $updatedSessions = [int]$reader['UpdatedSessionRows']
+            $updatedSamples = [int]$reader['UpdatedSampleRows']
+            $reader.Close()
+
+            if ($updatedSessions -ne $expectedCompleted) {
+              throw "Updated session count mismatch: expected $expectedCompleted, updated $updatedSessions."
+            }
+            if ($updatedSamples -ne $completedProductionSamples) {
+              throw "Updated sample count mismatch: expected $completedProductionSamples, updated $updatedSamples."
+            }
+
+            $transaction.Commit()
+            Write-Host "UPDATED_SESSIONS=$updatedSessions"
+            Write-Host "UPDATED_SAMPLES=$updatedSamples"
+            Write-Host 'TRANSACTION_COMMIT=OK'
+          }
+          catch {
+            $transaction.Rollback()
+            Write-Host 'TRANSACTION_ROLLBACK=OK'
+            throw
+          }
+
+          $afterCompletedProduction = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Production' AND Completed = 1;")
+          $afterOpenProduction = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Production' AND Completed = 0;")
+          $afterDemoSessions = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionSessions WHERE RuntimeMode = 'Demo';")
+          $afterDemoSamples = [int](Invoke-Scalar $connection "SELECT COUNT(*) FROM dbo.MissionMarginSamples WHERE RuntimeMode = 'Demo';")
+
+          Write-Host "AFTER_COMPLETED_PRODUCTION_SESSIONS=$afterCompletedProduction"
+          Write-Host "AFTER_OPEN_PRODUCTION_SESSIONS=$afterOpenProduction"
+          Write-Host "AFTER_DEMO_SESSIONS=$afterDemoSessions"
+          Write-Host "AFTER_DEMO_SAMPLES=$afterDemoSamples"
+
+          if ($afterCompletedProduction -ne 0) {
+            throw "Post-check failed: completed Production sessions still present: $afterCompletedProduction."
+          }
+          if ($afterOpenProduction -ne $expectedOpen) {
+            throw "Post-check failed: open Production sessions changed. Expected $expectedOpen, found $afterOpenProduction."
+          }
 
           $connection.Close()
