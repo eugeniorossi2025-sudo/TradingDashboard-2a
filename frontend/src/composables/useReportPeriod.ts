@@ -10,16 +10,8 @@ export const REPORT_PERIOD_CHIPS: { id: ReportPeriodChip; label: string }[] = [
     { id: 'year', label: 'Year' }
 ];
 
-/** Demo missions in prod are anchored around early 2016 after one-by-one import. */
-export const DEMO_REPORT_ANCHOR = '2016-02-18';
-
 function toIsoDate(value: Date): string {
     return toRomeIsoDate(value);
-}
-
-function parseIsoDate(value: string): Date {
-    const [year, month, day] = value.split('-').map(Number);
-    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 }
 
 export function getPeriodRange(chip: ReportPeriodChip, anchor = new Date()): { from: string; to: string } {
@@ -62,11 +54,10 @@ export function useReportPeriod(initialChip: ReportPeriodChip = 'month') {
     function applyPeriodChip(chip: ReportPeriodChip) {
         periodChip.value = chip;
         const production = getPeriodRange(chip, new Date());
-        const demo = getPeriodRange(chip, parseIsoDate(DEMO_REPORT_ANCHOR));
         from.value = production.from;
         to.value = production.to;
-        demoFrom.value = demo.from;
-        demoTo.value = demo.to;
+        demoFrom.value = production.from;
+        demoTo.value = production.to;
     }
 
     applyPeriodChip(initialChip);

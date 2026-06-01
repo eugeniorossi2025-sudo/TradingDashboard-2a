@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { FinancialReportService } from '@/service/FinancialReportService';
-import { DEMO_REPORT_ANCHOR, REPORT_PERIOD_CHIPS, getPeriodRange, type ReportPeriodChip } from '@/composables/useReportPeriod';
+import { REPORT_PERIOD_CHIPS, getPeriodRange, type ReportPeriodChip } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
@@ -53,8 +53,7 @@ function toneClass(value) {
 
 function applyPeriodChip(chip: ReportPeriodChip) {
     periodChip.value = chip;
-    const anchor = runtimeMode.value === 'Demo' ? new Date(`${DEMO_REPORT_ANCHOR}T12:00:00Z`) : new Date();
-    const range = getPeriodRange(chip, anchor);
+    const range = getPeriodRange(chip, new Date());
     from.value = range.from;
     to.value = range.to;
     loadReport();
