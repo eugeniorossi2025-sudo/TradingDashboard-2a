@@ -308,7 +308,7 @@ jobs:
           $backupPath = Join-Path $sqlBackupDir "Eugenio-Demo10_pre_completed_production_to_demo_$stamp.bak"
           $backup = $connection.CreateCommand()
           $backup.CommandTimeout = 600
-          $backup.CommandText = "BACKUP DATABASE [Eugenio-Demo10] TO DISK = @path WITH INIT, COMPRESSION, STATS = 5"
+          $backup.CommandText = "BACKUP DATABASE [Eugenio-Demo10] TO DISK = @path WITH INIT, STATS = 5"
           [void]$backup.Parameters.AddWithValue('@path', $backupPath)
           [void]$backup.ExecuteNonQuery()
 
