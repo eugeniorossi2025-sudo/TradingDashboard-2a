@@ -628,8 +628,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
         DateTime periodEndUtc)
     {
         return query.Where(session =>
-            session.StartTime >= periodStartUtc
-            && session.StartTime < periodEndUtc);
+            session.StartTime < periodEndUtc
+            && (session.EndTime ?? session.StartTime) >= periodStartUtc);
     }
 
     private IQueryable<MissionSession> ApplyAccountingPeriodSessionFilterWithSamples(
