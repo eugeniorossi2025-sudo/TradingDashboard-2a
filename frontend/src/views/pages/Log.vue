@@ -2,6 +2,7 @@
 import { useAuth } from '@/composables/useAuth';
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { LogService } from '@/service/LogService';
+import { formatRomeDateTime } from '@/utils/romeTime';
 import { FilterMatchMode } from '@primevue/core/api';
 import { InputGroup } from 'primevue';
 import Button from 'primevue/button';
@@ -190,16 +191,7 @@ function exportCSV(data) {
 }
 
 function formatLocalDate(date) {
-    const dateObj = new Date(date);
-    // Correggi l'offset se la data è in UTC
-    const localDate = new Date(dateObj.getTime() - dateObj.getTimezoneOffset() * 60000);
-    return localDate.toLocaleString('it-IT', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
+    return formatRomeDateTime(date);
 }
 </script>
 <template>
@@ -305,26 +297,21 @@ function formatLocalDate(date) {
                                 <strong>#{{ data.sessionId }}</strong>
                             </template>
                         </Column>
-                        <Column field="startUtc" header="Start">
+                        <Column field="startUtc" header="Start Roma">
                             <template #body="{ data }">
                                 {{ formatLocalDate(data.startUtc) }}
                             </template>
                         </Column>
-                        <Column field="endUtc" header="End">
+                        <Column field="endUtc" header="End Roma">
                             <template #body="{ data }">
                                 {{ data.endUtc ? formatLocalDate(data.endUtc) : '-' }}
                             </template>
                         </Column>
                         <Column field="kFactor" header="K" />
                         <Column field="activeTables" header="Tavoli" />
-                        <Column field="totalMarginEuro" header="P&L €">
-                            <template #body="{ data }">
-                                <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro) }}</span>
-                            </template>
-                        </Column>
                         <Column field="finalMarginEuro" header="Margine finale">
                             <template #body="{ data }">
-                                {{ formatMoney(data.finalMarginEuro || 0) }}
+                                <span :class="Number(data.finalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.finalMarginEuro || 0) }}</span>
                             </template>
                         </Column>
                         <Column field="globalTargetEuro" header="Target" />

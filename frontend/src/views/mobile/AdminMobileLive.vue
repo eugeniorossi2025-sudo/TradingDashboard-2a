@@ -4,6 +4,7 @@ import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { PushNotificationService } from '@/service/PushNotificationService';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
+import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -141,7 +142,7 @@ async function setReportPeriod(chip) {
 async function loadReports() {
     productionReport.value = await FinancialReportService.getRangeReport('Production', from.value, to.value);
     demoReport.value = await FinancialReportService.getRangeReport('Demo', demoFrom.value, demoTo.value);
-    lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+    lastSync.value = formatRomeTime();
 }
 
 function buildPath(rows, selector) {

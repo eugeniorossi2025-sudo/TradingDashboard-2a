@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { DEMO_REPORT_ANCHOR, REPORT_PERIOD_CHIPS, getPeriodRange, type ReportPeriodChip } from '@/composables/useReportPeriod';
+import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -82,7 +83,7 @@ async function loadReport() {
     error.value = '';
     try {
         report.value = await FinancialReportService.getRangeReport(runtimeMode.value, from.value, to.value);
-        lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        lastSync.value = formatRomeTime();
     } catch (err) {
         console.error('Admin mobile reports load error:', err);
         const status = err?.response?.status;

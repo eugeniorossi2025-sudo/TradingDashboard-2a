@@ -1,6 +1,7 @@
 <script setup>
 import { UserService } from '@/service/UserService';
 import UserAccessTable from '@/components/admin/UserAccessTable.vue';
+import { formatRomeDateTime } from '@/utils/romeTime';
 import { useToast } from 'primevue/usetoast';
 import { onMounted, ref } from 'vue';
 
@@ -175,8 +176,7 @@ async function deleteRow(row) {
 }
 
 function formatDate(value) {
-    if (!value) return '-';
-    return new Date(value).toLocaleString('it-IT');
+    return formatRomeDateTime(value);
 }
 </script>
 

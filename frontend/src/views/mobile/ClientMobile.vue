@@ -3,6 +3,7 @@ import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
+import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -113,7 +114,7 @@ async function loadData() {
 
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
         await loadReports();
-        lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        lastSync.value = formatRomeTime();
     } catch (err) {
         console.error('Client mobile load error:', err);
         error.value = 'Dati reali non disponibili in questo momento.';

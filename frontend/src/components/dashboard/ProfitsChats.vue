@@ -1,5 +1,6 @@
 <script setup>
 import { useLayout } from '@/layout/composables/layout';
+import { formatRomeDateTime } from '@/utils/romeTime';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const { getPrimary, getSurface, isDarkTheme } = useLayout();
@@ -42,15 +43,7 @@ const formattedChartData = computed(() => {
 
     const labels = allDates.map((dateStr) => {
         if (selectedDates.includes(dateStr)) {
-            const date = new Date(dateStr);
-            const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
-            return localDate.toLocaleString('it-IT', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-            });
+            return formatRomeDateTime(dateStr);
         }
         return '';
     });

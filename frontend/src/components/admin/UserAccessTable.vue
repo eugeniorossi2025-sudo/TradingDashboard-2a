@@ -1,4 +1,6 @@
 <script setup>
+import { formatRomeDateTime } from '@/utils/romeTime';
+
 defineProps({
     rows: { type: Array, default: () => [] },
     loading: { type: Boolean, default: false },
@@ -8,8 +10,7 @@ defineProps({
 defineEmits(['details', 'report', 'toggle-enabled', 'delete']);
 
 function formatDate(value) {
-    if (!value) return '-';
-    return new Date(value).toLocaleString('it-IT');
+    return formatRomeDateTime(value);
 }
 </script>
 

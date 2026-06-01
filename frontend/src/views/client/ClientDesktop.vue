@@ -2,6 +2,7 @@
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
+import { formatRomeTime, toRomeIsoDate } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -15,8 +16,9 @@ const lastSync = ref('');
 const error = ref('');
 
 const today = new Date();
-const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().slice(0, 10);
-const to = today.toISOString().slice(0, 10);
+const [romeYear, romeMonth] = toRomeIsoDate(today).split('-');
+const from = `${romeYear}-${romeMonth}-01`;
+const to = toRomeIsoDate(today);
 
 const activeTables = computed(() => tableRows.value.length);
 const margin = computed(() => Number(productionReport.value?.totals?.totalMarginEuro ?? tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0)));
@@ -84,7 +86,7 @@ async function loadData() {
         chartRows.value = Array.isArray(chart) ? chart : [];
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
         productionReport.value = await FinancialReportService.getRangeReport('Production', from, to);
-        lastSync.value = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        lastSync.value = formatRomeTime();
     } catch (err) {
         console.error('Client desktop load error:', err);
         error.value = 'Dati reali non disponibili in questo momento.';

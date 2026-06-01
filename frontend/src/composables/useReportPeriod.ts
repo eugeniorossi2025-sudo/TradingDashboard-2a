@@ -1,4 +1,5 @@
 import { ref } from 'vue';
+import { toRomeIsoDate } from '@/utils/romeTime';
 
 export type ReportPeriodChip = 'day' | 'week' | 'month' | 'year';
 
@@ -13,20 +14,18 @@ export const REPORT_PERIOD_CHIPS: { id: ReportPeriodChip; label: string }[] = [
 export const DEMO_REPORT_ANCHOR = '2016-02-18';
 
 function toIsoDate(value: Date): string {
-    const year = value.getFullYear();
-    const month = String(value.getMonth() + 1).padStart(2, '0');
-    const day = String(value.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return toRomeIsoDate(value);
 }
 
 function parseIsoDate(value: string): Date {
     const [year, month, day] = value.split('-').map(Number);
-    return new Date(year, month - 1, day, 12, 0, 0);
+    return new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
 }
 
 export function getPeriodRange(chip: ReportPeriodChip, anchor = new Date()): { from: string; to: string } {
-    const end = new Date(anchor);
-    const start = new Date(anchor);
+    const [romeYear, romeMonth, romeDay] = toRomeIsoDate(anchor).split('-').map(Number);
+    const end = new Date(Date.UTC(romeYear, romeMonth - 1, romeDay, 12, 0, 0));
+    const start = new Date(end);
 
     switch (chip) {
         case 'day':

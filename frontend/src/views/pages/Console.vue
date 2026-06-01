@@ -1,5 +1,6 @@
 <script setup>
 import { CommandService } from '@/service/CommandService';
+import { formatRomeTime } from '@/utils/romeTime';
 import { useToast } from 'primevue/usetoast';
 import { nextTick, onMounted, ref } from 'vue';
 
@@ -184,11 +185,7 @@ const showHelp = () => {
 
 // 🔹 FORMAT TIMESTAMP
 const formatTime = (date) => {
-    return new Date(date).toLocaleTimeString('it-IT', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    return formatRomeTime(date);
 };
 </script>
 
