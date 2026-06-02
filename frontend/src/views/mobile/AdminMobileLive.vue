@@ -39,13 +39,24 @@ const {
     hasOpenMission,
     heroSessionId,
     heroMargin,
+    stopWinEuro,
     missionTarget,
+    heroProgress,
     heroProgressClamped,
     heroRemaining,
     chartTarget,
     heroNote,
     heroProgressLabel
 } = useOpenMissionHero(liveMargin);
+
+function formatPeriodMeta(report) {
+    if (!report?.totals) return '—';
+    const sessions = report.totals.sessionCount ?? 0;
+    const samples = report.totals.sampleCount ?? 0;
+    const days = report.totals.workingDays;
+    const daysPart = days != null && days > 0 ? ` · ${days} gg lavorativi` : '';
+    return `${sessions} missioni · ${samples} campioni${daysPart}`;
+}
 const activeTables = computed(() => tableRows.value.length);
 const pausedTables = computed(
     () =>
@@ -268,22 +279,24 @@ onMounted(() => {
             <section class="panel hero">
                 <div class="hero-top">
                     <div>
-                        <div class="eyebrow">Missione live</div>
+                        <div class="eyebrow">Operatività live</div>
                         <div class="mega-label">Margine live</div>
                         <div class="mega-value" :class="toneClass(heroMargin)">{{ formatMoney(heroMargin) }}</div>
                         <div class="hero-note">{{ heroNote }}</div>
+                        <div class="hero-note">Stop Win attuale {{ formatMoney(stopWinEuro) }}</div>
                         <div v-if="hasOpenMission" class="hero-note">{{ heroProgressLabel }}</div>
                     </div>
                     <div class="goal-orb">
-                        <template v-if="hasOpenMission">
-                            <div class="mini-label">Verso target missione</div>
-                            <div class="goal-orb-v">{{ formatMoney(heroRemaining) }}</div>
+                        <div class="mini-label">Stop Win attuale</div>
+                        <div class="goal-orb-v">{{ formatMoney(stopWinEuro) }}</div>
+                        <template v-if="hasOpenMission && missionTarget > 0">
                             <div class="bar"><span :style="{ width: `${heroProgressClamped}%` }"></span></div>
-                            <div class="stat-sub">Target missione {{ formatMoney(missionTarget) }}</div>
+                            <div class="stat-sub">{{ formatPercent(heroProgress) }} · mancano {{ formatMoney(heroRemaining) }}</div>
+                        </template>
+                        <template v-else-if="hasOpenMission">
+                            <div class="stat-sub">Progresso non calcolabile</div>
                         </template>
                         <template v-else>
-                            <div class="mini-label">Target missione</div>
-                            <div class="goal-orb-v">—</div>
                             <div class="stat-sub">Nessuna missione aperta</div>
                         </template>
                     </div>
@@ -312,7 +325,7 @@ onMounted(() => {
                 <div class="section-head">
                     <div>
                         <div class="section-title">Mission curve</div>
-                        <div class="section-copy">Curva live · target line = target missione corrente se aperta</div>
+                        <div class="section-copy">Curva live · linea = Stop Win attuale</div>
                     </div>
                     <div class="mini-label">{{ chartSamples.length }} samples</div>
                 </div>
@@ -324,7 +337,7 @@ onMounted(() => {
                     </svg>
                     <div class="chart-meta">
                         <span class="chart-current">Margine live {{ formatMoney(heroMargin) }}</span>
-                        <span v-if="hasOpenMission" class="chart-target">Target missione {{ formatMoney(missionTarget) }}</span>
+                        <span class="chart-target">Stop Win {{ formatMoney(stopWinEuro) }}</span>
                     </div>
                 </div>
             </section>
@@ -404,7 +417,7 @@ onMounted(() => {
                         <div class="month-report-label">Production</div>
                         <div class="month-report-value" :class="toneClass(productionPeriodResult)">{{ formatMoney(productionPeriodResult) }}</div>
                         <div class="month-report-meta">
-                            Target periodo/report {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />esclude missione aperta
+                            {{ formatPeriodMeta(productionReport) }}<br />esclude missione aperta
                         </div>
                         <button type="button" class="month-report-link" @click="downloadReport('Production')">Open HTML</button>
                     </article>
@@ -412,7 +425,7 @@ onMounted(() => {
                         <div class="month-report-label">Demo</div>
                         <div class="month-report-value" :class="toneClass(demoPeriodResult)">{{ formatMoney(demoPeriodResult) }}</div>
                         <div class="month-report-meta">
-                            Target periodo/report {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />demo · esclude missione aperta
+                            {{ formatPeriodMeta(demoReport) }}<br />demo · esclude missione aperta
                         </div>
                         <button type="button" class="month-report-link" @click="downloadReport('Demo')">Open HTML</button>
                     </article>

@@ -1,14 +1,17 @@
 import { FinancialReportService, type MissionLifecycleState } from '@/service/FinancialReportService';
+import { useStopWinConfig } from '@/composables/useStopWinConfig';
 import { computed, ref, type Ref } from 'vue';
 
 /**
- * Hero mobile: missione aperta da /api/mission/current; altrimenti margine live dai tavoli.
- * I report periodo restano separati (target periodo/report).
+ * Mobile hero: live margin + progress vs current STOP_WIN from Configuration.
+ * Period reports stay separate (no historical max target on operational screens).
  */
 export function useOpenMissionHero(liveMarginSum: Ref<number>) {
     const currentMission = ref<MissionLifecycleState | null>(null);
+    const { stopWinEuro, loadStopWin } = useStopWinConfig();
 
     async function loadCurrentMission(): Promise<void> {
+        await loadStopWin();
         try {
             currentMission.value = await FinancialReportService.getCurrentMission();
         } catch (error) {
@@ -28,7 +31,8 @@ export function useOpenMissionHero(liveMarginSum: Ref<number>) {
         return liveMarginSum.value;
     });
 
-    const missionTarget = computed(() => (hasOpenMission.value ? Number(currentMission.value?.globalTarget ?? 0) : 0));
+    /** Operational target: always current STOP_WIN, not frozen MissionSessions.GlobalTarget. */
+    const missionTarget = computed(() => stopWinEuro.value);
 
     const heroProgress = computed(() => {
         if (!hasOpenMission.value || missionTarget.value <= 0) return 0;
@@ -39,19 +43,19 @@ export function useOpenMissionHero(liveMarginSum: Ref<number>) {
 
     const heroRemaining = computed(() => (hasOpenMission.value ? Math.max(0, missionTarget.value - heroMargin.value) : 0));
 
-    /** Target line on mission chart: mission target when open, else 0 (period target only in report cards). */
     const chartTarget = computed(() => missionTarget.value);
 
     const heroNote = computed(() => {
         if (hasOpenMission.value) {
-            return `Missione #${heroSessionId.value} aperta · target missione ${missionTarget.value} €`;
+            return `Missione #${heroSessionId.value} aperta`;
         }
         return 'Nessuna missione aperta · margine dai tavoli live';
     });
 
     const heroProgressLabel = computed(() => {
         if (!hasOpenMission.value) return 'Avanzamento missione non disponibile';
-        return `${heroProgress.value.toFixed(1)}% del target missione corrente`;
+        if (missionTarget.value <= 0) return 'Stop Win attuale non configurato';
+        return `${heroProgress.value.toFixed(1)}% verso Stop Win attuale`;
     });
 
     return {
@@ -60,6 +64,7 @@ export function useOpenMissionHero(liveMarginSum: Ref<number>) {
         hasOpenMission,
         heroSessionId,
         heroMargin,
+        stopWinEuro,
         missionTarget,
         heroProgress,
         heroProgressClamped,

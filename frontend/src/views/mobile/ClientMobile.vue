@@ -30,6 +30,7 @@ const {
     hasOpenMission,
     heroSessionId,
     heroMargin,
+    stopWinEuro,
     missionTarget,
     heroProgress,
     heroProgressClamped,
@@ -37,6 +38,15 @@ const {
     heroNote,
     heroProgressLabel
 } = useOpenMissionHero(liveMargin);
+
+function formatPeriodMeta(report) {
+    if (!report?.totals) return '—';
+    const sessions = report.totals.sessionCount ?? 0;
+    const samples = report.totals.sampleCount ?? 0;
+    const days = report.totals.workingDays;
+    const daysPart = days != null && days > 0 ? ` · ${days} gg lavorativi` : '';
+    return `${sessions} missioni · ${samples} campioni${daysPart}`;
+}
 const activeTables = computed(() => tableRows.value.length);
 const chartSamples = computed(() => {
     if (chartRows.value.length) return chartRows.value;
@@ -157,39 +167,42 @@ onMounted(loadData);
             <div v-if="error" class="error-banner">{{ error }}</div>
 
             <section class="panel hero-client">
-                <div class="eyebrow">Margine live</div>
-                <div class="hero-value numeric-stable" :class="toneClass(heroMargin)" dir="ltr">
-                    {{ formatMoney(heroMargin) }}
+                <div class="eyebrow">Operatività live</div>
+                <div class="hero-kpi">
+                    <div class="hero-kpi-item">
+                        <div class="hero-kpi-label">Margine live</div>
+                        <div class="hero-value numeric-stable" :class="toneClass(heroMargin)" dir="ltr">
+                            {{ formatMoney(heroMargin) }}
+                        </div>
+                    </div>
+                    <div class="hero-kpi-item">
+                        <div class="hero-kpi-label">Stop Win attuale</div>
+                        <div class="hero-value numeric-stable" dir="ltr">{{ formatMoney(stopWinEuro) }}</div>
+                    </div>
+                    <div class="hero-kpi-item">
+                        <div class="hero-kpi-label">Progresso missione</div>
+                        <div class="hero-value numeric-stable" dir="ltr">{{ hasOpenMission && missionTarget > 0 ? formatPercent(heroProgress) : '—' }}</div>
+                    </div>
                 </div>
                 <div class="subline numeric-stable" dir="ltr">
-                    <template v-if="hasOpenMission"> Missione #{{ heroSessionId }} · {{ heroProgressLabel }} </template>
+                    <template v-if="hasOpenMission">Missione #{{ heroSessionId }} · {{ heroProgressLabel }}</template>
                     <template v-else>{{ heroNote }}</template>
                 </div>
-                <div v-if="hasOpenMission" class="progress-wrap">
+                <div v-if="hasOpenMission && missionTarget > 0" class="progress-wrap">
                     <div class="progress-bar" :style="{ width: `${heroProgressClamped}%` }"></div>
                 </div>
             </section>
 
             <section class="grid">
                 <div class="panel stat">
-                    <div class="eyebrow">Avanzamento missione</div>
-                    <div class="stat-value numeric-stable">{{ hasOpenMission ? formatPercent(heroProgress) : '—' }}</div>
-                    <div class="subline">Target missione corrente</div>
-                </div>
-                <div class="panel stat">
                     <div class="eyebrow">Sessione</div>
                     <div class="stat-value">{{ hasOpenMission ? `#${heroSessionId}` : '—' }}</div>
                     <div class="subline">{{ activeTables }} tavoli live</div>
                 </div>
                 <div class="panel stat">
-                    <div class="eyebrow">Target missione</div>
-                    <div class="stat-value numeric-stable">{{ hasOpenMission ? formatMoney(missionTarget) : '—' }}</div>
-                    <div class="subline">Corrente (non report periodo)</div>
-                </div>
-                <div class="panel stat">
-                    <div class="eyebrow">Tempo</div>
+                    <div class="eyebrow">Campioni curva</div>
                     <div class="stat-value">{{ chartSamples.length }}</div>
-                    <div class="subline">Campioni</div>
+                    <div class="subline">Mission chart live</div>
                 </div>
             </section>
 
@@ -229,8 +242,7 @@ onMounted(loadData);
                             {{ formatMoney(productionPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
-                            Target periodo/report {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />
-                            Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />
+                            {{ formatPeriodMeta(productionReport) }}<br />
                             esclude missione aperta
                         </div>
                     </article>
@@ -240,8 +252,7 @@ onMounted(loadData);
                             {{ formatMoney(demoPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
-                            Target periodo/report {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />
-                            Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />
+                            {{ formatPeriodMeta(demoReport) }}<br />
                             demo · esclude missione aperta
                         </div>
                     </article>
@@ -357,6 +368,25 @@ h1 {
     padding: 18px;
     overflow: hidden;
 }
+.hero-kpi {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    margin: 0.75rem 0 0.35rem;
+}
+
+.hero-kpi-label {
+    color: var(--text-color-secondary);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+.hero-kpi-item .hero-value {
+    margin-top: 4px;
+    font-size: clamp(28px, 8vw, 40px);
+}
+
 .hero-value {
     margin-top: 8px;
     font-size: clamp(38px, 11vw, 54px);
