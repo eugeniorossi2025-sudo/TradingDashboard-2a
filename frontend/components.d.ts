@@ -58,6 +58,7 @@ declare module 'vue' {
     Menu: typeof import('primevue/menu')['default']
     Menubar: typeof import('primevue/menubar')['default']
     Message: typeof import('primevue/message')['default']
+    MobilePushPanel: typeof import('./src/components/mobile/MobilePushPanel.vue')['default']
     MultiSelect: typeof import('primevue/multiselect')['default']
     NotificationsWidget: typeof import('./src/components/dashboard/NotificationsWidget.vue')['default']
     OrderList: typeof import('primevue/orderlist')['default']

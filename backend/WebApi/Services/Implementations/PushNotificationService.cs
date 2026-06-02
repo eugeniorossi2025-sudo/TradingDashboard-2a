@@ -43,6 +43,12 @@ public class PushNotificationService : IPushNotificationService
             throw new InvalidOperationException("Subscription push incompleta.");
         }
 
+        if (!IsValidPushEndpoint(request.Endpoint))
+        {
+            throw new InvalidOperationException(
+                "Endpoint push non valido per questo browser. Usa Chrome Android e riprova.");
+        }
+
         var now = DateTime.UtcNow;
         var subscription = await _context.UserPushSubscriptions
             .FirstOrDefaultAsync(row => row.Endpoint == request.Endpoint, cancellationToken);
@@ -168,6 +174,55 @@ public class PushNotificationService : IPushNotificationService
         });
 
         return await SendPayloadAsync(subscriptions, payload, publicKey, privateKey, subject, cancellationToken);
+    }
+
+    public async Task<int> SendTestNotificationToUserAsync(int userId, string? deepLinkUrl, CancellationToken cancellationToken = default)
+    {
+        var publicKey = _configuration["Push:VapidPublicKey"];
+        var privateKey = _configuration["Push:VapidPrivateKey"];
+        var subject = _configuration["Push:Subject"];
+
+        if (string.IsNullOrWhiteSpace(publicKey) ||
+            string.IsNullOrWhiteSpace(privateKey) ||
+            string.IsNullOrWhiteSpace(subject))
+        {
+            _logger.LogInformation("Test push skipped because VAPID is not configured.");
+            return 0;
+        }
+
+        await EnsurePushSchemaAsync(cancellationToken);
+
+        var subscriptions = await _context.UserPushSubscriptions
+            .Where(row => row.Enabled && row.UserId == userId)
+            .ToListAsync(cancellationToken);
+
+        if (subscriptions.Count == 0)
+            return 0;
+
+        var url = string.IsNullOrWhiteSpace(deepLinkUrl) ? "/admin/mobile-live" : deepLinkUrl.Trim();
+        if (!url.StartsWith('/'))
+            url = "/" + url;
+
+        var payload = JsonSerializer.Serialize(new
+        {
+            title = "DASH2A Test",
+            body = "Se ricevi questo messaggio, le notifiche push funzionano correttamente.",
+            data = new
+            {
+                url,
+                type = "push-test"
+            }
+        });
+
+        return await SendPayloadAsync(subscriptions, payload, publicKey, privateKey, subject, cancellationToken);
+    }
+
+    private static bool IsValidPushEndpoint(string endpoint)
+    {
+        if (string.IsNullOrWhiteSpace(endpoint) || !endpoint.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        return !endpoint.Contains("permanently-removed.invalid", StringComparison.OrdinalIgnoreCase);
     }
 
     private async Task<int> SendPayloadAsync(

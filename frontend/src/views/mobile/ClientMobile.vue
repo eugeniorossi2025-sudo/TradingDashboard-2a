@@ -1,4 +1,5 @@
 <script setup>
+import MobilePushPanel from '@/components/mobile/MobilePushPanel.vue';
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
@@ -295,6 +296,12 @@ onMounted(loadData);
                     </article>
                 </div>
             </section>
+
+            <MobilePushPanel
+                return-path="/client/mobile"
+                title="Notifiche push"
+                description="Ricevi avvisi missione anche da mobile cliente. Consigliato Chrome Android e notifica di prova."
+            />
 
             <div class="status">Sincronizzazione {{ lastSync || 'in corso' }}</div>
         </section>

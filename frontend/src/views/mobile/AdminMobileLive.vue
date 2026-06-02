@@ -2,7 +2,7 @@
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
-import { PushNotificationService } from '@/service/PushNotificationService';
+import MobilePushPanel from '@/components/mobile/MobilePushPanel.vue';
 import { useMobileLiveRefresh } from '@/composables/useMobileLiveRefresh';
 import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
@@ -19,15 +19,6 @@ const runtimeMode = ref({ runtimeMode: 'Production', isDemoMode: false });
 const productionReport = ref(null);
 const demoReport = ref(null);
 const lastSync = ref('');
-const pushLoading = ref(false);
-const pushStatus = ref({
-    supported: false,
-    permission: 'unsupported',
-    configured: false,
-    subscribed: false,
-    message: 'Verifica notifiche in corso.'
-});
-
 const { periodChip, from, to, demoFrom, demoTo, applyPeriodChip, formatPeriod, formatDemoPeriod } = useReportPeriod('month');
 const periodChips = REPORT_PERIOD_CHIPS;
 
@@ -79,14 +70,6 @@ const strategyLabel = computed(() => {
 });
 const sessionPulse = computed(() => (activeTables.value > 0 ? 'LIVE' : 'IDLE'));
 const copilotEvents = computed(() => tableRows.value.filter((row) => buildStrategyLabel(row) !== '--').slice(0, 6));
-const pushStateLabel = computed(() => {
-    if (pushStatus.value.subscribed) return 'Push attive';
-    if (pushStatus.value.permission === 'granted' && !pushStatus.value.configured) return 'Permesso OK, backend non pronto';
-    if (pushStatus.value.permission === 'granted') return 'Permesso OK, subscription mancante';
-    if (pushStatus.value.configured) return 'Backend pronto';
-    return 'Push non attive';
-});
-
 function getNumber(row, ...keys) {
     for (const key of keys) {
         const number = Number(row?.[key]);
@@ -216,33 +199,6 @@ async function loadData() {
     }
 }
 
-async function loadPushStatus() {
-    pushLoading.value = true;
-    try {
-        pushStatus.value = await PushNotificationService.getStatus();
-    } finally {
-        pushLoading.value = false;
-    }
-}
-
-async function enablePush() {
-    pushLoading.value = true;
-    try {
-        pushStatus.value = await PushNotificationService.subscribe();
-    } catch (err) {
-        console.warn('Push subscription failed:', err);
-        pushStatus.value = {
-            supported: pushStatus.value.supported,
-            permission: typeof Notification !== 'undefined' ? Notification.permission : 'unsupported',
-            configured: false,
-            subscribed: false,
-            message: 'Notifiche push non attivabili: endpoint backend non disponibile.'
-        };
-    } finally {
-        pushLoading.value = false;
-    }
-}
-
 function downloadReport(runtimeMode) {
     const rangeFrom = runtimeMode === 'Demo' ? demoFrom.value : from.value;
     const rangeTo = runtimeMode === 'Demo' ? demoTo.value : to.value;
@@ -258,10 +214,7 @@ async function logout() {
     router.push('/auth/login');
 }
 
-onMounted(() => {
-    loadData();
-    loadPushStatus();
-});
+onMounted(loadData);
 </script>
 
 <template>
@@ -446,28 +399,11 @@ onMounted(() => {
                 <div class="month-report-foot">Updated {{ lastSync || '--' }} · live data only</div>
             </section>
 
-            <section class="panel section">
-                <div class="section-head">
-                    <div>
-                        <div class="section-title">Notifiche push</div>
-                        <div class="section-copy">Avvisi missione su mobile admin, se backend e browser li supportano</div>
-                    </div>
-                    <div class="mini-label">{{ pushStatus.subscribed ? 'ON' : 'OFF' }}</div>
-                </div>
-                <div class="push-box">
-                    <div class="push-state" :class="{ active: pushStatus.subscribed, warn: !pushStatus.configured || pushStatus.permission === 'granted' }">
-                        {{ pushStateLabel }}
-                    </div>
-                    <div class="push-message">{{ pushStatus.message }}</div>
-                    <div class="push-meta">Browser: {{ pushStatus.supported ? 'supportato' : 'non supportato' }} · Permesso: {{ pushStatus.permission }} · Backend: {{ pushStatus.configured ? 'configurato' : 'non configurato' }}</div>
-                    <div class="push-platform-note">
-                        Android: abilita dal popup del browser. iOS: apri da app aggiunta alla schermata Home e abilita le notifiche da li.
-                    </div>
-                    <button type="button" class="push-button" :disabled="pushLoading || !pushStatus.supported" @click="enablePush">
-                        {{ pushLoading ? 'Verifica...' : 'Consenti notifiche' }}
-                    </button>
-                </div>
-            </section>
+            <MobilePushPanel
+                return-path="/admin/mobile-live"
+                title="Notifiche push"
+                description="Avvisi missione su mobile admin. Usa Chrome Android; verifica con una notifica di prova."
+            />
 
             <div class="foot-copy">Read-only mobile route. Desktop admin flow remains untouched.</div>
         </section>

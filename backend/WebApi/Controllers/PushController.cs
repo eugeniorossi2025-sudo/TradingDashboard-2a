@@ -38,12 +38,43 @@ public class PushController : ControllerBase
         if (!int.TryParse(userIdValue, out var userId))
             return Unauthorized(ApiResponse<object>.ErrorResponse("User token missing userId claim"));
 
-        await _pushNotificationService.SaveSubscriptionAsync(
+        try
+        {
+            await _pushNotificationService.SaveSubscriptionAsync(
+                userId,
+                request,
+                Request.Headers.UserAgent.ToString(),
+                cancellationToken);
+
+            return Ok(ApiResponse<object>.SuccessResponse(new object(), "Push subscription saved"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse(ex.Message));
+        }
+    }
+
+    [HttpPost("test")]
+    public async Task<IActionResult> SendTest([FromBody] PushTestRequest? request, CancellationToken cancellationToken)
+    {
+        var userIdValue = User.FindFirst(AuthConstants.Claims.UserId)?.Value;
+        if (!int.TryParse(userIdValue, out var userId))
+            return Unauthorized(ApiResponse<object>.ErrorResponse("User token missing userId claim"));
+
+        var sent = await _pushNotificationService.SendTestNotificationToUserAsync(
             userId,
-            request,
-            Request.Headers.UserAgent.ToString(),
+            request?.Url,
             cancellationToken);
 
-        return Ok(ApiResponse<object>.SuccessResponse(new object(), "Push subscription saved"));
+        var message = sent > 0
+            ? "Notifica di prova inviata."
+            : "Nessuna subscription attiva trovata per il tuo utente.";
+
+        return Ok(ApiResponse<object>.SuccessResponse(new { sent }, message));
     }
+}
+
+public sealed class PushTestRequest
+{
+    public string? Url { get; set; }
 }
