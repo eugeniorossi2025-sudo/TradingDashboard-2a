@@ -2,6 +2,7 @@
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
+import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
@@ -24,14 +25,18 @@ const demoPeriodResult = computed(() => Number(demoReport.value?.totals?.periodR
 const productionPeriodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? productionReport.value?.totals?.totalMarginEuro ?? 0));
 
 const liveMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
-const reportMargin = computed(() => Number(productionReport.value?.totals?.totalMarginEuro ?? liveMargin.value ?? 0));
-const target = computed(() => Number(productionReport.value?.totals?.globalTargetEuro || 0));
-const progress = computed(() => {
-    const explicit = Number(productionReport.value?.totals?.progressPct);
-    if (Number.isFinite(explicit) && explicit > 0) return explicit;
-    return target.value > 0 ? (reportMargin.value / target.value) * 100 : 0;
-});
-const progressClamped = computed(() => Math.max(0, Math.min(100, progress.value)));
+const {
+    loadCurrentMission,
+    hasOpenMission,
+    heroSessionId,
+    heroMargin,
+    missionTarget,
+    heroProgress,
+    heroProgressClamped,
+    chartTarget,
+    heroNote,
+    heroProgressLabel
+} = useOpenMissionHero(liveMargin);
 const activeTables = computed(() => tableRows.value.length);
 const chartSamples = computed(() => {
     if (chartRows.value.length) return chartRows.value;
@@ -41,7 +46,7 @@ const chartSamples = computed(() => {
     }));
 });
 const chartPath = computed(() => buildPath(chartSamples.value, (row) => getNumber(row, 'margine', 'Margine', 'margin')));
-const targetPath = computed(() => buildPath(chartSamples.value, () => target.value));
+const targetPath = computed(() => buildPath(chartSamples.value, () => chartTarget.value));
 
 function getNumber(row, ...keys) {
     for (const key of keys) {
@@ -113,7 +118,7 @@ async function loadData() {
         chartRows.value = Array.isArray(chart) ? chart : [];
 
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
-        await loadReports();
+        await Promise.all([loadReports(), loadCurrentMission()]);
         lastSync.value = formatRomeTime();
     } catch (err) {
         console.error('Client mobile load error:', err);
@@ -152,31 +157,34 @@ onMounted(loadData);
             <div v-if="error" class="error-banner">{{ error }}</div>
 
             <section class="panel hero-client">
-                <div class="eyebrow">Global margin</div>
-                <div class="hero-value numeric-stable" :class="toneClass(reportMargin)" dir="ltr">
-                    {{ formatMoney(reportMargin) }}
+                <div class="eyebrow">Margine live</div>
+                <div class="hero-value numeric-stable" :class="toneClass(heroMargin)" dir="ltr">
+                    {{ formatMoney(heroMargin) }}
                 </div>
-                <div class="subline numeric-stable" dir="ltr">Missione {{ activeTables > 0 ? 'attiva' : 'idle' }} · {{ formatPercent(progress) }} del target</div>
-                <div class="progress-wrap">
-                    <div class="progress-bar" :style="{ width: `${progressClamped}%` }"></div>
+                <div class="subline numeric-stable" dir="ltr">
+                    <template v-if="hasOpenMission"> Missione #{{ heroSessionId }} · {{ heroProgressLabel }} </template>
+                    <template v-else>{{ heroNote }}</template>
+                </div>
+                <div v-if="hasOpenMission" class="progress-wrap">
+                    <div class="progress-bar" :style="{ width: `${heroProgressClamped}%` }"></div>
                 </div>
             </section>
 
             <section class="grid">
                 <div class="panel stat">
-                    <div class="eyebrow">Achievement</div>
-                    <div class="stat-value numeric-stable">{{ formatPercent(progress) }}</div>
-                    <div class="subline">Avanzamento</div>
+                    <div class="eyebrow">Avanzamento missione</div>
+                    <div class="stat-value numeric-stable">{{ hasOpenMission ? formatPercent(heroProgress) : '—' }}</div>
+                    <div class="subline">Target missione corrente</div>
                 </div>
                 <div class="panel stat">
-                    <div class="eyebrow">Tavoli</div>
-                    <div class="stat-value">{{ activeTables }}</div>
-                    <div class="subline">Attivi</div>
+                    <div class="eyebrow">Sessione</div>
+                    <div class="stat-value">{{ hasOpenMission ? `#${heroSessionId}` : '—' }}</div>
+                    <div class="subline">{{ activeTables }} tavoli live</div>
                 </div>
                 <div class="panel stat">
-                    <div class="eyebrow">Target</div>
-                    <div class="stat-value numeric-stable">{{ formatMoney(target) }}</div>
-                    <div class="subline">View-scale</div>
+                    <div class="eyebrow">Target missione</div>
+                    <div class="stat-value numeric-stable">{{ hasOpenMission ? formatMoney(missionTarget) : '—' }}</div>
+                    <div class="subline">Corrente (non report periodo)</div>
                 </div>
                 <div class="panel stat">
                     <div class="eyebrow">Tempo</div>
@@ -190,7 +198,7 @@ onMounted(loadData);
                 <svg class="chart" viewBox="0 0 360 150" role="img" aria-label="Client mission margin chart">
                     <line class="axis" x1="10" y1="130" x2="350" y2="130"></line>
                     <path class="target-line" :d="targetPath"></path>
-                    <path class="chart-line" :class="toneClass(reportMargin)" :d="chartPath"></path>
+                    <path class="chart-line" :class="toneClass(heroMargin)" :d="chartPath"></path>
                 </svg>
                 <div class="subline">{{ chartSamples.length > 0 ? `${chartSamples.length} campioni missione` : 'Nessun campione disponibile' }}</div>
             </section>
@@ -198,8 +206,8 @@ onMounted(loadData);
             <section class="panel">
                 <div class="month-report-head">
                     <div>
-                        <div class="eyebrow">Financial reports</div>
-                        <div class="subline">Production {{ formatPeriodRange() }} · Demo {{ formatDemoPeriod() }}</div>
+                        <div class="eyebrow">Report periodo</div>
+                        <div class="subline">Contabilità storica · Production {{ formatPeriodRange() }} · Demo {{ formatDemoPeriod() }}</div>
                     </div>
                 </div>
                 <div class="period-chips">
@@ -221,9 +229,9 @@ onMounted(loadData);
                             {{ formatMoney(productionPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
-                            Target {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />
+                            Target periodo/report {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />
                             Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />
-                            official accounting
+                            esclude missione aperta
                         </div>
                     </article>
                     <article class="month-report-card">
@@ -232,9 +240,9 @@ onMounted(loadData);
                             {{ formatMoney(demoPeriodResult) }}
                         </div>
                         <div class="month-report-meta">
-                            Target {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />
+                            Target periodo/report {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />
                             Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />
-                            non-accountable
+                            demo · esclude missione aperta
                         </div>
                     </article>
                 </div>

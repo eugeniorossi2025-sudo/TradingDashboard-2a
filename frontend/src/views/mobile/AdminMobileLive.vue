@@ -3,6 +3,7 @@ import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { PushNotificationService } from '@/service/PushNotificationService';
+import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
@@ -32,11 +33,19 @@ const periodChips = REPORT_PERIOD_CHIPS;
 const demoPeriodResult = computed(() => Number(demoReport.value?.totals?.periodResultEuro ?? demoReport.value?.totals?.totalMarginEuro ?? 0));
 const productionPeriodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? productionReport.value?.totals?.totalMarginEuro ?? 0));
 
-const globalMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
-const target = computed(() => Number(productionReport.value?.totals?.globalTargetEuro || 0));
-const remaining = computed(() => Math.max(0, target.value - globalMargin.value));
-const progress = computed(() => (target.value > 0 ? (globalMargin.value / target.value) * 100 : Number(productionReport.value?.totals?.progressPct || 0)));
-const progressClamped = computed(() => Math.max(0, Math.min(100, progress.value)));
+const liveMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
+const {
+    loadCurrentMission,
+    hasOpenMission,
+    heroSessionId,
+    heroMargin,
+    missionTarget,
+    heroProgressClamped,
+    heroRemaining,
+    chartTarget,
+    heroNote,
+    heroProgressLabel
+} = useOpenMissionHero(liveMargin);
 const activeTables = computed(() => tableRows.value.length);
 const pausedTables = computed(
     () =>
@@ -51,7 +60,7 @@ const chartSamples = computed(() =>
     chartRows.value.length ? chartRows.value : tableRows.value.map((row, index) => ({ timestamp: row.timestamp || new Date(Date.now() - (tableRows.value.length - index) * 60000).toISOString(), margine: getNumber(row, 'margine', 'Margine') }))
 );
 const chartPath = computed(() => buildPath(chartSamples.value, (row) => getNumber(row, 'margine', 'Margine', 'margin')));
-const targetPath = computed(() => buildPath(chartSamples.value, () => target.value));
+const targetPath = computed(() => buildPath(chartSamples.value, () => chartTarget.value));
 const strategyLabel = computed(() => {
     const row = tableRows.value.find((item) => buildStrategyLabel(item) !== '--');
     return row ? buildStrategyLabel(row) : '--';
@@ -174,7 +183,7 @@ async function loadData() {
         chartRows.value = Array.isArray(chart) ? chart : [];
 
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
-        await loadReports();
+        await Promise.all([loadReports(), loadCurrentMission()]);
     } catch (err) {
         console.error('Admin mobile load error:', err);
         error.value = 'Dati reali non disponibili in questo momento.';
@@ -259,33 +268,42 @@ onMounted(() => {
             <section class="panel hero">
                 <div class="hero-top">
                     <div>
-                        <div class="eyebrow">Mission objective</div>
-                        <div class="mega-label">Live target</div>
-                        <div class="mega-value" :class="toneClass(globalMargin)">{{ formatMoney(globalMargin) }}</div>
-                        <div class="hero-note">{{ activeTables > 0 ? 'Dashboard live data available' : 'No live bots available yet' }}</div>
+                        <div class="eyebrow">Missione live</div>
+                        <div class="mega-label">Margine live</div>
+                        <div class="mega-value" :class="toneClass(heroMargin)">{{ formatMoney(heroMargin) }}</div>
+                        <div class="hero-note">{{ heroNote }}</div>
+                        <div v-if="hasOpenMission" class="hero-note">{{ heroProgressLabel }}</div>
                     </div>
                     <div class="goal-orb">
-                        <div class="mini-label">Remaining</div>
-                        <div class="goal-orb-v">{{ formatMoney(remaining) }}</div>
-                        <div class="bar"><span :style="{ width: `${progressClamped}%` }"></span></div>
+                        <template v-if="hasOpenMission">
+                            <div class="mini-label">Verso target missione</div>
+                            <div class="goal-orb-v">{{ formatMoney(heroRemaining) }}</div>
+                            <div class="bar"><span :style="{ width: `${heroProgressClamped}%` }"></span></div>
+                            <div class="stat-sub">Target missione {{ formatMoney(missionTarget) }}</div>
+                        </template>
+                        <template v-else>
+                            <div class="mini-label">Target missione</div>
+                            <div class="goal-orb-v">—</div>
+                            <div class="stat-sub">Nessuna missione aperta</div>
+                        </template>
                     </div>
                 </div>
 
                 <div class="hero-grid">
                     <div class="stat-box">
-                        <div class="mini-label">Global margin</div>
-                        <div class="stat-v" :class="toneClass(globalMargin)">{{ formatMoney(globalMargin) }}</div>
+                        <div class="mini-label">Sessione</div>
+                        <div class="stat-v">{{ hasOpenMission ? `#${heroSessionId}` : '—' }}</div>
+                        <div class="stat-sub">{{ hasOpenMission ? 'Missione corrente' : 'Idle' }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="mini-label">Margine live</div>
+                        <div class="stat-v" :class="toneClass(heroMargin)">{{ formatMoney(heroMargin) }}</div>
                         <div class="stat-sub">{{ activeTables }} tavoli live</div>
                     </div>
                     <div class="stat-box">
                         <div class="mini-label">Live strategy</div>
                         <div class="stat-v small">{{ strategyLabel }}</div>
-                        <div class="stat-sub">Da payload reale</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="mini-label">Session pulse</div>
-                        <div class="stat-v">{{ sessionPulse }}</div>
-                        <div class="stat-sub">{{ pausedTables }} in pausa</div>
+                        <div class="stat-sub">{{ pausedTables }} in pausa · {{ sessionPulse }}</div>
                     </div>
                 </div>
             </section>
@@ -294,7 +312,7 @@ onMounted(() => {
                 <div class="section-head">
                     <div>
                         <div class="section-title">Mission curve</div>
-                        <div class="section-copy">Storico margine missione contro target</div>
+                        <div class="section-copy">Curva live · target line = target missione corrente se aperta</div>
                     </div>
                     <div class="mini-label">{{ chartSamples.length }} samples</div>
                 </div>
@@ -302,11 +320,11 @@ onMounted(() => {
                     <svg class="mission-chart" viewBox="0 0 360 180" preserveAspectRatio="none">
                         <line class="axis" x1="10" y1="160" x2="350" y2="160"></line>
                         <path class="target-line" :d="targetPath"></path>
-                        <path class="curve-line" :class="toneClass(globalMargin)" :d="chartPath"></path>
+                        <path class="curve-line" :class="toneClass(heroMargin)" :d="chartPath"></path>
                     </svg>
                     <div class="chart-meta">
-                        <span class="chart-current">Current {{ formatMoney(globalMargin) }}</span>
-                        <span class="chart-target">Target {{ formatMoney(target) }}</span>
+                        <span class="chart-current">Margine live {{ formatMoney(heroMargin) }}</span>
+                        <span v-if="hasOpenMission" class="chart-target">Target missione {{ formatMoney(missionTarget) }}</span>
                     </div>
                 </div>
             </section>
@@ -362,8 +380,8 @@ onMounted(() => {
             <section id="mobile-financial-reports" class="panel section">
                 <div class="section-head">
                     <div>
-                        <div class="section-title">Financial reports</div>
-                        <div class="section-copy">Production {{ formatPeriodRange() }} · Demo {{ formatDemoPeriod() }}</div>
+                        <div class="section-title">Report periodo</div>
+                        <div class="section-copy">Contabilità storica · Production {{ formatPeriodRange() }} · Demo {{ formatDemoPeriod() }}</div>
                     </div>
                 </div>
                 <div class="period-chips">
@@ -386,8 +404,7 @@ onMounted(() => {
                         <div class="month-report-label">Production</div>
                         <div class="month-report-value" :class="toneClass(productionPeriodResult)">{{ formatMoney(productionPeriodResult) }}</div>
                         <div class="month-report-meta">
-                            Target {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />official
-                            accounting
+                            Target periodo/report {{ formatMoney(productionReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(productionReport?.totals?.progressPct) }} · {{ productionReport?.totals?.sampleCount || 0 }} samples<br />esclude missione aperta
                         </div>
                         <button type="button" class="month-report-link" @click="downloadReport('Production')">Open HTML</button>
                     </article>
@@ -395,7 +412,7 @@ onMounted(() => {
                         <div class="month-report-label">Demo</div>
                         <div class="month-report-value" :class="toneClass(demoPeriodResult)">{{ formatMoney(demoPeriodResult) }}</div>
                         <div class="month-report-meta">
-                            Target {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />non-accountable
+                            Target periodo/report {{ formatMoney(demoReport?.totals?.globalTargetEuro) }}<br />Progress {{ formatPercent(demoReport?.totals?.progressPct) }} · {{ demoReport?.totals?.sampleCount || 0 }} samples<br />demo · esclude missione aperta
                         </div>
                         <button type="button" class="month-report-link" @click="downloadReport('Demo')">Open HTML</button>
                     </article>
