@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
 
 namespace WebApi.Services.Implementations;
 
@@ -12,7 +13,7 @@ public class SmtpEmailSender : IEmailSender
         _configuration = configuration;
     }
 
-    public async Task SendAsync(string to, string subject, string body)
+    public async Task SendAsync(string to, string subject, string body, IReadOnlyList<EmailAttachment>? attachments = null)
     {
         var host = _configuration["Smtp:Host"];
         var from = _configuration["Smtp:From"];
@@ -39,6 +40,17 @@ public class SmtpEmailSender : IEmailSender
         foreach (var recipient in SplitRecipients(to))
         {
             message.Bcc.Add(recipient);
+        }
+
+        if (attachments != null)
+        {
+            foreach (var attachment in attachments)
+            {
+                var stream = new MemoryStream(attachment.Content);
+                var mailAttachment = new Attachment(stream, attachment.FileName, attachment.ContentType);
+                mailAttachment.ContentDisposition!.DispositionType = DispositionTypeNames.Attachment;
+                message.Attachments.Add(mailAttachment);
+            }
         }
 
         if (message.Bcc.Count == 0)

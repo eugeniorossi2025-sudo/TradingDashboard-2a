@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using Entities;
 using Microsoft.EntityFrameworkCore;
@@ -18,17 +19,20 @@ public class MissionLifecycleService : IMissionLifecycleService
 
     private readonly AppDbContext _context;
     private readonly IEmailSender _emailSender;
+    private readonly IMissionReportBuilder _missionReportBuilder;
     private readonly IPushNotificationService _pushNotificationService;
     private readonly ILogger<MissionLifecycleService> _logger;
 
     public MissionLifecycleService(
         AppDbContext context,
         IEmailSender emailSender,
+        IMissionReportBuilder missionReportBuilder,
         IPushNotificationService pushNotificationService,
         ILogger<MissionLifecycleService> logger)
     {
         _context = context;
         _emailSender = emailSender;
+        _missionReportBuilder = missionReportBuilder;
         _pushNotificationService = pushNotificationService;
         _logger = logger;
     }
@@ -287,13 +291,40 @@ public class MissionLifecycleService : IMissionLifecycleService
             ? $"DASH2A - Missione avviata #{session.Id} ({session.RuntimeMode})"
             : $"DASH2A - Report missione #{session.Id} ({session.RuntimeMode})";
         var body = BuildMissionEmailBody(session, isStart);
+        IReadOnlyList<EmailAttachment>? attachments = null;
+
+        if (!isStart)
+        {
+            try
+            {
+                var reportHtml = await _missionReportBuilder.BuildSessionReportHtmlAsync(sessionId, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(reportHtml))
+                {
+                    attachments = new[]
+                    {
+                        new EmailAttachment(
+                            BuildMissionReportAttachmentFileName(session),
+                            "text/html; charset=utf-8",
+                            Encoding.UTF8.GetBytes(reportHtml))
+                    };
+                }
+                else
+                {
+                    _logger.LogWarning("Mission report HTML empty for session {SessionId}; email sent without attachment", sessionId);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Mission report attachment skipped for session {SessionId}", sessionId);
+            }
+        }
 
         var sent = 0;
         foreach (var recipient in recipients)
         {
             try
             {
-                await _emailSender.SendAsync(recipient, subject, body);
+                await _emailSender.SendAsync(recipient, subject, body, attachments);
                 sent++;
             }
             catch (Exception ex)
@@ -337,7 +368,7 @@ public class MissionLifecycleService : IMissionLifecycleService
     private static string BuildMissionEmailBody(MissionSession session, bool isStart)
     {
         var end = session.EndTime.HasValue ? session.EndTime.Value.ToString("O", CultureInfo.InvariantCulture) : "-";
-        return string.Join(Environment.NewLine, new[]
+        var lines = new List<string>
         {
             isStart ? "Missione DASH2A avviata." : "Missione DASH2A finalizzata.",
             "",
@@ -349,11 +380,32 @@ public class MissionLifecycleService : IMissionLifecycleService
             $"Target: {session.GlobalTarget:0.00} EUR",
             $"Tavoli attivi: {session.ActiveTables}",
             $"Mani reali: {session.RealHandsCount}",
-            $"Motivo chiusura: {session.FinalizationReason ?? "-"}",
-            "",
-            "Apri la pagina Log per visualizzare HTML / JSON / CSV del report:",
-            "https://eugenio-dashboard-2a.web.app/pages/log"
-        });
+            $"Motivo chiusura: {session.FinalizationReason ?? "-"}"
+        };
+
+        if (!isStart)
+        {
+            lines.Add("");
+            lines.Add("Il report HTML della missione e' allegato a questa email.");
+            lines.Add("");
+            lines.Add("Puoi aprire anche la pagina Log per altri formati (JSON / CSV):");
+            lines.Add("https://eugenio-dashboard-2a.web.app/pages/log");
+        }
+        else
+        {
+            lines.Add("");
+            lines.Add("Riceverai il report in allegato al termine della missione.");
+        }
+
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    private static string BuildMissionReportAttachmentFileName(MissionSession session)
+    {
+        var runtime = string.IsNullOrWhiteSpace(session.RuntimeMode)
+            ? "Unknown"
+            : session.RuntimeMode.Trim().Replace(' ', '_');
+        return $"missione_{session.Id}_{runtime}.html";
     }
 
     private async Task<string> GetCurrentModeAsync(CancellationToken cancellationToken)

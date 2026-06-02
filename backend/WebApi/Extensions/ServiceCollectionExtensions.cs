@@ -143,6 +143,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IUserGridConfigurationService, UserGridConfigurationService>();
         services.AddScoped<IUserAccessTracker, UserAccessTracker>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
+        services.AddScoped<IMissionReportBuilder, MissionReportBuilder>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();
         services.AddScoped<IMissionLifecycleService, MissionLifecycleService>();
         services.AddSingleton<IL7AlertWatchService, L7AlertWatchService>();
