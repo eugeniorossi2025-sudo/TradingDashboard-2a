@@ -2,6 +2,7 @@
 import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
+import { useMobileLiveRefresh } from '@/composables/useMobileLiveRefresh';
 import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
@@ -99,6 +100,22 @@ async function loadReports() {
     demoReport.value = await FinancialReportService.getRangeReport('Demo', demoFrom.value, demoTo.value);
 }
 
+/** Live margin: dashboard + chart + open mission (no full-page loading). */
+async function refreshLive() {
+    const [dashboard, chart] = await Promise.all([DashboardService.getDashboardData(), DashboardService.getChartData()]);
+    tableRows.value = Array.isArray(dashboard) ? dashboard : dashboard?.rows || dashboard?.tables || [];
+    chartRows.value = Array.isArray(chart) ? chart : [];
+    await loadCurrentMission();
+    lastSync.value = formatRomeTime();
+}
+
+useMobileLiveRefresh({
+    onRefreshLive: refreshLive,
+    onRefreshReports: loadReports,
+    liveIntervalMs: 5000,
+    reportIntervalMs: 60_000
+});
+
 function buildPath(rows, selector) {
     const values = rows.map(selector).map(Number).filter(Number.isFinite);
     if (!values.length) return '';
@@ -123,13 +140,9 @@ async function loadData() {
     loading.value = true;
     error.value = '';
     try {
-        const [dashboard, chart] = await Promise.all([DashboardService.getDashboardData(), DashboardService.getChartData()]);
-        tableRows.value = Array.isArray(dashboard) ? dashboard : dashboard?.rows || dashboard?.tables || [];
-        chartRows.value = Array.isArray(chart) ? chart : [];
-
         runtimeMode.value = await FinancialReportService.getRuntimeMode();
-        await Promise.all([loadReports(), loadCurrentMission()]);
-        lastSync.value = formatRomeTime();
+        await refreshLive();
+        await loadReports();
     } catch (err) {
         console.error('Client mobile load error:', err);
         error.value = 'Dati reali non disponibili in questo momento.';
