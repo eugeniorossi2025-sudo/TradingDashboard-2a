@@ -1,0 +1,66 @@
+name: DASH2A Reclassify Mission RuntimeMode
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RECLASSIFY_MISSION_85 to reclassify session 85 Production -> Demo"
+        required: true
+        type: string
+      session_id:
+        description: "MissionSessions.ID (default 85)"
+        required: false
+        default: "85"
+        type: string
+      dry_run:
+        description: "Backup only, no UPDATE"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+jobs:
+  reclassify:
+    name: Backup and reclassify MissionSession RuntimeMode
+    if: ${{ github.event.inputs.confirm == 'RECLASSIFY_MISSION_85' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Guard and run transactional reclassify
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ('${{ github.event.inputs.confirm }}' -ne 'RECLASSIFY_MISSION_85') {
+            throw 'Invalid confirmation token.'
+          }
+
+          $sessionId = [int]'${{ github.event.inputs.session_id }}'
+          $dryRun = '${{ github.event.inputs.dry_run }}' -eq 'true'
+
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops\dash2a-readiness\reclassify-mission-runtime-mode.ps1'
+          if (-not (Test-Path -LiteralPath $script)) {
+            throw "Script not found: $script"
+          }
+
+          $args = @{
+            SessionId = $sessionId
+            TargetRuntimeMode = 'Demo'
+            ExpectedBeforeMode = 'Production'
+            ProdConfigPath = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          }
+          if ($dryRun) { $args['DryRun'] = $true }
+
+          & $script @args
