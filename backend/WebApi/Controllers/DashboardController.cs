@@ -288,6 +288,7 @@ public class DashboardTelemetry
     public decimal SecurityFilterMaxAvgSeconds { get; set; } = 23.5m;
     public decimal SecurityFilterVeryFastSeconds { get; set; } = 21.0m;
     public int SecurityFilterDeltaWindow { get; set; } = 8;
+    public decimal SecurityFilterPlayerP1P5ThresholdSeconds { get; set; } = 107m;
     public int TotalSecurityFilterActivated { get; set; }
     public int TotalSecurityFilterPreventedL6 { get; set; }
     public decimal LastAvgHandSeconds { get; set; }
@@ -356,6 +357,11 @@ public class SecurityFilterBotTelemetryDto
     public int LastAuthorizedL8LossAuthorizationScore { get; set; }
     public decimal AvgAuthorizedL8LossAuthorizationScore { get; set; }
     public int CurrentStreak { get; set; }
+    public string CurrentStreakOutcome { get; set; } = "";
+    public int PlayerStreakCount { get; set; }
+    public decimal PlayerStreakP1ToP5TotalSeconds { get; set; }
+    public decimal PlayerStreakMeanIntervalSeconds { get; set; }
+    public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
     public bool PauseBot { get; set; }

@@ -117,10 +117,52 @@ namespace Decisore.Services
                     _engine.SECURITY_FILTER_MIN_SCORE = cfg.TryGetValue("SECURITY_FILTER_MIN_SCORE", out var sfMinScore)
                         ? int.Parse(sfMinScore, CultureInfo.InvariantCulture)
                         : _engine.SECURITY_FILTER_MIN_SCORE;
+
+                    _engine.SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS = ResolvePlayerP1P5ThresholdSeconds(cfg);
+                    Console.WriteLine(
+                        $"[CONFIG] SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS={_engine.SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS.ToString("0.##", CultureInfo.InvariantCulture)}s");
                 } catch (Exception ex) {
                     Console.WriteLine(ex.Message);
                 }
             }
+        }
+
+        private const double DefaultPlayerP1P5ThresholdSeconds = 107;
+
+        public static double ResolvePlayerP1P5ThresholdSeconds(Dictionary<string, string> cfg)
+        {
+            if (!cfg.TryGetValue("SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS", out var raw))
+                return DefaultPlayerP1P5ThresholdSeconds;
+
+            return ParsePlayerP1P5ThresholdSeconds(raw);
+        }
+
+        public static double ParsePlayerP1P5ThresholdSeconds(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw))
+            {
+                Console.WriteLine(
+                    $"[CONFIG] invalid SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS (empty), fallback {DefaultPlayerP1P5ThresholdSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s");
+                return DefaultPlayerP1P5ThresholdSeconds;
+            }
+
+            var trimmed = raw.Trim();
+            if (!double.TryParse(trimmed, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed)
+                && !double.TryParse(trimmed, NumberStyles.Float, CultureInfo.CurrentCulture, out parsed))
+            {
+                Console.WriteLine(
+                    $"[CONFIG] invalid SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS='{raw}', fallback {DefaultPlayerP1P5ThresholdSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s");
+                return DefaultPlayerP1P5ThresholdSeconds;
+            }
+
+            if (!double.IsFinite(parsed) || parsed <= 0)
+            {
+                Console.WriteLine(
+                    $"[CONFIG] invalid SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS='{raw}', fallback {DefaultPlayerP1P5ThresholdSeconds.ToString("0.##", CultureInfo.InvariantCulture)}s");
+                return DefaultPlayerP1P5ThresholdSeconds;
+            }
+
+            return parsed;
         }
 
         private static bool ParseEnabledFlag(string value)

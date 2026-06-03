@@ -35,6 +35,8 @@ public class Telemetry
     public double SecurityFilterMaxAvgSeconds    { get; set; } = 25.85;
     public double SecurityFilterVeryFastSeconds  { get; set; } = 23.1;
     public int    SecurityFilterDeltaWindow      { get; set; } = 8;
+    /// <summary>UI-only threshold: PLAYER streak P1→P5 total seconds (default from 30d audit median).</summary>
+    public double SecurityFilterPlayerP1P5ThresholdSeconds { get; set; } = 107;
     public int    TotalSecurityFilterActivated    { get; set; } = 0;
     public int    TotalSecurityFilterPreventedL6  { get; set; } = 0;
     public double LastAvgHandSeconds              { get; set; } = 0;
@@ -95,6 +97,16 @@ public class SecurityFilterBotTelemetry
     public int LastAuthorizedL8LossAuthorizationScore { get; set; }
     public double AvgAuthorizedL8LossAuthorizationScore { get; set; }
     public int CurrentStreak { get; set; }
+    /// <summary>Outcome color of the active streak: P, B, or empty.</summary>
+    public string CurrentStreakOutcome { get; set; } = "";
+    /// <summary>Consecutive PLAYER (P) outcomes in the current streak.</summary>
+    public int PlayerStreakCount { get; set; }
+    /// <summary>Total seconds P1→P5 when PlayerStreakCount >= 5; else 0.</summary>
+    public double PlayerStreakP1ToP5TotalSeconds { get; set; }
+    /// <summary>Mean interval (P1→P5 total / 4) when PlayerStreakCount >= 5; else 0.</summary>
+    public double PlayerStreakMeanIntervalSeconds { get; set; }
+    /// <summary>Intervals P1→P2 … P4→P5 when PlayerStreakCount >= 5.</summary>
+    public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
     public bool PauseBot { get; set; }

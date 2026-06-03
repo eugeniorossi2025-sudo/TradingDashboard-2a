@@ -274,6 +274,14 @@ public class DashboardService : IDashboardService
                     result.SecurityFilterVeryFastSeconds = (decimal)sfvf.GetDouble();
                 if (root.TryGetProperty("SecurityFilterDeltaWindow", out var sfdw))
                     result.SecurityFilterDeltaWindow = sfdw.GetInt32();
+                if (root.TryGetProperty("SecurityFilterPlayerP1P5ThresholdSeconds", out var sfpp)
+                    && sfpp.ValueKind == JsonValueKind.Number
+                    && sfpp.TryGetDouble(out var playerP1P5Threshold)
+                    && double.IsFinite(playerP1P5Threshold)
+                    && playerP1P5Threshold > 0)
+                {
+                    result.SecurityFilterPlayerP1P5ThresholdSeconds = (decimal)playerP1P5Threshold;
+                }
                 if (root.TryGetProperty("TotalSecurityFilterActivated", out var tsfa))
                     result.TotalSecurityFilterActivated = tsfa.GetInt32();
                 if (root.TryGetProperty("TotalSecurityFilterPreventedL6", out var tsfp))

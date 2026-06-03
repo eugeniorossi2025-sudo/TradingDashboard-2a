@@ -381,6 +381,24 @@ namespace Decisore.Controllers
 
                 _log.Log($"--- SECURITY_FILTER_EVAL ---");
                 _log.Log($"computer={p.COMPUTER} hand={mazzo} streak={advice.CurrentStreak} avg={advice.AvgHandSeconds:0.00}s delta={advice.LastHandDeltaSeconds:0.00}s score={advice.SecurityRiskScore}/4 active={advice.SecurityFilterActive}");
+                var sfBot = _engine.getSecurityFilterBot(p.COMPUTER);
+                var playerP1P5Threshold = _engine.getTelemetry().SecurityFilterPlayerP1P5ThresholdSeconds;
+                if (sfBot != null)
+                {
+                    var intervals = sfBot.PlayerStreakIntervalSeconds ?? Array.Empty<double>();
+                    var i1 = intervals.Length > 0 ? intervals[0] : 0;
+                    var i2 = intervals.Length > 1 ? intervals[1] : 0;
+                    var i3 = intervals.Length > 2 ? intervals[2] : 0;
+                    var i4 = intervals.Length > 3 ? intervals[3] : 0;
+                    _log.Log(
+                        $"PLAYER_PACE_DEBUG player_streak={sfBot.PlayerStreakCount} outcome={sfBot.CurrentStreakOutcome} " +
+                        $"p1_p5={sfBot.PlayerStreakP1ToP5TotalSeconds:0.0}s mean={sfBot.PlayerStreakMeanIntervalSeconds:0.0}s " +
+                        $"d12={i1:0.0}s d23={i2:0.0}s d34={i3:0.0}s d45={i4:0.0}s threshold={playerP1P5Threshold:0.0}s");
+                }
+                else
+                {
+                    _log.Log($"PLAYER_PACE_DEBUG player_streak=- outcome=- p1_p5=- mean=- d12=- d23=- d34=- d45=- threshold={playerP1P5Threshold:0.0}s");
+                }
                 _log.Log($"--- FINE SECURITY_FILTER_EVAL ---");
                 _log.Log($"\n");
 

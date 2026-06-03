@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { DashboardService } from '@/service/DashboardService';
 
 const props = defineProps({
@@ -17,6 +17,11 @@ const selectedSecurityFilterBot = ref(null);
 const securityFilterBotDetails = ref({});
 const securityFilterDetailLoading = ref(false);
 const securityFilterDetailUnavailable = ref(false);
+const playerStepPulseByBot = ref({});
+const playerStreakLastCountByBot = ref({});
+const playerPulseTimersByBot = {};
+
+const PLAYER_STEP_PULSE_MS = 1600;
 
 function mergeTelemetryFromApi(api) {
     if (!api || typeof api !== 'object') return {};
@@ -47,6 +52,7 @@ function mergeTelemetryFromApi(api) {
         SecurityFilterMaxAvgSeconds: api.securityFilterMaxAvgSeconds,
         SecurityFilterVeryFastSeconds: api.securityFilterVeryFastSeconds,
         SecurityFilterDeltaWindow: api.securityFilterDeltaWindow,
+        SecurityFilterPlayerP1P5ThresholdSeconds: api.securityFilterPlayerP1P5ThresholdSeconds,
         TotalSecurityFilterActivated: api.totalSecurityFilterActivated,
         TotalSecurityFilterPreventedL6: api.totalSecurityFilterPreventedL6,
         LastAvgHandSeconds: api.lastAvgHandSeconds,
@@ -110,6 +116,35 @@ const securityFilterRows = computed(() => {
         });
 });
 
+watch(
+    () =>
+        securityFilterRows.value.map((row) => {
+            const metrics = getPlayerStreakMetrics(row);
+            return {
+                bot: getBotName(row),
+                count: metrics.count,
+                outcome: metrics.outcome
+            };
+        }),
+    (snapshots) => {
+        for (const snap of snapshots) {
+            if (!snap.bot) continue;
+
+            const prev = playerStreakLastCountByBot.value[snap.bot];
+            const isPlayerStreak = snap.outcome === 'P' && snap.count > 0;
+
+            if (isPlayerStreak && prev !== undefined && snap.count > prev) {
+                triggerPlayerStepPulse(snap.bot, Math.min(snap.count, 5));
+            } else if (!isPlayerStreak && prev > 0) {
+                clearPlayerStepPulse(snap.bot);
+            }
+
+            playerStreakLastCountByBot.value[snap.bot] = isPlayerStreak ? snap.count : 0;
+        }
+    },
+    { deep: true }
+);
+
 const selectedSecurityFilterRow = computed(() => {
     if (!selectedSecurityFilterBot.value) return null;
 
@@ -142,6 +177,9 @@ const securityFilterSetup = computed(() => ({
     maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 25.85,
     veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 23.1,
     deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8,
+    playerP1P5Threshold: resolvePlayerP1P5Threshold(
+        telemetryData.value?.SecurityFilterPlayerP1P5ThresholdSeconds
+    ),
     preventedL6: telemetryData.value?.TotalSecurityFilterPreventedL6 ?? 0
 }));
 
@@ -185,9 +223,16 @@ function formatDurationRange(minValue, maxValue) {
     return `${min} - ${max}`;
 }
 
+const PLAYER_P1P5_THRESHOLD_DEFAULT = 107;
+
 function getNumber(value, fallback = 0) {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : fallback;
+}
+
+function resolvePlayerP1P5Threshold(value) {
+    const parsed = getNumber(value, PLAYER_P1P5_THRESHOLD_DEFAULT);
+    return parsed > 0 ? parsed : PLAYER_P1P5_THRESHOLD_DEFAULT;
 }
 
 function getBotName(row) {
@@ -224,6 +269,160 @@ function isLastL6VeryFast(row) {
 
 function isStreakRisk(row) {
     return getNumber(row?.CurrentStreak) >= getNumber(securityFilterSetup.value.minStreak);
+}
+
+function getPlayerStreakMetrics(row) {
+    const count = getNumber(row?.PlayerStreakCount ?? row?.playerStreakCount);
+    const total = getNumber(row?.PlayerStreakP1ToP5TotalSeconds ?? row?.playerStreakP1ToP5TotalSeconds);
+    const mean = getNumber(row?.PlayerStreakMeanIntervalSeconds ?? row?.playerStreakMeanIntervalSeconds);
+    const rawIntervals = row?.PlayerStreakIntervalSeconds ?? row?.playerStreakIntervalSeconds ?? [];
+    const intervals = Array.isArray(rawIntervals) ? rawIntervals.map((value) => getNumber(value)) : [];
+    const outcome = String(row?.CurrentStreakOutcome ?? row?.currentStreakOutcome ?? '').trim().toUpperCase();
+    const threshold = resolvePlayerP1P5Threshold(securityFilterSetup.value.playerP1P5Threshold);
+    return { count, total, mean, intervals, outcome, threshold };
+}
+
+function isPlayerStreakRisk(row) {
+    const metrics = getPlayerStreakMetrics(row);
+    if (metrics.outcome !== 'P') return false;
+    if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) return false;
+    if (metrics.total <= 0) return false;
+    return metrics.total <= metrics.threshold;
+}
+
+function hasPlayerPaceTelemetry(row) {
+    if (!row) return false;
+    return (
+        (row.PlayerStreakCount !== undefined && row.PlayerStreakCount !== null) ||
+        (row.playerStreakCount !== undefined && row.playerStreakCount !== null)
+    );
+}
+
+function formatPlayerPaceSeconds(value) {
+    const seconds = getNumber(value);
+    if (seconds <= 0) return '--';
+    return `${seconds.toFixed(1)}s`;
+}
+
+function getPlayerPaceVisual(row) {
+    const metrics = getPlayerStreakMetrics(row);
+    const available = hasPlayerPaceTelemetry(row);
+    const active = available && metrics.outcome === 'P' && metrics.count > 0;
+
+    const steps = [1, 2, 3, 4, 5].map((n) => ({
+        label: `P${n}`,
+        filled: active && metrics.count >= n
+    }));
+
+    const deltas = [1, 2, 3, 4].map((n) => {
+        const idx = n - 1;
+        const visible = active && metrics.count >= n + 1;
+        const seconds = visible && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
+        return {
+            label: `P${n}→P${n + 1}`,
+            seconds,
+            visible
+        };
+    });
+
+    let status = 'inactive';
+    let statusLabel = 'NORMALE';
+
+    if (!available) {
+        status = 'unavailable';
+        statusLabel = '';
+    } else if (!active) {
+        status = 'inactive';
+        statusLabel = 'Nessuna streak PLAYER';
+    } else if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) {
+        status = 'partial';
+        statusLabel = `In corso ${metrics.count}/${securityFilterSetup.value.minStreak}`;
+    } else if (isPlayerStreakRisk(row)) {
+        status = 'risk';
+        statusLabel = 'RISCHIO PLAYER';
+    } else {
+        status = 'normal';
+        statusLabel = 'NORMALE';
+    }
+
+    return {
+        available,
+        active,
+        steps,
+        deltas,
+        status,
+        statusLabel,
+        ...metrics
+    };
+}
+
+function getPlayerPacePanelClass(row) {
+    const visual = getPlayerPaceVisual(row);
+    if (visual.status === 'risk') {
+        return 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950/30';
+    }
+    if (visual.status === 'partial') {
+        return 'border-blue-300 bg-blue-50/60 dark:border-blue-800 dark:bg-blue-950/20';
+    }
+    if (visual.active) {
+        return 'border-blue-200 bg-blue-50/40 dark:border-blue-900 dark:bg-blue-950/15';
+    }
+    return 'border-surface-200 bg-surface-0 dark:border-surface-700 dark:bg-surface-900';
+}
+
+function getPlayerPaceStatusClass(row) {
+    const visual = getPlayerPaceVisual(row);
+    if (visual.status === 'risk') return 'text-orange-700 dark:text-orange-300';
+    if (visual.status === 'partial') return 'text-blue-700 dark:text-blue-300';
+    if (visual.status === 'normal') return 'text-emerald-700 dark:text-emerald-300';
+    return 'text-muted-color';
+}
+
+function getPlayerStepNumber(step) {
+    return Number.parseInt(String(step?.label || '').replace('P', ''), 10) || 0;
+}
+
+function isPlayerStepPulsing(row, step) {
+    const bot = getBotName(row);
+    if (!bot) return false;
+    return playerStepPulseByBot.value[bot] === getPlayerStepNumber(step);
+}
+
+function clearPlayerStepPulse(bot) {
+    if (playerPulseTimersByBot[bot]) {
+        clearTimeout(playerPulseTimersByBot[bot]);
+        delete playerPulseTimersByBot[bot];
+    }
+    if (playerStepPulseByBot.value[bot] === undefined) return;
+    const next = { ...playerStepPulseByBot.value };
+    delete next[bot];
+    playerStepPulseByBot.value = next;
+}
+
+function triggerPlayerStepPulse(bot, stepIndex) {
+    if (!bot || stepIndex < 1) return;
+    clearPlayerStepPulse(bot);
+    playerStepPulseByBot.value = { ...playerStepPulseByBot.value, [bot]: stepIndex };
+    playerPulseTimersByBot[bot] = setTimeout(() => clearPlayerStepPulse(bot), PLAYER_STEP_PULSE_MS);
+}
+
+function getPlayerStepClass(step, row) {
+    const pulsing = row && isPlayerStepPulsing(row, step);
+    if (step.filled) {
+        const base = 'bg-blue-500 text-white shadow-md shadow-blue-500/30 border-blue-600 dark:bg-blue-500 dark:border-blue-400';
+        if (pulsing) return `${base} player-step-pulse ring-4 ring-blue-300 dark:ring-blue-400`;
+    }
+    return 'bg-surface-200 text-muted-color border-surface-300 dark:bg-surface-700 dark:border-surface-600';
+}
+
+function getPlayerStepClassCompact(step, row) {
+    const pulsing = row && isPlayerStepPulsing(row, step);
+    if (step.filled) {
+        const base = 'bg-blue-500 text-white';
+        if (pulsing) return `${base} player-step-pulse ring-2 ring-blue-300 dark:ring-blue-400`;
+        return base;
+    }
+    return 'bg-surface-200 text-muted-color dark:bg-surface-700';
 }
 
 function isShoeRisk(row) {
@@ -313,17 +512,16 @@ function formatLastTwoDeltas(row) {
 }
 
 function getSummaryPill(row) {
-    const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
-    if (score >= 2 || isAvgFast(row) || getNumber(row?.LastHandDeltaSeconds) <= getNumber(securityFilterSetup.value.maxAvgSeconds) || getRapidDeltaCount(row) === 1) return 'ATTENZIONE RITMO';
+    if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
     return 'NORMALE';
 }
 
 function getSummaryPillClass(row) {
     const label = getSummaryPill(row);
     if (label === 'PAUSA ATTIVA' || label === 'COMPRESSIONE L5') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 animate-pulse';
-    if (label === 'ATTENZIONE RITMO') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    if (label === 'RISCHIO PLAYER') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
 }
 
@@ -343,14 +541,14 @@ function getScoreDotClass(row, point) {
 function getRiskRank(row) {
     const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
-    if (score === 2 || getRapidDeltaCount(row) === 1) return 1;
+    if (isPlayerStreakRisk(row)) return 1;
     return 0;
 }
 
 function getRiskLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
-    if (getRiskRank(row) === 1) return 'ATTENZIONE';
+    if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
     return 'NORMALE';
 }
 
@@ -358,8 +556,11 @@ function getRiskStripReason(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'pausa';
     if (isRapidTriggerActive(row)) return 'trigger L5';
     if (Number(row?.SecurityRiskScore ?? 0) >= 3) return `score ${row.SecurityRiskScore}/4`;
-    if (getRapidDeltaCount(row) === 1) return '1 delta fast';
-    return 'attenzione ritmo';
+    if (isPlayerStreakRisk(row)) {
+        const metrics = getPlayerStreakMetrics(row);
+        return `PLAYER P1→P5 ${metrics.total.toFixed(0)}s ≤ ${metrics.threshold.toFixed(0)}s`;
+    }
+    return 'normale';
 }
 
 function getRiskDotClass(row) {
@@ -395,7 +596,10 @@ function getScoreBlockClass(row, point) {
 function getTriggerLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
     if (isRapidTriggerActive(row)) return 'TRIGGER ON';
-    if (getRapidDeltaCount(row) === 1) return '1 FAST';
+    if (isPlayerStreakRisk(row)) {
+        const metrics = getPlayerStreakMetrics(row);
+        return `P1→P5 ${metrics.total.toFixed(0)}s`;
+    }
     return 'OFF';
 }
 
@@ -420,6 +624,19 @@ function selectSecurityFilterBot(row) {
 
     selectedSecurityFilterBot.value = botName;
     securityFilterDetailUnavailable.value = false;
+
+    const summary = securityFilterRows.value.find((row) => getBotName(row) === botName);
+    if (summary && isPlayerStreakRisk(summary)) {
+        const metrics = getPlayerStreakMetrics(summary);
+        console.debug('[PLAYER_STREAK_RISK]', botName, {
+            playerStreak: metrics.count,
+            p1_p5_total_sec: metrics.total,
+            mean_interval_sec: metrics.mean,
+            intervals_sec: metrics.intervals,
+            threshold_sec: metrics.threshold,
+            outcome: metrics.outcome
+        });
+    }
 
     if (securityFilterBotDetails.value[botName]) return;
 
@@ -670,6 +887,10 @@ function selectSecurityFilterBot(row) {
                     <div class="font-semibold">{{ securityFilterSetup.minStreak }}</div>
                 </div>
                 <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">PLAYER P1→P5 soglia UI</div>
+                    <div class="font-semibold">{{ Number(securityFilterSetup.playerP1P5Threshold).toFixed(0) }}s</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
                     <div class="text-muted-color mb-1">Prevented L6 (tot.)</div>
                     <div class="font-semibold">{{ securityFilterSetup.preventedL6 }}</div>
                 </div>
@@ -778,6 +999,30 @@ function selectSecurityFilterBot(row) {
                         <span class="text-sm font-semibold text-muted-color">{{ row.SecurityRiskScore ?? 0 }}/4</span>
                     </div>
 
+                    <div v-if="getPlayerPaceVisual(row).active" class="mb-3">
+                        <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Streak PLAYER</div>
+                        <div class="flex items-center gap-1">
+                            <span
+                                v-for="step in getPlayerPaceVisual(row).steps"
+                                :key="`${getBotName(row)}-${step.label}`"
+                                class="inline-flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold transition-transform"
+                                :class="getPlayerStepClassCompact(step, row)"
+                            >
+                                {{ step.label.replace('P', '') }}
+                            </span>
+                        </div>
+                        <div
+                            v-if="getPlayerPaceVisual(row).count >= securityFilterSetup.minStreak && getPlayerPaceVisual(row).total > 0"
+                            class="mt-1 text-sm font-bold"
+                            :class="isPlayerStreakRisk(row) ? 'text-orange-600 dark:text-orange-300' : 'text-blue-700 dark:text-blue-300'"
+                        >
+                            P1→P5 {{ formatPlayerPaceSeconds(getPlayerPaceVisual(row).total) }}
+                        </div>
+                        <div v-else-if="getPlayerPaceVisual(row).count > 0" class="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
+                            {{ getPlayerPaceVisual(row).count }}/{{ securityFilterSetup.minStreak }} PLAYER
+                        </div>
+                    </div>
+
                     <div class="flex items-center justify-between gap-3">
                         <span class="text-xs font-bold" :class="getTriggerClass(row)">{{ getTriggerLabel(row) }}</span>
                         <span class="rounded-full border px-2.5 py-1 text-xs font-bold" :class="getRiskStatusClass(row)">{{ getRiskLabel(row) }}</span>
@@ -800,6 +1045,79 @@ function selectSecurityFilterBot(row) {
                                 Chiudi dettaglio
                             </button>
                         </div>
+                    </div>
+
+                    <div class="mb-4 rounded-xl border p-4" :class="getPlayerPacePanelClass(selectedSecurityFilterRow)">
+                        <div class="mb-3 text-lg font-bold text-surface-900 dark:text-surface-0">Sequenza PLAYER</div>
+
+                        <div v-if="!getPlayerPaceVisual(selectedSecurityFilterRow).available" class="text-base font-semibold text-muted-color">
+                            PLAYER pace: dati non disponibili
+                        </div>
+
+                        <div v-else-if="!getPlayerPaceVisual(selectedSecurityFilterRow).active" class="text-base font-semibold text-muted-color">
+                            {{ getPlayerPaceVisual(selectedSecurityFilterRow).statusLabel }}
+                        </div>
+
+                        <template v-else>
+                            <div class="overflow-x-auto pb-1">
+                                <div class="flex min-w-max items-center justify-center gap-1 px-1 sm:gap-2">
+                                    <template v-for="(step, stepIdx) in getPlayerPaceVisual(selectedSecurityFilterRow).steps" :key="step.label">
+                                        <div
+                                            v-if="stepIdx > 0"
+                                            class="flex min-w-[4.5rem] flex-col items-center px-1 text-center"
+                                        >
+                                            <span class="text-xs font-semibold text-muted-color">
+                                                {{ getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].label }}
+                                            </span>
+                                            <span
+                                                class="text-lg font-bold leading-tight"
+                                                :class="getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].visible ? 'text-surface-900 dark:text-surface-0' : 'text-muted-color'"
+                                            >
+                                                {{
+                                                    getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].visible
+                                                        ? formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].seconds)
+                                                        : '--'
+                                                }}
+                                            </span>
+                                        </div>
+                                        <div class="flex flex-col items-center">
+                                            <div
+                                                class="flex h-16 w-16 items-center justify-center rounded-xl border-2 text-lg font-bold transition-transform sm:h-[4.5rem] sm:w-[4.5rem] sm:text-xl"
+                                                :class="getPlayerStepClass(step, selectedSecurityFilterRow)"
+                                            >
+                                                {{ step.label }}
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="mt-4 space-y-1 text-center">
+                                <div
+                                    v-if="getPlayerPaceVisual(selectedSecurityFilterRow).count >= securityFilterSetup.minStreak && getPlayerPaceVisual(selectedSecurityFilterRow).total > 0"
+                                    class="text-2xl font-bold text-surface-900 dark:text-surface-0 sm:text-3xl"
+                                >
+                                    PLAYER P1→P5:
+                                    {{ formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).total) }}
+                                    / soglia {{ getPlayerPaceVisual(selectedSecurityFilterRow).threshold.toFixed(0) }}s
+                                </div>
+                                <div
+                                    v-else
+                                    class="text-xl font-bold text-blue-700 dark:text-blue-300"
+                                >
+                                    Streak PLAYER {{ getPlayerPaceVisual(selectedSecurityFilterRow).count }}/{{ securityFilterSetup.minStreak }}
+                                </div>
+                                <div
+                                    v-if="getPlayerPaceVisual(selectedSecurityFilterRow).mean > 0"
+                                    class="text-lg font-semibold text-surface-800 dark:text-surface-100"
+                                >
+                                    Media: {{ formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).mean) }}
+                                </div>
+                                <div class="text-xl font-bold" :class="getPlayerPaceStatusClass(selectedSecurityFilterRow)">
+                                    Stato: {{ getPlayerPaceVisual(selectedSecurityFilterRow).statusLabel }}
+                                </div>
+                            </div>
+                        </template>
                     </div>
 
                     <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -931,3 +1249,23 @@ function selectSecurityFilterBot(row) {
         </div>
     </div>
 </template>
+
+<style scoped>
+@keyframes player-step-blink {
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgb(59 130 246 / 0.65);
+    }
+    50% {
+        opacity: 0.72;
+        transform: scale(1.08);
+        box-shadow: 0 0 0 10px rgb(59 130 246 / 0);
+    }
+}
+
+.player-step-pulse {
+    animation: player-step-blink 0.55s ease-in-out 3;
+}
+</style>

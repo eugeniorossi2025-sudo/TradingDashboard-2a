@@ -14,6 +14,8 @@ namespace Decisore.Engine
         private readonly Dictionary<string, int>                   _lastMazzoByComputer     = new();
         private readonly Dictionary<string, int>                   _gapFilteredCountByComputer = new();
         private readonly Dictionary<string, (char Outcome, int Count)> _streakByComputer    = new();
+        private readonly Dictionary<string, List<DateTime>>        _playerStreakTimestampsByComputer = new();
+        private readonly Dictionary<string, int>                   _playerStreakCountByComputer = new();
         private readonly Dictionary<string, bool>                  _prevSecFilterActive     = new();
         private readonly Dictionary<string, SecurityFilterBotTelemetry> _securityFilterByBot = new();
 
@@ -77,6 +79,8 @@ namespace Decisore.Engine
         public double SECURITY_FILTER_VERY_FAST_SECONDS  = 23.1;
         public int    SECURITY_FILTER_DELTA_WINDOW       = 8;
         public int    SECURITY_FILTER_MIN_SCORE          = 3;
+        /// <summary>UI-only: PLAYER streak P1→P5 threshold seconds (30d audit median 8+ vs 5-7).</summary>
+        public double SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS = 107;
 
         // Avg hand pace — rolling window of valid scalping deltas only
         private const double AVG_HAND_MAX_DELTA_SECONDS = 60.0;
@@ -165,6 +169,7 @@ namespace Decisore.Engine
             telemetry.SecurityFilterMaxAvgSeconds    = SECURITY_FILTER_MAX_AVG_SECONDS;
             telemetry.SecurityFilterVeryFastSeconds  = SECURITY_FILTER_VERY_FAST_SECONDS;
             telemetry.SecurityFilterDeltaWindow      = SECURITY_FILTER_DELTA_WINDOW;
+            telemetry.SecurityFilterPlayerP1P5ThresholdSeconds = SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS;
             telemetry.TotalSecurityFilterActivated   = totalSecurityFilterActivated;
             telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
             telemetry.LastAvgHandSeconds =
@@ -229,6 +234,11 @@ namespace Decisore.Engine
                     LastAuthorizedL8LossAuthorizationScore = x.Value.LastAuthorizedL8LossAuthorizationScore,
                     AvgAuthorizedL8LossAuthorizationScore = x.Value.AvgAuthorizedL8LossAuthorizationScore,
                     CurrentStreak = x.Value.CurrentStreak,
+                    CurrentStreakOutcome = x.Value.CurrentStreakOutcome,
+                    PlayerStreakCount = x.Value.PlayerStreakCount,
+                    PlayerStreakP1ToP5TotalSeconds = x.Value.PlayerStreakP1ToP5TotalSeconds,
+                    PlayerStreakMeanIntervalSeconds = x.Value.PlayerStreakMeanIntervalSeconds,
+                    PlayerStreakIntervalSeconds = x.Value.PlayerStreakIntervalSeconds,
                     SecurityRiskScore = x.Value.SecurityRiskScore,
                     SecurityFilterActive = x.Value.SecurityFilterActive,
                     PauseBot = x.Value.PauseBot,
@@ -437,6 +447,8 @@ namespace Decisore.Engine
             }
             if (_streakByComputer.TryGetValue(computer, out var currentStreakEntry))
                 currentStreak = currentStreakEntry.Count;
+
+            UpdatePlayerStreakPace(computer, esito, nowUtc, botSecurity);
 
             // — score composito 0–4 —
             int securityScore = 0;
@@ -887,6 +899,52 @@ namespace Decisore.Engine
         static bool IsScalpingState(string stato) =>
             stato.Equals("sculping", StringComparison.OrdinalIgnoreCase) ||
             stato.Equals("scalping", StringComparison.OrdinalIgnoreCase);
+
+        void UpdatePlayerStreakPace(string computer, char esito, DateTime nowUtc, SecurityFilterBotTelemetry botSecurity)
+        {
+            if (!_playerStreakTimestampsByComputer.TryGetValue(computer, out var timestamps))
+                timestamps = new List<DateTime>(capacity: 5);
+
+            if (!_playerStreakCountByComputer.TryGetValue(computer, out var playerCount))
+                playerCount = 0;
+
+            if (esito == 'P')
+            {
+                playerCount++;
+                if (timestamps.Count < 5)
+                    timestamps.Add(nowUtc);
+            }
+            else if (esito == 'B')
+            {
+                playerCount = 0;
+                timestamps = new List<DateTime>(capacity: 5);
+            }
+
+            _playerStreakCountByComputer[computer] = playerCount;
+            _playerStreakTimestampsByComputer[computer] = timestamps;
+
+            char streakOutcome = _streakByComputer.TryGetValue(computer, out var streakEntry) ? streakEntry.Outcome : '\0';
+            botSecurity.CurrentStreakOutcome = streakOutcome == '\0' ? "" : streakOutcome.ToString();
+            botSecurity.PlayerStreakCount = playerCount;
+
+            if (timestamps.Count >= 5)
+            {
+                var intervals = new double[4];
+                for (int i = 1; i < 5; i++)
+                    intervals[i - 1] = (timestamps[i] - timestamps[i - 1]).TotalSeconds;
+
+                double total = (timestamps[4] - timestamps[0]).TotalSeconds;
+                botSecurity.PlayerStreakP1ToP5TotalSeconds = total;
+                botSecurity.PlayerStreakMeanIntervalSeconds = total / 4.0;
+                botSecurity.PlayerStreakIntervalSeconds = intervals;
+            }
+            else
+            {
+                botSecurity.PlayerStreakP1ToP5TotalSeconds = 0;
+                botSecurity.PlayerStreakMeanIntervalSeconds = 0;
+                botSecurity.PlayerStreakIntervalSeconds = Array.Empty<double>();
+            }
+        }
 
         void ResetHandPaceWindow(string computer)
         {
