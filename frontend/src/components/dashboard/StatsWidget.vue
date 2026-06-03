@@ -135,13 +135,29 @@ const securityFilterRiskStrip = computed(() => {
 const hasSecurityFilterRisk = computed(() => securityFilterRows.value.some((row) => getRiskRank(row) >= 1));
 
 const securityFilterSetup = computed(() => ({
+    enabled: telemetryData.value?.SecurityFilterEnabled !== false,
     minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
     minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
     maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
-    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 23.5,
-    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 21.0,
-    deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8
+    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 25.85,
+    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 23.1,
+    deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8,
+    preventedL6: telemetryData.value?.TotalSecurityFilterPreventedL6 ?? 0
 }));
+
+const securityFilterLastEvent = computed(() => {
+    let best = null;
+    for (const row of securityFilterRows.value) {
+        const reason = row?.LastReason || row?.lastReason;
+        const ts = row?.LastUpdatedUtc || row?.lastUpdatedUtc;
+        if (!reason && !ts) continue;
+        const tsMs = ts ? Date.parse(ts) : 0;
+        if (!best || tsMs >= best.tsMs) {
+            best = { bot: getBotName(row), reason: reason || '—', ts, tsMs };
+        }
+    }
+    return best;
+});
 
 function formatSeconds(value) {
     if (value == null || Number(value) <= 0) return '-';
@@ -622,6 +638,47 @@ function selectSecurityFilterBot(row) {
                 <span class="block text-muted-color font-medium">Setup Security Filter</span>
                 <span class="text-sm text-muted-color">Condizioni correnti usate per comporre lo score per singolo bot.</span>
             </div>
+            <div class="grid grid-cols-12 gap-3 text-sm mb-4">
+                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-100 p-3 dark:bg-surface-900">
+                    <div class="text-muted-color mb-1">Security Filter (runtime Decisore)</div>
+                    <div class="font-semibold" :class="securityFilterSetup.enabled ? 'text-green-600 dark:text-green-400' : 'text-red-500'">
+                        {{ securityFilterSetup.enabled ? 'ON' : 'OFF' }}
+                    </div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Max Avg Seconds</div>
+                    <div class="font-semibold">{{ Number(securityFilterSetup.maxAvgSeconds).toFixed(2) }}s</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Very Fast Seconds</div>
+                    <div class="font-semibold">{{ Number(securityFilterSetup.veryFastSeconds).toFixed(2) }}s</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Min Score</div>
+                    <div class="font-semibold">{{ securityFilterSetup.minScore }}</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Delta Window</div>
+                    <div class="font-semibold">{{ securityFilterSetup.deltaWindow }}</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Max Shoe Hand</div>
+                    <div class="font-semibold">{{ securityFilterSetup.maxShoeHand }}</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Min Streak</div>
+                    <div class="font-semibold">{{ securityFilterSetup.minStreak }}</div>
+                </div>
+                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
+                    <div class="text-muted-color mb-1">Prevented L6 (tot.)</div>
+                    <div class="font-semibold">{{ securityFilterSetup.preventedL6 }}</div>
+                </div>
+                <div class="col-span-12 md:col-span-6 rounded-xl border border-surface-200 p-3 dark:border-surface-700" v-if="securityFilterLastEvent">
+                    <div class="text-muted-color mb-1">Ultimo evento filtro (per bot)</div>
+                    <div class="font-semibold">{{ securityFilterLastEvent.bot }} — {{ securityFilterLastEvent.reason }}</div>
+                    <div class="text-xs text-muted-color mt-1" v-if="securityFilterLastEvent.ts">{{ securityFilterLastEvent.ts }}</div>
+                </div>
+            </div>
             <div class="grid grid-cols-12 gap-3 text-sm">
                 <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
                     <div class="text-muted-color mb-1">Soglia attivazione</div>
@@ -811,6 +868,9 @@ function selectSecurityFilterBot(row) {
                                     <span><strong>Sintesi filtro</strong> {{ selectedSecurityFilterRow.SecurityRiskScore ?? 0 }}/4</span>
                                     <span class="text-xs text-muted-color">Pausa da {{ securityFilterSetup.minScore }}/4</span>
                                     <span class="text-xs text-muted-color">Stato {{ getSecurityFilterStatus(selectedSecurityFilterRow) }}</span>
+                                    <span class="text-xs text-muted-color" v-if="selectedSecurityFilterRow.LastReason || selectedSecurityFilterRow.lastReason">
+                                        Ultimo motivo: {{ selectedSecurityFilterRow.LastReason || selectedSecurityFilterRow.lastReason }}
+                                    </span>
                                     <span class="text-xs text-muted-color">Scope corrente {{ selectedSecurityFilterRow.PauseScope === 'BOT' ? 'Singolo bot' : 'Nessuna' }} · L{{ selectedSecurityFilterRow.Martingala ?? '-' }}</span>
                                     <span class="text-xs text-muted-color">Stato corrente bot, non storico L6/L8</span>
                                 </div>

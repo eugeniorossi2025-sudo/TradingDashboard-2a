@@ -32,8 +32,8 @@ public class Telemetry
     public int    SecurityFilterMinScore         { get; set; } = 3;
     public int    SecurityFilterMinStreak        { get; set; } = 5;
     public int    SecurityFilterMaxShoeHand      { get; set; } = 20;
-    public double SecurityFilterMaxAvgSeconds    { get; set; } = 23.5;
-    public double SecurityFilterVeryFastSeconds  { get; set; } = 21.0;
+    public double SecurityFilterMaxAvgSeconds    { get; set; } = 25.85;
+    public double SecurityFilterVeryFastSeconds  { get; set; } = 23.1;
     public int    SecurityFilterDeltaWindow      { get; set; } = 8;
     public int    TotalSecurityFilterActivated    { get; set; } = 0;
     public int    TotalSecurityFilterPreventedL6  { get; set; } = 0;
