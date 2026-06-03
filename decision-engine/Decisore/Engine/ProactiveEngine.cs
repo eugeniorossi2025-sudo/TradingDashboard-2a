@@ -71,8 +71,8 @@ namespace Decisore.Engine
         public bool   SECURITY_FILTER_ENABLED            = true;
         public int    SECURITY_FILTER_MAX_SHOE_HAND      = 20;
         public int    SECURITY_FILTER_MIN_STREAK         = 5;
-        public double SECURITY_FILTER_MAX_AVG_SECONDS    = 23.5;
-        public double SECURITY_FILTER_VERY_FAST_SECONDS  = 21.0;
+        public double SECURITY_FILTER_MAX_AVG_SECONDS    = 25.85;
+        public double SECURITY_FILTER_VERY_FAST_SECONDS  = 23.1;
         public int    SECURITY_FILTER_DELTA_WINDOW       = 8;
         public int    SECURITY_FILTER_MIN_SCORE          = 3;
         
