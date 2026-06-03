@@ -108,4 +108,8 @@ public class SecurityFilterBotTelemetry
     public string LastReason { get; set; } = "";
     public DateTime LastUpdatedUtc { get; set; } = DateTime.UtcNow;
     public int HandSamples { get; set; }
+    /// <summary>Valid hand deltas in the rolling avg window (<= 60s, scalping-only).</summary>
+    public int ValidSamples { get; set; }
+    /// <summary>Deltas discarded because gap exceeded 60s (pause/off/dead time).</summary>
+    public int GapFilteredCount { get; set; }
 }

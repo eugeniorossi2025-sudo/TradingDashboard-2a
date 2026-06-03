@@ -369,6 +369,8 @@ public class SecurityFilterBotTelemetryDto
     public string LastReason { get; set; } = "";
     public DateTime LastUpdatedUtc { get; set; }
     public int HandSamples { get; set; }
+    public int ValidSamples { get; set; }
+    public int GapFilteredCount { get; set; }
 }
 
 /// <summary>

@@ -11,6 +11,8 @@ namespace Decisore.Engine
         // Security Filter — per-computer state
         private readonly Dictionary<string, DateTime>              _lastDecideAt            = new();
         private readonly Dictionary<string, Queue<double>>         _handDeltasWindow        = new();
+        private readonly Dictionary<string, int>                   _lastMazzoByComputer     = new();
+        private readonly Dictionary<string, int>                   _gapFilteredCountByComputer = new();
         private readonly Dictionary<string, (char Outcome, int Count)> _streakByComputer    = new();
         private readonly Dictionary<string, bool>                  _prevSecFilterActive     = new();
         private readonly Dictionary<string, SecurityFilterBotTelemetry> _securityFilterByBot = new();
@@ -75,6 +77,10 @@ namespace Decisore.Engine
         public double SECURITY_FILTER_VERY_FAST_SECONDS  = 23.1;
         public int    SECURITY_FILTER_DELTA_WINDOW       = 8;
         public int    SECURITY_FILTER_MIN_SCORE          = 3;
+
+        // Avg hand pace — rolling window of valid scalping deltas only
+        private const double AVG_HAND_MAX_DELTA_SECONDS = 60.0;
+        private const int    AVG_HAND_VALID_WINDOW       = 10;
         
         private double _pbBaseMargin = 0;
         private int _pbBaseIndex = 0;
@@ -163,7 +169,8 @@ namespace Decisore.Engine
             telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
             telemetry.LastAvgHandSeconds =
                 _handDeltasWindow.Values.Where(q => q.Count > 0)
-                    .Select(q => q.Average())
+                    .Select(ComputeTrimmedAverage)
+                    .Where(x => x > 0)
                     .DefaultIfEmpty(0)
                     .Average();
             telemetry.ActiveSecurityFilterBots = _securityFilterByBot.Values.Count(x => x.SecurityFilterActive);
@@ -234,7 +241,9 @@ namespace Decisore.Engine
                     HasL6Credit = x.Value.HasL6Credit,
                     LastReason = x.Value.LastReason,
                     LastUpdatedUtc = x.Value.LastUpdatedUtc,
-                    HandSamples = x.Value.HandSamples
+                    HandSamples = x.Value.HandSamples,
+                    ValidSamples = x.Value.ValidSamples,
+                    GapFilteredCount = x.Value.GapFilteredCount
                 });
             
             /* Fine nuovi campi */
@@ -358,30 +367,42 @@ namespace Decisore.Engine
                 _securityFilterByBot[computer] = botSecurity;
             }
 
-            // — timing: misura solo le mani P/B realmente giocate dal singolo bot —
+            // — shoe change: reset avg window (mazzo/deck counter decreased) —
+            if (_lastMazzoByComputer.TryGetValue(computer, out var lastMazzo) && handIndexMazzo < lastMazzo)
+                ResetHandPaceWindow(computer);
+            _lastMazzoByComputer[computer] = handIndexMazzo;
+
+            // — anchor reset when bot is not actively scalping (pause/off/dead time) —
+            if (!IsScalpingState(stato))
+                _lastDecideAt.Remove(computer);
+
+            // — timing: misura solo le mani P/B realmente giocate dal singolo bot in scalping —
             if (pbHandPlayedThisCall)
             {
                 if (_lastDecideAt.TryGetValue(computer, out var lastAt))
                 {
                     lastHandDeltaSeconds = (nowUtc - lastAt).TotalSeconds;
 
-                    if (!_handDeltasWindow.TryGetValue(computer, out var win))
-                        _handDeltasWindow[computer] = win = new Queue<double>();
-
-                    win.Enqueue(lastHandDeltaSeconds);
-                    if (win.Count > SECURITY_FILTER_DELTA_WINDOW)
-                        win.Dequeue();
-
-                    // media trimmata: rimuovi il minimo e il massimo per attenuare spike rete/OCR
-                    if (win.Count >= 3)
+                    if (lastHandDeltaSeconds > 0 && lastHandDeltaSeconds <= AVG_HAND_MAX_DELTA_SECONDS)
                     {
-                        var sorted  = win.OrderBy(x => x).ToList();
-                        var trimmed = sorted.Skip(1).Take(Math.Max(1, sorted.Count - 2));
-                        avgHandSeconds = trimmed.Average();
+                        if (!_handDeltasWindow.TryGetValue(computer, out var win))
+                            _handDeltasWindow[computer] = win = new Queue<double>();
+
+                        win.Enqueue(lastHandDeltaSeconds);
+                        while (win.Count > AVG_HAND_VALID_WINDOW)
+                            win.Dequeue();
+
+                        avgHandSeconds = ComputeTrimmedAverage(win);
                     }
-                    else if (win.Count > 0)
+                    else if (lastHandDeltaSeconds > AVG_HAND_MAX_DELTA_SECONDS)
                     {
-                        avgHandSeconds = win.Average();
+                        _gapFilteredCountByComputer[computer] =
+                            _gapFilteredCountByComputer.GetValueOrDefault(computer) + 1;
+
+                        if (_handDeltasWindow.TryGetValue(computer, out var win) && win.Count > 0)
+                            avgHandSeconds = ComputeTrimmedAverage(win);
+                        else
+                            avgHandSeconds = botSecurity.AvgHandSeconds;
                     }
                 }
                 else
@@ -666,7 +687,10 @@ namespace Decisore.Engine
                     ? $"disabled [score {securityScore}/4]"
                 : $"score {securityScore}/4";
             botSecurity.LastUpdatedUtc = nowUtc;
-            botSecurity.HandSamples = _handDeltasWindow.TryGetValue(computer, out var samplesWindow) ? samplesWindow.Count : 0;
+            var validSampleCount = _handDeltasWindow.TryGetValue(computer, out var samplesWindow) ? samplesWindow.Count : 0;
+            botSecurity.ValidSamples = validSampleCount;
+            botSecurity.HandSamples = validSampleCount;
+            botSecurity.GapFilteredCount = _gapFilteredCountByComputer.GetValueOrDefault(computer);
 
             advice.SecurityFilterEnabled    = SECURITY_FILTER_ENABLED;
             advice.SecurityRiskScore       = securityScore;
@@ -858,6 +882,31 @@ namespace Decisore.Engine
         {
             advice.StopMission = true;
             advice.Reason = reason;
+        }
+
+        static bool IsScalpingState(string stato) =>
+            stato.Equals("sculping", StringComparison.OrdinalIgnoreCase) ||
+            stato.Equals("scalping", StringComparison.OrdinalIgnoreCase);
+
+        void ResetHandPaceWindow(string computer)
+        {
+            _handDeltasWindow.Remove(computer);
+            _lastDecideAt.Remove(computer);
+        }
+
+        static double ComputeTrimmedAverage(IEnumerable<double> samples)
+        {
+            var list = samples.ToList();
+            if (list.Count == 0)
+                return 0;
+
+            if (list.Count >= 3)
+            {
+                var sorted = list.OrderBy(x => x).ToList();
+                return sorted.Skip(1).Take(Math.Max(1, sorted.Count - 2)).Average();
+            }
+
+            return list.Average();
         }
 
         int GetActionCode(Advice advice, string stato, int martingalaCounter)
