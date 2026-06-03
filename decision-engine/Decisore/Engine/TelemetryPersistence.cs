@@ -115,6 +115,11 @@ public class SecurityFilterBotSummary
     public string LastReason { get; set; } = "";
     public int L6PlayedCount { get; set; }
     public int AuthorizedL8LostCount { get; set; }
+    public string CurrentStreakOutcome { get; set; } = "";
+    public int PlayerStreakCount { get; set; }
+    public double PlayerStreakP1ToP5TotalSeconds { get; set; }
+    public double PlayerStreakMeanIntervalSeconds { get; set; }
+    public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
 
     public static SecurityFilterBotSummary From(SecurityFilterBotTelemetry source) =>
         new()
@@ -124,6 +129,11 @@ public class SecurityFilterBotSummary
             LastTwoHandDeltaSeconds = source.LastTwoHandDeltaSeconds?.ToArray() ?? Array.Empty<double>(),
             RapidL5TriggerActive = source.RapidL5TriggerActive,
             CurrentStreak = source.CurrentStreak,
+            CurrentStreakOutcome = source.CurrentStreakOutcome ?? "",
+            PlayerStreakCount = source.PlayerStreakCount,
+            PlayerStreakP1ToP5TotalSeconds = source.PlayerStreakP1ToP5TotalSeconds,
+            PlayerStreakMeanIntervalSeconds = source.PlayerStreakMeanIntervalSeconds,
+            PlayerStreakIntervalSeconds = source.PlayerStreakIntervalSeconds?.ToArray() ?? Array.Empty<double>(),
             SecurityRiskScore = source.SecurityRiskScore,
             SecurityFilterActive = source.SecurityFilterActive,
             PauseBot = source.PauseBot,

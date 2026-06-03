@@ -56,7 +56,36 @@ function mergeTelemetryFromApi(api) {
         TotalSecurityFilterActivated: api.totalSecurityFilterActivated,
         TotalSecurityFilterPreventedL6: api.totalSecurityFilterPreventedL6,
         LastAvgHandSeconds: api.lastAvgHandSeconds,
-        ActiveSecurityFilterBots: api.activeSecurityFilterBots
+        ActiveSecurityFilterBots: api.activeSecurityFilterBots,
+        SecurityFilterByBot: api.securityFilterByBot ?? api.SecurityFilterByBot
+    };
+}
+
+function pickRowField(row, pascalKey, camelKey) {
+    if (!row) return undefined;
+    const pascalValue = row[pascalKey];
+    if (pascalValue !== undefined && pascalValue !== null) return pascalValue;
+    const camelValue = row[camelKey];
+    if (camelValue !== undefined && camelValue !== null) return camelValue;
+    return undefined;
+}
+
+function normalizeSecurityFilterBotRow(computer, row) {
+    const base = row && typeof row === 'object' ? row : {};
+    return {
+        ...base,
+        computer,
+        Computer: computer,
+        PlayerStreakCount: pickRowField(base, 'PlayerStreakCount', 'playerStreakCount'),
+        playerStreakCount: pickRowField(base, 'playerStreakCount', 'PlayerStreakCount'),
+        PlayerStreakP1ToP5TotalSeconds: pickRowField(base, 'PlayerStreakP1ToP5TotalSeconds', 'playerStreakP1ToP5TotalSeconds'),
+        playerStreakP1ToP5TotalSeconds: pickRowField(base, 'playerStreakP1ToP5TotalSeconds', 'PlayerStreakP1ToP5TotalSeconds'),
+        PlayerStreakMeanIntervalSeconds: pickRowField(base, 'PlayerStreakMeanIntervalSeconds', 'playerStreakMeanIntervalSeconds'),
+        playerStreakMeanIntervalSeconds: pickRowField(base, 'playerStreakMeanIntervalSeconds', 'PlayerStreakMeanIntervalSeconds'),
+        PlayerStreakIntervalSeconds: pickRowField(base, 'PlayerStreakIntervalSeconds', 'playerStreakIntervalSeconds'),
+        playerStreakIntervalSeconds: pickRowField(base, 'playerStreakIntervalSeconds', 'PlayerStreakIntervalSeconds'),
+        CurrentStreakOutcome: pickRowField(base, 'CurrentStreakOutcome', 'currentStreakOutcome'),
+        currentStreakOutcome: pickRowField(base, 'currentStreakOutcome', 'CurrentStreakOutcome')
     };
 }
 
@@ -89,19 +118,30 @@ const telemetryData = computed(() => {
         }
     }
 
+    const apiBots = fromApi.SecurityFilterByBot;
+    const rawBots = fromRaw.SecurityFilterByBot ?? fromRaw.securityFilterByBot;
+    if (apiBots || rawBots) {
+        const keys = new Set([...Object.keys(rawBots || {}), ...Object.keys(apiBots || {})]);
+        const mergedBots = {};
+        for (const key of keys) {
+            mergedBots[key] = normalizeSecurityFilterBotRow(key, {
+                ...(rawBots?.[key] || {}),
+                ...(apiBots?.[key] || {})
+            });
+        }
+        merged.SecurityFilterByBot = mergedBots;
+        merged.securityFilterByBot = mergedBots;
+    }
+
     return merged;
 });
 
 const securityFilterRows = computed(() => {
-    const byBot = telemetryData.value?.SecurityFilterByBot;
+    const byBot = telemetryData.value?.SecurityFilterByBot ?? telemetryData.value?.securityFilterByBot;
     if (!byBot || typeof byBot !== 'object') return [];
 
     return Object.entries(byBot)
-        .map(([computer, row]) => ({
-            computer,
-            Computer: computer,
-            ...(row || {})
-        }))
+        .map(([computer, row]) => normalizeSecurityFilterBotRow(computer, row))
         .sort((a, b) => {
             const riskDelta = getRiskRank(b) - getRiskRank(a);
             if (riskDelta !== 0) return riskDelta;
@@ -131,7 +171,7 @@ watch(
             if (!snap.bot) continue;
 
             const prev = playerStreakLastCountByBot.value[snap.bot];
-            const isPlayerStreak = snap.outcome === 'P' && snap.count > 0;
+            const isPlayerStreak = snap.count > 0 && (snap.outcome === 'P' || snap.outcome === '');
 
             if (isPlayerStreak && prev !== undefined && snap.count > prev) {
                 triggerPlayerStepPulse(snap.bot, Math.min(snap.count, 5));
@@ -154,7 +194,7 @@ const selectedSecurityFilterRow = computed(() => {
     const detail = securityFilterBotDetails.value[selectedSecurityFilterBot.value];
     if (!detail) return summary;
 
-    return { ...summary, ...toPascalCaseKeys(detail) };
+    return { ...summary, ...normalizeSecurityFilterBotRow(getBotName(summary), toPascalCaseKeys(detail)) };
 });
 
 const securityFilterRiskStrip = computed(() => {
@@ -272,12 +312,12 @@ function isStreakRisk(row) {
 }
 
 function getPlayerStreakMetrics(row) {
-    const count = getNumber(row?.PlayerStreakCount ?? row?.playerStreakCount);
-    const total = getNumber(row?.PlayerStreakP1ToP5TotalSeconds ?? row?.playerStreakP1ToP5TotalSeconds);
-    const mean = getNumber(row?.PlayerStreakMeanIntervalSeconds ?? row?.playerStreakMeanIntervalSeconds);
-    const rawIntervals = row?.PlayerStreakIntervalSeconds ?? row?.playerStreakIntervalSeconds ?? [];
+    const count = getNumber(pickRowField(row, 'PlayerStreakCount', 'playerStreakCount'));
+    const total = getNumber(pickRowField(row, 'PlayerStreakP1ToP5TotalSeconds', 'playerStreakP1ToP5TotalSeconds'));
+    const mean = getNumber(pickRowField(row, 'PlayerStreakMeanIntervalSeconds', 'playerStreakMeanIntervalSeconds'));
+    const rawIntervals = pickRowField(row, 'PlayerStreakIntervalSeconds', 'playerStreakIntervalSeconds') ?? [];
     const intervals = Array.isArray(rawIntervals) ? rawIntervals.map((value) => getNumber(value)) : [];
-    const outcome = String(row?.CurrentStreakOutcome ?? row?.currentStreakOutcome ?? '').trim().toUpperCase();
+    const outcome = String(pickRowField(row, 'CurrentStreakOutcome', 'currentStreakOutcome') ?? '').trim().toUpperCase();
     const threshold = resolvePlayerP1P5Threshold(securityFilterSetup.value.playerP1P5Threshold);
     return { count, total, mean, intervals, outcome, threshold };
 }
@@ -292,10 +332,14 @@ function isPlayerStreakRisk(row) {
 
 function hasPlayerPaceTelemetry(row) {
     if (!row) return false;
-    return (
-        (row.PlayerStreakCount !== undefined && row.PlayerStreakCount !== null) ||
-        (row.playerStreakCount !== undefined && row.playerStreakCount !== null)
-    );
+    const candidates = [
+        pickRowField(row, 'PlayerStreakCount', 'playerStreakCount'),
+        pickRowField(row, 'PlayerStreakP1ToP5TotalSeconds', 'playerStreakP1ToP5TotalSeconds'),
+        pickRowField(row, 'PlayerStreakMeanIntervalSeconds', 'playerStreakMeanIntervalSeconds'),
+        pickRowField(row, 'PlayerStreakIntervalSeconds', 'playerStreakIntervalSeconds'),
+        pickRowField(row, 'CurrentStreakOutcome', 'currentStreakOutcome')
+    ];
+    return candidates.some((value) => value !== undefined && value !== null);
 }
 
 function formatPlayerPaceSeconds(value) {
@@ -307,7 +351,7 @@ function formatPlayerPaceSeconds(value) {
 function getPlayerPaceVisual(row) {
     const metrics = getPlayerStreakMetrics(row);
     const available = hasPlayerPaceTelemetry(row);
-    const active = available && metrics.outcome === 'P' && metrics.count > 0;
+    const active = available && metrics.count > 0 && (metrics.outcome === 'P' || metrics.outcome === '');
 
     const steps = [1, 2, 3, 4, 5].map((n) => ({
         label: `P${n}`,
@@ -316,12 +360,14 @@ function getPlayerPaceVisual(row) {
 
     const deltas = [1, 2, 3, 4].map((n) => {
         const idx = n - 1;
-        const visible = active && metrics.count >= n + 1;
-        const seconds = visible && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
+        const hasNextStep = active && metrics.count >= n + 1;
+        const waitingForNext = active && metrics.count === n;
+        const seconds = hasNextStep && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
         return {
             label: `P${n}→P${n + 1}`,
             seconds,
-            visible
+            visible: active && metrics.count >= n,
+            pending: waitingForNext || (hasNextStep && !(metrics.intervals[idx] > 0))
         };
     });
 
@@ -1063,20 +1109,20 @@ function selectSecurityFilterBot(row) {
                                 <div class="flex min-w-max items-center justify-center gap-1 px-1 sm:gap-2">
                                     <template v-for="(step, stepIdx) in getPlayerPaceVisual(selectedSecurityFilterRow).steps" :key="step.label">
                                         <div
-                                            v-if="stepIdx > 0"
-                                            class="flex min-w-[4.5rem] flex-col items-center px-1 text-center"
+                                            v-if="stepIdx > 0 && getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].visible"
+                                            class="flex min-w-[5.5rem] flex-col items-center px-1 text-center"
                                         >
                                             <span class="text-xs font-semibold text-muted-color">
                                                 {{ getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].label }}
                                             </span>
                                             <span
-                                                class="text-lg font-bold leading-tight"
-                                                :class="getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].visible ? 'text-surface-900 dark:text-surface-0' : 'text-muted-color'"
+                                                class="text-sm font-bold leading-tight sm:text-lg"
+                                                :class="getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].pending ? 'text-blue-700 dark:text-blue-300' : 'text-surface-900 dark:text-surface-0'"
                                             >
                                                 {{
-                                                    getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].visible
-                                                        ? formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].seconds)
-                                                        : '--'
+                                                    getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].pending
+                                                        ? 'delta in attesa'
+                                                        : formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).deltas[stepIdx - 1].seconds)
                                                 }}
                                             </span>
                                         </div>
