@@ -31,6 +31,29 @@ function Invoke-SqlQuery([string]$Server, [string]$Database, [string]$User, [str
     return ($out | Out-String)
 }
 
+function Get-SessionsFingerprint {
+    param(
+        [string]$Server,
+        [string]$Database,
+        [string]$User,
+        [string]$Password,
+        [string]$IdList
+    )
+    $json = Invoke-SqlQuery $Server $Database $User $Password @"
+SET NOCOUNT ON;
+SELECT ID, StartTime, EndTime, TotalMargin, RealHandsCount, FinalizationReason, CAST(Completed AS int) AS CompletedInt
+FROM dbo.MissionSessions
+WHERE ID IN ($IdList)
+ORDER BY ID
+FOR JSON PATH, INCLUDE_NULL_VALUES;
+"@
+    return ($json.Trim() -replace '\s+', '')
+}
+
+function Normalize-SqlOutput([string]$Text) {
+    return (($Text -replace "`r", '') -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }) -join "`n"
+}
+
 if (-not (Test-Path -LiteralPath $ProdConfigPath)) {
     throw "Shared production config not found: $ProdConfigPath"
 }
@@ -77,13 +100,9 @@ $backupTable = $Matches[1]
 Write-Host "CONFIRMED_BACKUP_TABLE=$backupTable"
 
 # Snapshot margins/samples/105 before apply
-$pre105 = Invoke-SqlQuery $server $database $user $password @"
-SET NOCOUNT ON;
-SELECT ID, StartTime, EndTime, TotalMargin, RealHandsCount, FinalizationReason, CAST(Completed AS int) AS CompletedInt
-FROM dbo.MissionSessions WHERE ID = 105;
-"@
+$script:PreApply105Fingerprint = Get-SessionsFingerprint $server $database $user $password '105'
 Write-Host "PRE_APPLY_SESSION_105:"
-Write-Host $pre105
+Write-Host $script:PreApply105Fingerprint
 
 $preMargins = Invoke-SqlQuery $server $database $user $password @"
 SET NOCOUNT ON;
@@ -106,8 +125,7 @@ Invoke-SqlFile $server $database $user $password (Join-Path $ScriptDir '03-apply
 $verifyOut = Invoke-SqlFile $server $database $user $password (Join-Path $ScriptDir '04-verify-overlap-time-recovery.sql')
 
 $failed = $false
-if ($verifyOut -match 'OVERLAP|OverlapSeconds') {
-    $overlapRows = Invoke-SqlQuery $server $database $user $password @"
+$overlapRows = Invoke-SqlQuery $server $database $user $password @"
 SET NOCOUNT ON;
 WITH ordered AS (
     SELECT ID, StartTime, EndTime FROM dbo.MissionSessions WHERE ID IN (101,102,103,104)
@@ -116,17 +134,16 @@ SELECT COUNT(*) FROM ordered a
 INNER JOIN ordered b ON b.ID = a.ID + 1
 WHERE a.EndTime > b.StartTime;
 "@
-    if ([int]($overlapRows.Trim()) -gt 0) {
-        Write-Host "VERIFY_FAIL: overlap count > 0"
-        $failed = $true
-    }
+if ([int]($overlapRows.Trim()) -gt 0) {
+    Write-Host "VERIFY_FAIL: overlap count > 0"
+    $failed = $true
 }
 
 $postMargins = Invoke-SqlQuery $server $database $user $password @"
 SET NOCOUNT ON;
 SELECT ID, TotalMargin, RealHandsCount FROM dbo.MissionSessions WHERE ID IN (101,102,103,104,105) ORDER BY ID;
 "@
-if ($postMargins -ne $preMargins) {
+if ((Normalize-SqlOutput $postMargins) -ne (Normalize-SqlOutput $preMargins)) {
     Write-Host 'VERIFY_FAIL: TotalMargin or RealHandsCount changed'
     $failed = $true
 }
@@ -135,17 +152,16 @@ $postSamples = Invoke-SqlQuery $server $database $user $password @"
 SET NOCOUNT ON;
 SELECT SessionId, COUNT_BIG(*) AS Cnt FROM dbo.MissionMarginSamples WHERE SessionId IN (101,102,103,104,105) GROUP BY SessionId ORDER BY SessionId;
 "@
-if ($postSamples -ne $preSamples) {
+if ((Normalize-SqlOutput $postSamples) -ne (Normalize-SqlOutput $preSamples)) {
     Write-Host 'VERIFY_FAIL: MissionMarginSamples counts changed'
     $failed = $true
 }
 
-$post105 = Invoke-SqlQuery $server $database $user $password @"
-SET NOCOUNT ON;
-SELECT ID, StartTime, EndTime, TotalMargin, RealHandsCount, FinalizationReason FROM dbo.MissionSessions WHERE ID = 105;
-"@
-if ($post105 -ne $pre105) {
+$post105Fingerprint = Get-SessionsFingerprint $server $database $user $password '105'
+if ($post105Fingerprint -ne $script:PreApply105Fingerprint) {
     Write-Host 'VERIFY_FAIL: session 105 changed'
+    Write-Host "PRE_105=$($script:PreApply105Fingerprint)"
+    Write-Host "POST_105=$post105Fingerprint"
     $failed = $true
 }
 
@@ -176,8 +192,10 @@ if ([int]($openCount.Trim()) -gt 1) {
 
 if ($failed) {
     Write-Host "ROLLBACK: restoring from $backupTable"
-    Invoke-SqlQuery $server $database $user $password @"
+    $rollbackRows = Invoke-SqlQuery $server $database $user $password @"
 SET NOCOUNT ON;
+SET QUOTED_IDENTIFIER ON;
+DECLARE @rows int;
 BEGIN TRANSACTION;
 UPDATE m
 SET
@@ -189,11 +207,16 @@ SET
   m.RealHandsCount = b.RealHandsCount,
   m.Completed = b.Completed
 FROM dbo.MissionSessions m
-INNER JOIN [dbo].[$backupTable] b ON b.ID = m.ID
+INNER JOIN dbo.[$backupTable] b ON b.ID = m.ID
 WHERE m.ID IN (101, 102, 103, 104);
+SET @rows = @@ROWCOUNT;
 COMMIT TRANSACTION;
-SELECT @@ROWCOUNT AS RollbackRows;
+SELECT @rows AS RollbackRows;
 "@
+    Write-Host "ROLLBACK_ROWS=$($rollbackRows.Trim())"
+    if ([int]($rollbackRows.Trim()) -ne 4) {
+        throw "Rollback did not update 4 rows (got $($rollbackRows.Trim()))."
+    }
     throw 'Verification failed; rollback applied to sessions 101-104.'
 }
 
