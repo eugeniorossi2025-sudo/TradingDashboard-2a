@@ -290,6 +290,18 @@ public class DashboardService : IDashboardService
                     result.LastAvgHandSeconds = (decimal)lah.GetDouble();
                 if (root.TryGetProperty("ActiveSecurityFilterBots", out var asfb))
                     result.ActiveSecurityFilterBots = asfb.GetInt32();
+                if (root.TryGetProperty("PlayerRace5FilterEnabled", out var r5fe))
+                    result.PlayerRace5FilterEnabled = r5fe.GetBoolean();
+                if (root.TryGetProperty("PlayerRace5Ac3Enabled", out var r5ae))
+                    result.PlayerRace5Ac3Enabled = r5ae.GetBoolean();
+                if (root.TryGetProperty("PlayerRace8FilterEnabled", out var r8fe))
+                    result.PlayerRace8FilterEnabled = r8fe.GetBoolean();
+                if (root.TryGetProperty("PlayerRace8Ac3Enabled", out var r8ae))
+                    result.PlayerRace8Ac3Enabled = r8ae.GetBoolean();
+                if (root.TryGetProperty("PlayerRace5Enabled", out var r5e))
+                    result.PlayerRace5Enabled = r5e.GetBoolean();
+                if (root.TryGetProperty("PlayerRace8Enabled", out var r8e))
+                    result.PlayerRace8Enabled = r8e.GetBoolean();
                 if (root.TryGetProperty("PlayerPaceFilterEnabled", out var ppfe))
                     result.PlayerPaceFilterEnabled = ppfe.GetBoolean();
                 if (root.TryGetProperty("TotalPlayerPaceAC3Activated", out var tppa))
@@ -340,6 +352,12 @@ public class DashboardService : IDashboardService
         var keys = new[]
         {
             "SECURITY_FILTER_ENABLED",
+            "PLAYER_RACE_5_FILTER_ENABLED",
+            "PLAYER_RACE_5_AC3_ENABLED",
+            "PLAYER_RACE_8_FILTER_ENABLED",
+            "PLAYER_RACE_8_AC3_ENABLED",
+            "PLAYER_RACE_5_ENABLED",
+            "PLAYER_RACE_8_ENABLED",
             "PLAYER_PACE_FILTER_ENABLED",
             "SECURITY_FILTER_MIN_SCORE",
             "SECURITY_FILTER_MIN_STREAK",
@@ -357,10 +375,29 @@ public class DashboardService : IDashboardService
         if (configs.TryGetValue("SECURITY_FILTER_ENABLED", out var enabled))
             result.SecurityFilterEnabled = ParseEnabledFlag(enabled);
 
-        if (configs.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var playerPaceEnabled))
-            result.PlayerPaceFilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(playerPaceEnabled);
-        else
-            result.PlayerPaceFilterEnabled = true;
+        if (configs.TryGetValue("PLAYER_RACE_5_FILTER_ENABLED", out var race5Filter))
+            result.PlayerRace5FilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(race5Filter);
+        else if (configs.TryGetValue("PLAYER_RACE_5_ENABLED", out var race5Legacy))
+            result.PlayerRace5FilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(race5Legacy);
+
+        if (configs.TryGetValue("PLAYER_RACE_5_AC3_ENABLED", out var race5Ac3))
+            result.PlayerRace5Ac3Enabled = PlayerPaceFilterController.ParseEnabledFlag(race5Ac3);
+
+        if (configs.TryGetValue("PLAYER_RACE_8_FILTER_ENABLED", out var race8Filter))
+            result.PlayerRace8FilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(race8Filter);
+        else if (configs.TryGetValue("PLAYER_RACE_8_ENABLED", out var race8Legacy))
+            result.PlayerRace8FilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(race8Legacy);
+
+        if (configs.TryGetValue("PLAYER_RACE_8_AC3_ENABLED", out var race8Ac3))
+            result.PlayerRace8Ac3Enabled = PlayerPaceFilterController.ParseEnabledFlag(race8Ac3);
+        else if (configs.TryGetValue("PLAYER_RACE_8_ENABLED", out var race8Ac3Legacy))
+            result.PlayerRace8Ac3Enabled = PlayerPaceFilterController.ParseEnabledFlag(race8Ac3Legacy);
+        else if (configs.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var playerPaceEnabled))
+            result.PlayerRace8Ac3Enabled = PlayerPaceFilterController.ParseEnabledFlag(playerPaceEnabled);
+
+        result.PlayerRace5Enabled = result.PlayerRace5FilterEnabled;
+        result.PlayerRace8Enabled = result.PlayerRace8FilterEnabled;
+        result.PlayerPaceFilterEnabled = result.PlayerRace8Ac3Enabled;
 
         if (configs.TryGetValue("SECURITY_FILTER_MIN_SCORE", out var minScore) &&
             int.TryParse(minScore, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms))

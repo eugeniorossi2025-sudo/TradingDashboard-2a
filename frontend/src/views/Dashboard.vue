@@ -387,7 +387,7 @@ const onDashboardUpdate = (jsonPayload) => {
         console.error('❌ Error parsing SignalR payload:', error);
     }
 
-    appendLiveProfitPoint(data);
+    appendLiveProfitPoint(jsonPayload);
     Promise.all([refreshTelemetry(), refreshMissionState()]).catch((error) => {
         console.error('❌ Error refreshing dashboard live data:', error);
     });

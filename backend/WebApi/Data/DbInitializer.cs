@@ -292,9 +292,51 @@ public static class DbInitializer
             new Configuration
             {
                 Key = "PLAYER_PACE_FILTER_ENABLED",
-                Description = "Player Pace filter operativo: 1 attivo (anomalia P1-P5 genera AC3), 0 spento.",
-                Value = "1",
+                Description = "Legacy alias Player Race 8 — usare PLAYER_RACE_8_ENABLED.",
+                Value = "0",
                 Pos = 907
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_5_ENABLED",
+                Description = "Player Race 5: 1 attivo (5 PLAYER consecutivi), 0 spento.",
+                Value = "0",
+                Pos = 908
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_8_ENABLED",
+                Description = "Legacy alias Player Race 8 — usare PLAYER_RACE_8_FILTER_ENABLED / PLAYER_RACE_8_AC3_ENABLED.",
+                Value = "0",
+                Pos = 909
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_5_FILTER_ENABLED",
+                Description = "Player Race 5 filtro: 1 mostra avviso a 5 PLAYER consecutivi.",
+                Value = "0",
+                Pos = 910
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_5_AC3_ENABLED",
+                Description = "Player Race 5 AC3: 1 genera AC3 a 5 PLAYER consecutivi.",
+                Value = "0",
+                Pos = 911
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_8_FILTER_ENABLED",
+                Description = "Player Race 8 filtro: 1 mostra avviso a 8 PLAYER consecutivi.",
+                Value = "0",
+                Pos = 912
+            },
+            new Configuration
+            {
+                Key = "PLAYER_RACE_8_AC3_ENABLED",
+                Description = "Player Race 8 AC3: 1 genera AC3 a 8 PLAYER consecutivi.",
+                Value = "0",
+                Pos = 913
             }
         };
 

@@ -37,7 +37,13 @@ public class Telemetry
     public int    SecurityFilterDeltaWindow      { get; set; } = 8;
     /// <summary>PLAYER streak P1→P5 total seconds threshold for Player Pace AC3.</summary>
     public double SecurityFilterPlayerP1P5ThresholdSeconds { get; set; } = 107;
-    public bool   PlayerPaceFilterEnabled { get; set; } = true;
+    public bool   PlayerRace5FilterEnabled { get; set; }
+    public bool   PlayerRace5Ac3Enabled { get; set; }
+    public bool   PlayerRace8FilterEnabled { get; set; }
+    public bool   PlayerRace8Ac3Enabled { get; set; }
+    public bool   PlayerRace5Enabled { get; set; }
+    public bool   PlayerRace8Enabled { get; set; }
+    public bool   PlayerPaceFilterEnabled { get; set; }
     public int    TotalPlayerPaceAC3Activated { get; set; } = 0;
     public int    ActivePlayerPaceRiskBots { get; set; } = 0;
     public int    TotalSecurityFilterActivated    { get; set; } = 0;
@@ -112,6 +118,11 @@ public class SecurityFilterBotTelemetry
     public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
+    public bool PlayerRace5Alert { get; set; }
+    public bool PlayerRace5Triggered { get; set; }
+    public bool PlayerRace5Ac3Triggered { get; set; }
+    public bool PlayerRace8Alert { get; set; }
+    public bool PlayerRace8Ac3Triggered { get; set; }
     public bool PlayerPaceRiskActive { get; set; }
     public bool PlayerPaceTriggeredAC3 { get; set; }
     public bool PauseBot { get; set; }

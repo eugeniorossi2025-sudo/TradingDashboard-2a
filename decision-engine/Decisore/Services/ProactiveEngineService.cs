@@ -94,9 +94,25 @@ namespace Decisore.Services
                         ? ParseEnabledFlag(sfEnabled)
                         : _engine.SECURITY_FILTER_ENABLED;
 
-                    _engine.PLAYER_PACE_FILTER_ENABLED = cfg.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var ppEnabled)
-                        ? ParseEnabledFlag(ppEnabled)
-                        : _engine.PLAYER_PACE_FILTER_ENABLED;
+                    if (cfg.TryGetValue("PLAYER_RACE_5_FILTER_ENABLED", out var r5f))
+                        _engine.PLAYER_RACE_5_FILTER_ENABLED = ParseEnabledFlag(r5f);
+                    else if (cfg.TryGetValue("PLAYER_RACE_5_ENABLED", out var r5Legacy))
+                        _engine.PLAYER_RACE_5_FILTER_ENABLED = ParseEnabledFlag(r5Legacy);
+
+                    if (cfg.TryGetValue("PLAYER_RACE_5_AC3_ENABLED", out var r5a))
+                        _engine.PLAYER_RACE_5_AC3_ENABLED = ParseEnabledFlag(r5a);
+
+                    if (cfg.TryGetValue("PLAYER_RACE_8_FILTER_ENABLED", out var r8f))
+                        _engine.PLAYER_RACE_8_FILTER_ENABLED = ParseEnabledFlag(r8f);
+                    else if (cfg.TryGetValue("PLAYER_RACE_8_ENABLED", out var r8Legacy))
+                        _engine.PLAYER_RACE_8_FILTER_ENABLED = ParseEnabledFlag(r8Legacy);
+
+                    if (cfg.TryGetValue("PLAYER_RACE_8_AC3_ENABLED", out var r8a))
+                        _engine.PLAYER_RACE_8_AC3_ENABLED = ParseEnabledFlag(r8a);
+                    else if (cfg.TryGetValue("PLAYER_RACE_8_ENABLED", out var r8Ac3Legacy))
+                        _engine.PLAYER_RACE_8_AC3_ENABLED = ParseEnabledFlag(r8Ac3Legacy);
+                    else if (cfg.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var ppLegacy))
+                        _engine.PLAYER_RACE_8_AC3_ENABLED = ParseEnabledFlag(ppLegacy);
 
                     _engine.SECURITY_FILTER_MAX_SHOE_HAND = cfg.TryGetValue("SECURITY_FILTER_MAX_SHOE_HAND", out var sfMaxHand)
                         ? int.Parse(sfMaxHand, CultureInfo.InvariantCulture)

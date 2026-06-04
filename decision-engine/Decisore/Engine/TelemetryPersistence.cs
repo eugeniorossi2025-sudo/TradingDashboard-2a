@@ -105,6 +105,11 @@ public class SecurityFilterBotSummary
     public int CurrentStreak { get; set; }
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
+    public bool PlayerRace5Alert { get; set; }
+    public bool PlayerRace5Triggered { get; set; }
+    public bool PlayerRace5Ac3Triggered { get; set; }
+    public bool PlayerRace8Alert { get; set; }
+    public bool PlayerRace8Ac3Triggered { get; set; }
     public bool PlayerPaceRiskActive { get; set; }
     public bool PlayerPaceTriggeredAC3 { get; set; }
     public bool PauseBot { get; set; }
@@ -138,6 +143,11 @@ public class SecurityFilterBotSummary
             PlayerStreakIntervalSeconds = source.PlayerStreakIntervalSeconds?.ToArray() ?? Array.Empty<double>(),
             SecurityRiskScore = source.SecurityRiskScore,
             SecurityFilterActive = source.SecurityFilterActive,
+            PlayerRace5Alert = source.PlayerRace5Alert,
+            PlayerRace5Triggered = source.PlayerRace5Alert,
+            PlayerRace5Ac3Triggered = source.PlayerRace5Ac3Triggered,
+            PlayerRace8Alert = source.PlayerRace8Alert,
+            PlayerRace8Ac3Triggered = source.PlayerRace8Ac3Triggered,
             PlayerPaceRiskActive = source.PlayerPaceRiskActive,
             PlayerPaceTriggeredAC3 = source.PlayerPaceTriggeredAC3,
             PauseBot = source.PauseBot,

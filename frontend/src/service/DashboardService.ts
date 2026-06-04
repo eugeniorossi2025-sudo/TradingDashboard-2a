@@ -20,7 +20,6 @@ export const DashboardService = {
         return data?.tables || data?.rows || data || null;
     },
 
-    // 🔹 GET CHART DATA
     async getChartData(): Promise<any[] | null> {
         const response = await apiClient.get('/api/Dashboard/chart');
         return unwrap<any[]>(response);
@@ -50,13 +49,43 @@ export const DashboardService = {
         return unwrap<any>(response) ?? null;
     },
 
-    async getPlayerPaceFilter(): Promise<{ enabled: boolean }> {
-        const response = await apiClient.get('/api/player-pace-filter');
+    async getPlayerRace5Filter(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/player-race-5/filter');
         return unwrap<{ enabled: boolean }>(response);
     },
 
-    async setPlayerPaceFilter(enabled: boolean): Promise<{ enabled: boolean }> {
-        const response = await apiClient.put('/api/player-pace-filter', { enabled });
+    async setPlayerRace5Filter(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/player-race-5/filter', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async getPlayerRace5Ac3(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/player-race-5/ac3');
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async setPlayerRace5Ac3(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/player-race-5/ac3', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async getPlayerRace8Filter(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/player-race-8/filter');
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async setPlayerRace8Filter(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/player-race-8/filter', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async getPlayerRace8Ac3(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/player-race-8/ac3');
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async setPlayerRace8Ac3(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/player-race-8/ac3', { enabled });
         return unwrap<{ enabled: boolean }>(response);
     },
 };

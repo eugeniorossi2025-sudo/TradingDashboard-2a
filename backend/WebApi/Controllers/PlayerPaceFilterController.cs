@@ -42,7 +42,7 @@ public class PlayerPaceFilterController : ControllerBase
             setting = new Configuration
             {
                 Key = PlayerPaceFilterKey,
-                Description = "Player Pace filter operativo: 1 attivo (anomalia P1-P5 genera AC3), 0 spento.",
+                Description = "Filtro 8 PLAYER / AC3: 1 attivo (8 PLAYER consecutivi genera AC3), 0 spento.",
                 Pos = 907,
                 Value = enabled ? "1" : "0"
             };

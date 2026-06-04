@@ -20,9 +20,18 @@ const securityFilterDetailUnavailable = ref(false);
 const playerStepPulseByBot = ref({});
 const playerStreakLastCountByBot = ref({});
 const playerPulseTimersByBot = {};
-const playerPaceFilterEnabled = ref(null);
-const playerPaceToggleLoading = ref(false);
-const playerPaceStatusMessage = ref('');
+const playerRace5FilterEnabled = ref(null);
+const playerRace5FilterLoading = ref(false);
+const playerRace5FilterStatus = ref('');
+const playerRace5Ac3Enabled = ref(null);
+const playerRace5Ac3Loading = ref(false);
+const playerRace5Ac3Status = ref('');
+const playerRace8FilterEnabled = ref(null);
+const playerRace8FilterLoading = ref(false);
+const playerRace8FilterStatus = ref('');
+const playerRace8Ac3Enabled = ref(null);
+const playerRace8Ac3Loading = ref(false);
+const playerRace8Ac3Status = ref('');
 
 const PLAYER_STEP_PULSE_MS = 1600;
 
@@ -49,7 +58,13 @@ function mergeTelemetryFromApi(api) {
         TotalPauseScalpingSoglieActivated: api.totalPauseScalpingSoglieActivated,
         TotalPauseScalpingEWMAActivated: api.totalPauseScalpingEWMAActivated,
         SecurityFilterEnabled: api.securityFilterEnabled,
-        PlayerPaceFilterEnabled: api.playerPaceFilterEnabled,
+        PlayerRace5FilterEnabled: api.playerRace5FilterEnabled ?? api.playerRace5Enabled,
+        PlayerRace5Ac3Enabled: api.playerRace5Ac3Enabled,
+        PlayerRace8FilterEnabled: api.playerRace8FilterEnabled ?? api.playerRace8Enabled,
+        PlayerRace8Ac3Enabled: api.playerRace8Ac3Enabled ?? api.playerPaceFilterEnabled,
+        PlayerRace5Enabled: api.playerRace5FilterEnabled ?? api.playerRace5Enabled,
+        PlayerRace8Enabled: api.playerRace8FilterEnabled ?? api.playerRace8Enabled,
+        PlayerPaceFilterEnabled: api.playerRace8Ac3Enabled ?? api.playerPaceFilterEnabled,
         TotalPlayerPaceAC3Activated: api.totalPlayerPaceAC3Activated,
         ActivePlayerPaceRiskBots: api.activePlayerPaceRiskBots,
         SecurityFilterMinScore: api.securityFilterMinScore,
@@ -92,6 +107,16 @@ function normalizeSecurityFilterBotRow(computer, row) {
         playerStreakIntervalSeconds: pickRowField(base, 'playerStreakIntervalSeconds', 'PlayerStreakIntervalSeconds'),
         CurrentStreakOutcome: pickRowField(base, 'CurrentStreakOutcome', 'currentStreakOutcome'),
         currentStreakOutcome: pickRowField(base, 'currentStreakOutcome', 'CurrentStreakOutcome'),
+        PlayerRace5Alert: pickRowField(base, 'PlayerRace5Alert', 'playerRace5Alert'),
+        playerRace5Alert: pickRowField(base, 'playerRace5Alert', 'PlayerRace5Alert'),
+        PlayerRace5Triggered: pickRowField(base, 'PlayerRace5Triggered', 'playerRace5Triggered'),
+        playerRace5Triggered: pickRowField(base, 'playerRace5Triggered', 'PlayerRace5Triggered'),
+        PlayerRace5Ac3Triggered: pickRowField(base, 'PlayerRace5Ac3Triggered', 'playerRace5Ac3Triggered'),
+        playerRace5Ac3Triggered: pickRowField(base, 'playerRace5Ac3Triggered', 'PlayerRace5Ac3Triggered'),
+        PlayerRace8Alert: pickRowField(base, 'PlayerRace8Alert', 'playerRace8Alert'),
+        playerRace8Alert: pickRowField(base, 'playerRace8Alert', 'PlayerRace8Alert'),
+        PlayerRace8Ac3Triggered: pickRowField(base, 'PlayerRace8Ac3Triggered', 'playerRace8Ac3Triggered'),
+        playerRace8Ac3Triggered: pickRowField(base, 'playerRace8Ac3Triggered', 'PlayerRace8Ac3Triggered'),
         PlayerPaceRiskActive: pickRowField(base, 'PlayerPaceRiskActive', 'playerPaceRiskActive'),
         playerPaceRiskActive: pickRowField(base, 'playerPaceRiskActive', 'PlayerPaceRiskActive'),
         PlayerPaceTriggeredAC3: pickRowField(base, 'PlayerPaceTriggeredAC3', 'playerPaceTriggeredAC3'),
@@ -166,6 +191,22 @@ const securityFilterRows = computed(() => {
         });
 });
 
+const securityFilterOperational = computed(() => isSecurityFilterEnabled());
+
+const securityFilterSetup = computed(() => ({
+    enabled: securityFilterOperational.value,
+    minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
+    minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
+    maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
+    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 25.85,
+    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 23.1,
+    deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8,
+    playerP1P5Threshold: resolvePlayerP1P5Threshold(
+        telemetryData.value?.SecurityFilterPlayerP1P5ThresholdSeconds
+    ),
+    preventedL6: telemetryData.value?.TotalSecurityFilterPreventedL6 ?? 0
+}));
+
 watch(
     () =>
         securityFilterRows.value.map((row) => {
@@ -184,7 +225,7 @@ watch(
             const isPlayerStreak = snap.count > 0 && (snap.outcome === 'P' || snap.outcome === '');
 
             if (isPlayerStreak && prev !== undefined && snap.count > prev) {
-                triggerPlayerStepPulse(snap.bot, Math.min(snap.count, 5));
+                triggerPlayerStepPulse(snap.bot, Math.min(snap.count, PLAYER_BLOCK_COUNT));
             } else if (!isPlayerStreak && prev > 0) {
                 clearPlayerStepPulse(snap.bot);
             }
@@ -218,22 +259,6 @@ const securityFilterRiskStrip = computed(() => {
 });
 
 const hasSecurityFilterRisk = computed(() => securityFilterRows.value.some((row) => getRiskRank(row) >= 1));
-
-const securityFilterOperational = computed(() => isSecurityFilterEnabled());
-
-const securityFilterSetup = computed(() => ({
-    enabled: securityFilterOperational.value,
-    minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
-    minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
-    maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
-    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 25.85,
-    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 23.1,
-    deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8,
-    playerP1P5Threshold: resolvePlayerP1P5Threshold(
-        telemetryData.value?.SecurityFilterPlayerP1P5ThresholdSeconds
-    ),
-    preventedL6: telemetryData.value?.TotalSecurityFilterPreventedL6 ?? 0
-}));
 
 const securityFilterLastEvent = computed(() => {
     let best = null;
@@ -275,6 +300,9 @@ function formatDurationRange(minValue, maxValue) {
     return `${min} - ${max}`;
 }
 
+const PLAYER_BLOCK_COUNT = 8;
+const FILTER_5_MIN_STREAK = 5;
+const FILTER_8_MIN_STREAK = 8;
 const PLAYER_P1P5_THRESHOLD_DEFAULT = 107;
 
 function getNumber(value, fallback = 0) {
@@ -334,82 +362,197 @@ function getPlayerStreakMetrics(row) {
     return { count, total, mean, intervals, outcome, threshold };
 }
 
-function resolvePlayerPaceEnabledFromTelemetry() {
-    const enabled = telemetryData.value?.PlayerPaceFilterEnabled ?? telemetryData.value?.playerPaceFilterEnabled;
+function resolveTelemetryFlag(pascalKey, camelKey) {
+    const enabled = telemetryData.value?.[pascalKey] ?? telemetryData.value?.[camelKey];
     if (enabled === true || enabled === false) return enabled;
     return null;
 }
 
-function isPlayerPaceEnabled() {
-    if (playerPaceFilterEnabled.value === true || playerPaceFilterEnabled.value === false) {
-        return playerPaceFilterEnabled.value;
-    }
-    const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
-    if (fromTelemetry === true || fromTelemetry === false) return fromTelemetry;
-    return true;
+function isPlayerRace5FilterEnabled() {
+    if (playerRace5FilterEnabled.value === true || playerRace5FilterEnabled.value === false) return playerRace5FilterEnabled.value;
+    return resolveTelemetryFlag('PlayerRace5FilterEnabled', 'playerRace5FilterEnabled') === true;
 }
 
-async function loadPlayerPaceFilter() {
+function isPlayerRace5Ac3Enabled() {
+    if (playerRace5Ac3Enabled.value === true || playerRace5Ac3Enabled.value === false) return playerRace5Ac3Enabled.value;
+    return resolveTelemetryFlag('PlayerRace5Ac3Enabled', 'playerRace5Ac3Enabled') === true;
+}
+
+function isPlayerRace8FilterEnabled() {
+    if (playerRace8FilterEnabled.value === true || playerRace8FilterEnabled.value === false) return playerRace8FilterEnabled.value;
+    return resolveTelemetryFlag('PlayerRace8FilterEnabled', 'playerRace8FilterEnabled') === true;
+}
+
+function isPlayerRace8Ac3Enabled() {
+    if (playerRace8Ac3Enabled.value === true || playerRace8Ac3Enabled.value === false) return playerRace8Ac3Enabled.value;
+    const direct = resolveTelemetryFlag('PlayerRace8Ac3Enabled', 'playerRace8Ac3Enabled');
+    if (direct !== null) return direct === true;
+    return resolveTelemetryFlag('PlayerPaceFilterEnabled', 'playerPaceFilterEnabled') === true;
+}
+
+function anyPlayerRaceCommandEnabled() {
+    return isPlayerRace5FilterEnabled() || isPlayerRace5Ac3Enabled() || isPlayerRace8FilterEnabled() || isPlayerRace8Ac3Enabled();
+}
+
+async function loadPlayerRace5Filter() {
     try {
-        const state = await DashboardService.getPlayerPaceFilter();
-        playerPaceFilterEnabled.value = state?.enabled === true;
+        const state = await DashboardService.getPlayerRace5Filter();
+        playerRace5FilterEnabled.value = state?.enabled === true;
     } catch {
-        const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
-        if (fromTelemetry !== null) playerPaceFilterEnabled.value = fromTelemetry;
+        const t = resolveTelemetryFlag('PlayerRace5FilterEnabled', 'playerRace5FilterEnabled');
+        if (t !== null) playerRace5FilterEnabled.value = t;
     }
 }
 
-async function togglePlayerPaceFilter() {
-    const enabling = !isPlayerPaceEnabled();
-    const confirmed = window.confirm(
-        enabling
-            ? 'Confermi attivazione Player Pace operativo? In caso di anomalia genererà AC3.'
-            : 'Confermi disattivazione Player Pace? Non genererà AC3.'
-    );
-    if (!confirmed) return;
-
-    playerPaceToggleLoading.value = true;
-    playerPaceStatusMessage.value = '';
+async function loadPlayerRace5Ac3() {
     try {
-        const state = await DashboardService.setPlayerPaceFilter(enabling);
-        playerPaceFilterEnabled.value = state?.enabled === true;
-        playerPaceStatusMessage.value = enabling ? 'Player Pace attivato (operativo AC3)' : 'Player Pace disattivato';
+        const state = await DashboardService.getPlayerRace5Ac3();
+        playerRace5Ac3Enabled.value = state?.enabled === true;
     } catch {
-        playerPaceStatusMessage.value = 'Errore aggiornamento Player Pace';
+        const t = resolveTelemetryFlag('PlayerRace5Ac3Enabled', 'playerRace5Ac3Enabled');
+        if (t !== null) playerRace5Ac3Enabled.value = t;
+    }
+}
+
+async function loadPlayerRace8Filter() {
+    try {
+        const state = await DashboardService.getPlayerRace8Filter();
+        playerRace8FilterEnabled.value = state?.enabled === true;
+    } catch {
+        const t = resolveTelemetryFlag('PlayerRace8FilterEnabled', 'playerRace8FilterEnabled');
+        if (t !== null) playerRace8FilterEnabled.value = t;
+    }
+}
+
+async function loadPlayerRace8Ac3() {
+    try {
+        const state = await DashboardService.getPlayerRace8Ac3();
+        playerRace8Ac3Enabled.value = state?.enabled === true;
+    } catch {
+        const t = resolveTelemetryFlag('PlayerRace8Ac3Enabled', 'playerRace8Ac3Enabled');
+        if (t !== null) playerRace8Ac3Enabled.value = t;
+    }
+}
+
+async function setPlayerRace5Filter(enabled) {
+    playerRace5FilterLoading.value = true;
+    try {
+        const state = await DashboardService.setPlayerRace5Filter(enabled);
+        playerRace5FilterEnabled.value = state?.enabled === true;
+        playerRace5FilterStatus.value = enabled ? 'Filtro 5 attivo' : 'Filtro 5 spento';
+    } catch {
+        playerRace5FilterStatus.value = 'Errore Filtro 5';
     } finally {
-        playerPaceToggleLoading.value = false;
+        playerRace5FilterLoading.value = false;
+    }
+}
+
+async function setPlayerRace5Ac3(enabled) {
+    playerRace5Ac3Loading.value = true;
+    try {
+        const state = await DashboardService.setPlayerRace5Ac3(enabled);
+        playerRace5Ac3Enabled.value = state?.enabled === true;
+        playerRace5Ac3Status.value = enabled ? 'AC3 Filtro 5 attivo' : 'AC3 Filtro 5 spento';
+    } catch {
+        playerRace5Ac3Status.value = 'Errore AC3 Filtro 5';
+    } finally {
+        playerRace5Ac3Loading.value = false;
+    }
+}
+
+async function setPlayerRace8Filter(enabled) {
+    playerRace8FilterLoading.value = true;
+    try {
+        const state = await DashboardService.setPlayerRace8Filter(enabled);
+        playerRace8FilterEnabled.value = state?.enabled === true;
+        playerRace8FilterStatus.value = enabled ? 'Filtro 8 attivo' : 'Filtro 8 spento';
+    } catch {
+        playerRace8FilterStatus.value = 'Errore Filtro 8';
+    } finally {
+        playerRace8FilterLoading.value = false;
+    }
+}
+
+async function setPlayerRace8Ac3(enabled) {
+    playerRace8Ac3Loading.value = true;
+    try {
+        const state = await DashboardService.setPlayerRace8Ac3(enabled);
+        playerRace8Ac3Enabled.value = state?.enabled === true;
+        playerRace8Ac3Status.value = enabled ? 'AC3 Filtro 8 attivo' : 'AC3 Filtro 8 spento';
+    } catch {
+        playerRace8Ac3Status.value = 'Errore AC3 Filtro 8';
+    } finally {
+        playerRace8Ac3Loading.value = false;
     }
 }
 
 onMounted(() => {
-    loadPlayerPaceFilter();
+    loadPlayerRace5Filter();
+    loadPlayerRace5Ac3();
+    loadPlayerRace8Filter();
+    loadPlayerRace8Ac3();
 });
 
 watch(
     () => props.telemetryParsed,
     () => {
-        const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
-        if (fromTelemetry !== null && playerPaceFilterEnabled.value === null) {
-            playerPaceFilterEnabled.value = fromTelemetry;
-        }
+        const r5f = resolveTelemetryFlag('PlayerRace5FilterEnabled', 'playerRace5FilterEnabled');
+        if (r5f !== null && playerRace5FilterEnabled.value === null) playerRace5FilterEnabled.value = r5f;
+        const r5a = resolveTelemetryFlag('PlayerRace5Ac3Enabled', 'playerRace5Ac3Enabled');
+        if (r5a !== null && playerRace5Ac3Enabled.value === null) playerRace5Ac3Enabled.value = r5a;
+        const r8f = resolveTelemetryFlag('PlayerRace8FilterEnabled', 'playerRace8FilterEnabled');
+        if (r8f !== null && playerRace8FilterEnabled.value === null) playerRace8FilterEnabled.value = r8f;
+        const r8a = resolveTelemetryFlag('PlayerRace8Ac3Enabled', 'playerRace8Ac3Enabled');
+        if (r8a !== null && playerRace8Ac3Enabled.value === null) playerRace8Ac3Enabled.value = r8a;
     },
     { deep: true }
 );
 
-function isPlayerStreakRisk(row) {
-    if (!isPlayerPaceEnabled()) return false;
+function getPlayerStreakSteps(row) {
     const metrics = getPlayerStreakMetrics(row);
-    if (metrics.outcome !== 'P') return false;
-    if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) return false;
-    if (metrics.total <= 0) return false;
-    return metrics.total <= metrics.threshold;
+    const active = metrics.count > 0 && metrics.outcome === 'P';
+    return Array.from({ length: PLAYER_BLOCK_COUNT }, (_, i) => ({
+        label: `P${i + 1}`,
+        filled: active && metrics.count >= i + 1
+    }));
+}
+
+function isPlayerRace5Alert(row) {
+    if (!isPlayerRace5FilterEnabled()) return false;
+    const alert = pickRowField(row, 'PlayerRace5Alert', 'playerRace5Alert');
+    if (alert === true) return true;
+    const triggered = pickRowField(row, 'PlayerRace5Triggered', 'playerRace5Triggered');
+    if (triggered === true) return true;
+    const metrics = getPlayerStreakMetrics(row);
+    return metrics.outcome === 'P' && metrics.count >= FILTER_5_MIN_STREAK;
+}
+
+function isPlayerRace5Ac3(row) {
+    if (!isPlayerRace5Ac3Enabled()) return false;
+    const triggered = pickRowField(row, 'PlayerRace5Ac3Triggered', 'playerRace5Ac3Triggered');
+    if (triggered === true) return true;
+    const metrics = getPlayerStreakMetrics(row);
+    return metrics.outcome === 'P' && metrics.count >= FILTER_5_MIN_STREAK;
+}
+
+function isPlayerRace8Alert(row) {
+    if (!isPlayerRace8FilterEnabled()) return false;
+    const alert = pickRowField(row, 'PlayerRace8Alert', 'playerRace8Alert');
+    if (alert === true) return true;
+    const metrics = getPlayerStreakMetrics(row);
+    return metrics.outcome === 'P' && metrics.count >= FILTER_8_MIN_STREAK;
+}
+
+function isPlayerRace8Ac3(row) {
+    if (!isPlayerRace8Ac3Enabled()) return false;
+    const triggered = pickRowField(row, 'PlayerRace8Ac3Triggered', 'playerRace8Ac3Triggered');
+    if (triggered === true) return true;
+    const metrics = getPlayerStreakMetrics(row);
+    return metrics.outcome === 'P' && metrics.count >= FILTER_8_MIN_STREAK;
 }
 
 function isPlayerPaceAc3Triggered(row) {
-    if (!isPlayerPaceEnabled()) return false;
-    const triggered = pickRowField(row, 'PlayerPaceTriggeredAC3', 'playerPaceTriggeredAC3');
-    if (triggered === true) return true;
-    return isPlayerStreakRisk(row);
+    return isPlayerRace5Ac3(row) || isPlayerRace8Ac3(row);
 }
 
 function hasPlayerPaceTelemetry(row) {
@@ -432,33 +575,13 @@ function formatPlayerPaceSeconds(value) {
 
 function getPlayerPaceVisual(row) {
     const threshold = resolvePlayerP1P5Threshold(securityFilterSetup.value.playerP1P5Threshold);
-    if (!isPlayerPaceEnabled()) {
-        return {
-            available: false,
-            active: false,
-            steps: [1, 2, 3, 4, 5].map((n) => ({ label: `P${n}`, filled: false })),
-            deltas: [],
-            status: 'disabled',
-            statusLabel: 'Player Pace disattivato',
-            count: 0,
-            total: 0,
-            mean: 0,
-            intervals: [],
-            outcome: '',
-            threshold
-        };
-    }
-
     const metrics = getPlayerStreakMetrics(row);
     const available = hasPlayerPaceTelemetry(row);
-    const active = available && metrics.count > 0 && (metrics.outcome === 'P' || metrics.outcome === '');
+    const active = metrics.count > 0 && metrics.outcome === 'P';
+    const steps = getPlayerStreakSteps(row);
 
-    const steps = [1, 2, 3, 4, 5].map((n) => ({
-        label: `P${n}`,
-        filled: active && metrics.count >= n
-    }));
-
-    const deltas = [1, 2, 3, 4].map((n) => {
+    const deltas = Array.from({ length: PLAYER_BLOCK_COUNT - 1 }, (_, i) => {
+        const n = i + 1;
         const idx = n - 1;
         const intervalReady = active && metrics.count >= n + 1;
         const seconds = intervalReady && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
@@ -479,15 +602,18 @@ function getPlayerPaceVisual(row) {
     } else if (!active) {
         status = 'inactive';
         statusLabel = 'Nessuna streak PLAYER';
-    } else if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) {
+    } else if (isPlayerRace8Ac3(row) || isPlayerRace5Ac3(row)) {
+        status = 'risk';
+        statusLabel = isPlayerRace8Ac3(row) ? 'AC3 Filtro 8' : 'AC3 Filtro 5';
+    } else if (isPlayerRace8Alert(row)) {
         status = 'partial';
-        statusLabel = `In corso ${metrics.count}/${securityFilterSetup.value.minStreak}`;
-    } else if (isPlayerPaceAc3Triggered(row)) {
-        status = 'risk';
-        statusLabel = 'RISCHIO PLAYER — AC3';
-    } else if (isPlayerStreakRisk(row)) {
-        status = 'risk';
-        statusLabel = 'RISCHIO PLAYER';
+        statusLabel = `Filtro 8 (${metrics.count} PLAYER)`;
+    } else if (isPlayerRace5Alert(row)) {
+        status = 'partial';
+        statusLabel = `Filtro 5 (${metrics.count} PLAYER)`;
+    } else if (metrics.count > 0) {
+        status = 'partial';
+        statusLabel = `In corso ${metrics.count}/${PLAYER_BLOCK_COUNT}`;
     } else {
         status = 'normal';
         statusLabel = 'NORMALE';
@@ -595,10 +721,15 @@ function formatHandsRange(minValue, maxValue) {
     return `${min} - ${max}`;
 }
 
-function isSecurityFilterEnabled() {
+function resolveSecurityFilterEnabledFromTelemetry() {
     const enabled =
         telemetryData.value?.SecurityFilterEnabled ?? telemetryData.value?.securityFilterEnabled;
-    return enabled === true;
+    if (enabled === true || enabled === false) return enabled;
+    return null;
+}
+
+function isSecurityFilterEnabled() {
+    return resolveSecurityFilterEnabledFromTelemetry() === true;
 }
 
 function getSecurityFilterStatus(row) {
@@ -663,15 +794,21 @@ function formatLastTwoDeltas(row) {
 
 function getSummaryPill(row) {
     if (!isSecurityFilterEnabled()) {
-        if (!isPlayerPaceEnabled()) return 'FILTRO OFF';
+        if (!anyPlayerRaceCommandEnabled()) return 'RACE OFF';
         if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
-        if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+        if (isPlayerRace8Ac3(row)) return 'AC3 P8';
+        if (isPlayerRace5Ac3(row)) return 'AC3 P5';
+        if (isPlayerRace8Alert(row)) return 'Filtro 8';
+        if (isPlayerRace5Alert(row)) return 'Filtro 5';
         return 'NORMALE';
     }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
     if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
-    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+    if (isPlayerRace8Ac3(row)) return 'AC3 P8';
+    if (isPlayerRace5Ac3(row)) return 'AC3 P5';
+    if (isPlayerRace8Alert(row)) return 'Filtro 8';
+    if (isPlayerRace5Alert(row)) return 'Filtro 5';
     return 'NORMALE';
 }
 
@@ -698,27 +835,33 @@ function getScoreDotClass(row, point) {
 function getRiskRank(row) {
     if (!isSecurityFilterEnabled()) {
         if (isPlayerPaceAc3Triggered(row)) return 2;
-        if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 1;
+        if (isPlayerRace8Ac3(row) || isPlayerRace5Ac3(row) || isPlayerRace8Alert(row) || isPlayerRace5Alert(row)) return 1;
         return 0;
     }
     const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
     if (isPlayerPaceAc3Triggered(row)) return 2;
-    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 1;
+    if (isPlayerRace8Ac3(row) || isPlayerRace5Ac3(row) || isPlayerRace8Alert(row) || isPlayerRace5Alert(row)) return 1;
     return 0;
 }
 
 function getRiskLabel(row) {
     if (!isSecurityFilterEnabled()) {
-        if (!isPlayerPaceEnabled()) return 'DISATTIVATO';
+        if (!anyPlayerRaceCommandEnabled()) return 'RACE OFF';
         if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
-        if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+        if (isPlayerRace8Ac3(row)) return 'AC3 P8';
+        if (isPlayerRace5Ac3(row)) return 'AC3 P5';
+        if (isPlayerRace8Alert(row)) return 'Filtro 8';
+        if (isPlayerRace5Alert(row)) return 'Filtro 5';
         return 'NORMALE';
     }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
     if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
-    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+    if (isPlayerRace8Ac3(row)) return 'AC3 P8';
+    if (isPlayerRace5Ac3(row)) return 'AC3 P5';
+    if (isPlayerRace8Alert(row)) return 'Filtro 8';
+    if (isPlayerRace5Alert(row)) return 'Filtro 5';
     return 'NORMALE';
 }
 
@@ -726,11 +869,10 @@ function getRiskStripReason(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'pausa';
     if (isRapidTriggerActive(row)) return 'trigger L5';
     if (Number(row?.SecurityRiskScore ?? 0) >= 3) return `score ${row.SecurityRiskScore}/4`;
-    if (isPlayerPaceAc3Triggered(row)) return 'PLAYER PACE AC3';
-    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
-        const metrics = getPlayerStreakMetrics(row);
-        return `PLAYER P1→P5 ${metrics.total.toFixed(0)}s ≤ ${metrics.threshold.toFixed(0)}s`;
-    }
+    if (isPlayerRace8Ac3(row)) return 'AC3 8 PLAYER';
+    if (isPlayerRace5Ac3(row)) return 'AC3 5 PLAYER';
+    if (isPlayerRace8Alert(row)) return '8 PLAYER';
+    if (isPlayerRace5Alert(row)) return '5 PLAYER';
     return 'normale';
 }
 
@@ -768,9 +910,8 @@ function getTriggerLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
     if (isRapidTriggerActive(row)) return 'TRIGGER ON';
     if (isPlayerPaceAc3Triggered(row)) return 'AC3';
-    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
-        const metrics = getPlayerStreakMetrics(row);
-        return `P1→P5 ${metrics.total.toFixed(0)}s`;
+    if (anyPlayerRaceCommandEnabled() && getPlayerStreakMetrics(row).count > 0) {
+        return `${getPlayerStreakMetrics(row).count}/${PLAYER_BLOCK_COUNT}`;
     }
     return 'OFF';
 }
@@ -798,7 +939,7 @@ function selectSecurityFilterBot(row) {
     securityFilterDetailUnavailable.value = false;
 
     const summary = securityFilterRows.value.find((row) => getBotName(row) === botName);
-    if (summary && isPlayerStreakRisk(summary)) {
+    if (summary && isPlayerRace8Ac3(summary)) {
         const metrics = getPlayerStreakMetrics(summary);
         console.debug('[PLAYER_STREAK_RISK]', botName, {
             playerStreak: metrics.count,
@@ -1105,45 +1246,64 @@ function selectSecurityFilterBot(row) {
         </div>
     </div>
 
-    <div class="col-span-12" v-if="securityFilterRows.length">
+    <div class="col-span-12">
         <div class="card">
-            <div class="mb-4 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <div class="text-lg font-bold text-surface-900 dark:text-surface-0">
-                        {{ isPlayerPaceEnabled() ? 'PLAYER PACE ATTIVO' : 'PLAYER PACE DISATTIVATO' }}
+            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                    <div class="text-lg font-bold">Filtro 5</div>
+                    <div class="mt-1 text-sm text-muted-color">Avviso Player Race a 5 PLAYER consecutivi.</div>
+                    <div class="mt-2 text-sm font-semibold" :class="isPlayerRace5FilterEnabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isPlayerRace5FilterEnabled() ? 'ATTIVO' : 'SPENTO' }}
                     </div>
-                    <div class="mt-1 text-sm text-muted-color">
-                        Config <code class="text-xs">PLAYER_PACE_FILTER_ENABLED={{ isPlayerPaceEnabled() ? '1' : '0' }}</code> — anomalia P1→P5 ≤ soglia →
-                        <strong>AC3</strong>. Separato da <code class="text-xs">SECURITY_FILTER_ENABLED</code>.
+                    <div v-if="playerRace5FilterStatus" class="mt-1 text-xs text-primary">{{ playerRace5FilterStatus }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="playerRace5FilterLoading || isPlayerRace5FilterEnabled()" @click="setPlayerRace5Filter(true)">ATTIVA</button>
+                        <button type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60" :disabled="playerRace5FilterLoading || !isPlayerRace5FilterEnabled()" @click="setPlayerRace5Filter(false)">SPEGNI</button>
                     </div>
-                    <div v-if="playerPaceStatusMessage" class="mt-2 text-sm font-semibold text-primary">{{ playerPaceStatusMessage }}</div>
                 </div>
-                <button
-                    type="button"
-                    class="rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
-                    :class="isPlayerPaceEnabled() ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'"
-                    :disabled="playerPaceToggleLoading"
-                    @click="togglePlayerPaceFilter"
-                >
-                    {{ isPlayerPaceEnabled() ? 'DISATTIVA PLAYER PACE' : 'ATTIVA PLAYER PACE' }}
-                </button>
+                <div class="rounded-xl border border-orange-200 bg-orange-50/40 p-4 dark:border-orange-900 dark:bg-orange-950/20">
+                    <div class="text-lg font-bold">AC3 Filtro 5</div>
+                    <div class="mt-1 text-sm text-muted-color">Intervento AC3 a 5 PLAYER (indipendente dall'avviso).</div>
+                    <div class="mt-2 text-sm font-semibold" :class="isPlayerRace5Ac3Enabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isPlayerRace5Ac3Enabled() ? 'ATTIVO' : 'SPENTO' }}
+                    </div>
+                    <div v-if="playerRace5Ac3Status" class="mt-1 text-xs text-primary">{{ playerRace5Ac3Status }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="playerRace5Ac3Loading || isPlayerRace5Ac3Enabled()" @click="setPlayerRace5Ac3(true)">ATTIVA</button>
+                        <button type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60" :disabled="playerRace5Ac3Loading || !isPlayerRace5Ac3Enabled()" @click="setPlayerRace5Ac3(false)">SPEGNI</button>
+                    </div>
+                </div>
+                <div class="rounded-xl border border-blue-200 bg-blue-50/40 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                    <div class="text-lg font-bold">Filtro 8</div>
+                    <div class="mt-1 text-sm text-muted-color">Avviso Player Race a 8 PLAYER consecutivi.</div>
+                    <div class="mt-2 text-sm font-semibold" :class="isPlayerRace8FilterEnabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isPlayerRace8FilterEnabled() ? 'ATTIVO' : 'SPENTO' }}
+                    </div>
+                    <div v-if="playerRace8FilterStatus" class="mt-1 text-xs text-primary">{{ playerRace8FilterStatus }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="playerRace8FilterLoading || isPlayerRace8FilterEnabled()" @click="setPlayerRace8Filter(true)">ATTIVA</button>
+                        <button type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60" :disabled="playerRace8FilterLoading || !isPlayerRace8FilterEnabled()" @click="setPlayerRace8Filter(false)">SPEGNI</button>
+                    </div>
+                </div>
+                <div class="rounded-xl border border-violet-200 bg-violet-50/40 p-4 dark:border-violet-900 dark:bg-violet-950/20">
+                    <div class="text-lg font-bold">AC3 Filtro 8</div>
+                    <div class="mt-1 text-sm text-muted-color">Intervento AC3 a 8 PLAYER (indipendente dall'avviso).</div>
+                    <div class="mt-2 text-sm font-semibold" :class="isPlayerRace8Ac3Enabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isPlayerRace8Ac3Enabled() ? 'ATTIVO' : 'SPENTO' }}
+                    </div>
+                    <div v-if="playerRace8Ac3Status" class="mt-1 text-xs text-primary">{{ playerRace8Ac3Status }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="playerRace8Ac3Loading || isPlayerRace8Ac3Enabled()" @click="setPlayerRace8Ac3(true)">ATTIVA</button>
+                        <button type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60" :disabled="playerRace8Ac3Loading || !isPlayerRace8Ac3Enabled()" @click="setPlayerRace8Ac3(false)">SPEGNI</button>
+                    </div>
+                </div>
             </div>
 
-            <div
-                v-if="!securityFilterOperational"
-                class="mb-4 rounded-xl border border-surface-300 bg-surface-100 p-4 text-center dark:border-surface-600 dark:bg-surface-900"
-            >
-                <div class="text-lg font-bold text-surface-900 dark:text-surface-0">Security Filter disattivato</div>
-                <div class="mt-1 text-sm text-muted-color">
-                    Config <code class="text-xs">SECURITY_FILTER_ENABLED=0</code> — nessun AC3, pausa o blocco L6 da filtro. Player Pace si gestisce con il pulsante sopra.
-                </div>
-            </div>
-
-            <template v-if="securityFilterOperational">
+            <template v-if="securityFilterRows.length">
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
-                    <span class="block text-muted-color font-medium">Security Filter Control Room</span>
-                    <div class="mt-1 text-sm text-muted-color">Overview compatta, ordinata per rischio operativo. Click su un bot per aprire o chiudere il dettaglio.</div>
+                    <span class="block text-muted-color font-medium">Control Room — sequenza PLAYER</span>
+                    <div class="mt-1 text-sm text-muted-color">Sempre P1–P8. Filtro 5/8 = avviso; AC3 Filtro 5/8 = intervento.</div>
                 </div>
                 <div class="flex flex-wrap gap-2 text-xs font-semibold">
                     <span class="inline-flex items-center gap-2 rounded-full bg-red-100 px-2.5 py-1 text-red-700 dark:bg-red-900/30 dark:text-red-300">
@@ -1204,27 +1364,24 @@ function selectSecurityFilterBot(row) {
                         <span class="text-sm font-semibold text-muted-color">{{ row.SecurityRiskScore ?? 0 }}/4</span>
                     </div>
 
-                    <div v-if="isPlayerPaceEnabled() && getPlayerPaceVisual(row).active" class="mb-3">
-                        <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Streak PLAYER</div>
-                        <div class="flex items-center gap-1">
+                    <div class="mb-3">
+                        <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">P1 – P8</div>
+                        <div class="flex flex-wrap items-center gap-1">
                             <span
-                                v-for="step in getPlayerPaceVisual(row).steps"
+                                v-for="step in getPlayerStreakSteps(row)"
                                 :key="`${getBotName(row)}-${step.label}`"
                                 class="inline-flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold transition-transform"
                                 :class="getPlayerStepClassCompact(step, row)"
                             >
-                                {{ step.label.replace('P', '') }}
+                                {{ step.label }}
                             </span>
                         </div>
-                        <div
-                            v-if="getPlayerPaceVisual(row).count >= securityFilterSetup.minStreak && getPlayerPaceVisual(row).total > 0"
-                            class="mt-1 text-sm font-bold"
-                            :class="isPlayerStreakRisk(row) ? 'text-orange-600 dark:text-orange-300' : 'text-blue-700 dark:text-blue-300'"
-                        >
-                            P1→P5 {{ formatPlayerPaceSeconds(getPlayerPaceVisual(row).total) }}
-                        </div>
-                        <div v-else-if="getPlayerPaceVisual(row).count > 0" class="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">
-                            {{ getPlayerPaceVisual(row).count }}/{{ securityFilterSetup.minStreak }} PLAYER
+                        <div v-if="isPlayerRace8Ac3(row)" class="mt-1 text-sm font-bold text-orange-600 dark:text-orange-300">AC3 Filtro 8</div>
+                        <div v-else-if="isPlayerRace5Ac3(row)" class="mt-1 text-sm font-bold text-orange-600 dark:text-orange-300">AC3 Filtro 5</div>
+                        <div v-else-if="isPlayerRace8Alert(row)" class="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">Filtro 8</div>
+                        <div v-else-if="isPlayerRace5Alert(row)" class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">Filtro 5</div>
+                        <div v-else-if="getPlayerStreakMetrics(row).count > 0" class="mt-1 text-xs text-blue-700 dark:text-blue-300">
+                            {{ getPlayerStreakMetrics(row).count }}/{{ PLAYER_BLOCK_COUNT }} PLAYER
                         </div>
                     </div>
 
@@ -1235,33 +1392,6 @@ function selectSecurityFilterBot(row) {
                 </button>
             </div>
             </template>
-
-            <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-                <button
-                    v-for="row in securityFilterRows"
-                    :key="`off-${getBotName(row)}`"
-                    type="button"
-                    class="min-h-28 rounded-xl border border-surface-200 bg-surface-50/80 p-4 text-left dark:border-surface-700 dark:bg-surface-900/40"
-                    @click="selectSecurityFilterBot(row)"
-                >
-                    <div class="mb-2 flex items-center justify-between">
-                        <span class="text-lg font-bold">{{ getBotName(row) }}</span>
-                        <span class="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-muted-color dark:bg-surface-700">FILTRO OFF</span>
-                    </div>
-                    <div v-if="isPlayerPaceEnabled() && getPlayerPaceVisual(row).active" class="flex items-center gap-1">
-                        <span
-                            v-for="step in getPlayerPaceVisual(row).steps"
-                            :key="`off-${getBotName(row)}-${step.label}`"
-                            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold"
-                            :class="getPlayerStepClassCompact(step, row)"
-                        >
-                            {{ step.label.replace('P', '') }}
-                        </span>
-                    </div>
-                    <div v-else-if="!isPlayerPaceEnabled()" class="text-xs text-muted-color">Player Pace disattivato</div>
-                    <div v-else class="text-xs text-muted-color">Apri per sequenza PLAYER</div>
-                </button>
-            </div>
 
             <div v-if="selectedSecurityFilterRow" class="mt-5">
                 <div>
@@ -1280,8 +1410,8 @@ function selectSecurityFilterBot(row) {
                         </div>
                     </div>
 
-                    <div v-if="isPlayerPaceEnabled()" class="mb-4 rounded-xl border p-4" :class="getPlayerPacePanelClass(selectedSecurityFilterRow)">
-                        <div class="mb-3 text-lg font-bold text-surface-900 dark:text-surface-0">Sequenza PLAYER</div>
+                    <div class="mb-4 rounded-xl border p-4" :class="getPlayerPacePanelClass(selectedSecurityFilterRow)">
+                        <div class="mb-3 text-lg font-bold text-surface-900 dark:text-surface-0">Sequenza PLAYER (P1 – P8)</div>
 
                         <div v-if="!getPlayerPaceVisual(selectedSecurityFilterRow).available" class="text-base font-semibold text-muted-color">
                             PLAYER pace: dati non disponibili
@@ -1326,25 +1456,8 @@ function selectSecurityFilterBot(row) {
                             </div>
 
                             <div class="mt-4 space-y-1 text-center">
-                                <div
-                                    v-if="getPlayerPaceVisual(selectedSecurityFilterRow).count >= securityFilterSetup.minStreak && getPlayerPaceVisual(selectedSecurityFilterRow).total > 0"
-                                    class="text-2xl font-bold text-surface-900 dark:text-surface-0 sm:text-3xl"
-                                >
-                                    PLAYER P1→P5:
-                                    {{ formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).total) }}
-                                    / soglia {{ getPlayerPaceVisual(selectedSecurityFilterRow).threshold.toFixed(0) }}s
-                                </div>
-                                <div
-                                    v-else
-                                    class="text-xl font-bold text-blue-700 dark:text-blue-300"
-                                >
-                                    Streak PLAYER {{ getPlayerPaceVisual(selectedSecurityFilterRow).count }}/{{ securityFilterSetup.minStreak }}
-                                </div>
-                                <div
-                                    v-if="getPlayerPaceVisual(selectedSecurityFilterRow).mean > 0"
-                                    class="text-lg font-semibold text-surface-800 dark:text-surface-100"
-                                >
-                                    Media: {{ formatPlayerPaceSeconds(getPlayerPaceVisual(selectedSecurityFilterRow).mean) }}
+                                <div class="text-xl font-bold text-blue-700 dark:text-blue-300">
+                                    Streak PLAYER {{ getPlayerPaceVisual(selectedSecurityFilterRow).count }}/{{ PLAYER_BLOCK_COUNT }}
                                 </div>
                                 <div class="text-xl font-bold" :class="getPlayerPaceStatusClass(selectedSecurityFilterRow)">
                                     Stato: {{ getPlayerPaceVisual(selectedSecurityFilterRow).statusLabel }}
@@ -1352,10 +1465,6 @@ function selectSecurityFilterBot(row) {
                             </div>
                         </template>
                     </div>
-                    <div v-else class="mb-4 rounded-xl border border-surface-200 p-4 text-sm font-semibold text-muted-color dark:border-surface-700">
-                        Player Pace disattivato — usa il pulsante in alto per attivarlo.
-                    </div>
-
                     <div v-if="securityFilterOperational" class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
                             <div class="mb-2 font-semibold">Ritmo completo</div>
