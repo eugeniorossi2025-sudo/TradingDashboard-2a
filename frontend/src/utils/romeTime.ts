@@ -31,7 +31,11 @@ const isoDatePartsFormatter = new Intl.DateTimeFormat('en-CA', {
 
 function asDate(value: string | number | Date | null | undefined): Date | null {
     if (!value) return null;
-    const date = value instanceof Date ? value : new Date(value);
+    const normalized =
+        typeof value === 'string' && !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)
+            ? `${value}Z`
+            : value;
+    const date = value instanceof Date ? value : new Date(normalized);
     return Number.isNaN(date.getTime()) ? null : date;
 }
 
