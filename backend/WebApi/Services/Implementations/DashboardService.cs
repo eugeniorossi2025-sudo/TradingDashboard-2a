@@ -334,6 +334,7 @@ public class DashboardService : IDashboardService
         var keys = new[]
         {
             "SECURITY_FILTER_ENABLED",
+            "PLAYER_PACE_FILTER_ENABLED",
             "SECURITY_FILTER_MIN_SCORE",
             "SECURITY_FILTER_MIN_STREAK",
             "SECURITY_FILTER_MAX_SHOE_HAND",
@@ -349,6 +350,11 @@ public class DashboardService : IDashboardService
 
         if (configs.TryGetValue("SECURITY_FILTER_ENABLED", out var enabled))
             result.SecurityFilterEnabled = ParseEnabledFlag(enabled);
+
+        if (configs.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var playerPaceEnabled))
+            result.PlayerPaceFilterEnabled = PlayerPaceFilterController.ParseEnabledFlag(playerPaceEnabled);
+        else
+            result.PlayerPaceFilterEnabled = true;
 
         if (configs.TryGetValue("SECURITY_FILTER_MIN_SCORE", out var minScore) &&
             int.TryParse(minScore, NumberStyles.Integer, CultureInfo.InvariantCulture, out var ms))

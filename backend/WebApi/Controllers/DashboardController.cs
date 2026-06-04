@@ -282,6 +282,7 @@ public class DashboardTelemetry
     public int SpotAuthL6Counter { get; set; }
     public int SpotL5Loss { get; set; }
     public bool SecurityFilterEnabled { get; set; } = true;
+    public bool PlayerPaceFilterEnabled { get; set; } = true;
     public int SecurityFilterMinScore { get; set; } = 3;
     public int SecurityFilterMinStreak { get; set; } = 5;
     public int SecurityFilterMaxShoeHand { get; set; } = 20;

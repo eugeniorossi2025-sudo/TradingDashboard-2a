@@ -49,4 +49,14 @@ export const DashboardService = {
         const response = await apiClient.get(`/api/Dashboard/security-filter/${encodeURIComponent(computer)}`);
         return unwrap<any>(response) ?? null;
     },
+
+    async getPlayerPaceFilter(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/player-pace-filter');
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async setPlayerPaceFilter(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/player-pace-filter', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
 };

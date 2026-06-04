@@ -288,6 +288,13 @@ public static class DbInitializer
                 Description = "Security Filter: score minimo su 4 per mettere in pausa solo quel bot.",
                 Value = "3",
                 Pos = 906
+            },
+            new Configuration
+            {
+                Key = "PLAYER_PACE_FILTER_ENABLED",
+                Description = "Player Pace filter UI: 1 attivo (sequenza P1-P5 e RISCHIO PLAYER), 0 spento.",
+                Value = "1",
+                Pos = 907
             }
         };
 

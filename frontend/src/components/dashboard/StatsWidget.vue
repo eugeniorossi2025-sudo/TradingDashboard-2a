@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { DashboardService } from '@/service/DashboardService';
 
 const props = defineProps({
@@ -20,6 +20,9 @@ const securityFilterDetailUnavailable = ref(false);
 const playerStepPulseByBot = ref({});
 const playerStreakLastCountByBot = ref({});
 const playerPulseTimersByBot = {};
+const playerPaceFilterEnabled = ref(null);
+const playerPaceToggleLoading = ref(false);
+const playerPaceStatusMessage = ref('');
 
 const PLAYER_STEP_PULSE_MS = 1600;
 
@@ -46,6 +49,7 @@ function mergeTelemetryFromApi(api) {
         TotalPauseScalpingSoglieActivated: api.totalPauseScalpingSoglieActivated,
         TotalPauseScalpingEWMAActivated: api.totalPauseScalpingEWMAActivated,
         SecurityFilterEnabled: api.securityFilterEnabled,
+        PlayerPaceFilterEnabled: api.playerPaceFilterEnabled,
         SecurityFilterMinScore: api.securityFilterMinScore,
         SecurityFilterMinStreak: api.securityFilterMinStreak,
         SecurityFilterMaxShoeHand: api.securityFilterMaxShoeHand,
@@ -324,7 +328,68 @@ function getPlayerStreakMetrics(row) {
     return { count, total, mean, intervals, outcome, threshold };
 }
 
+function resolvePlayerPaceEnabledFromTelemetry() {
+    const enabled = telemetryData.value?.PlayerPaceFilterEnabled ?? telemetryData.value?.playerPaceFilterEnabled;
+    if (enabled === true || enabled === false) return enabled;
+    return null;
+}
+
+function isPlayerPaceEnabled() {
+    if (playerPaceFilterEnabled.value === true || playerPaceFilterEnabled.value === false) {
+        return playerPaceFilterEnabled.value;
+    }
+    const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
+    if (fromTelemetry === true || fromTelemetry === false) return fromTelemetry;
+    return true;
+}
+
+async function loadPlayerPaceFilter() {
+    try {
+        const state = await DashboardService.getPlayerPaceFilter();
+        playerPaceFilterEnabled.value = state?.enabled === true;
+    } catch {
+        const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
+        if (fromTelemetry !== null) playerPaceFilterEnabled.value = fromTelemetry;
+    }
+}
+
+async function togglePlayerPaceFilter() {
+    const enabling = !isPlayerPaceEnabled();
+    const confirmed = window.confirm(
+        enabling ? 'Confermi attivazione Player Pace?' : 'Confermi disattivazione Player Pace?'
+    );
+    if (!confirmed) return;
+
+    playerPaceToggleLoading.value = true;
+    playerPaceStatusMessage.value = '';
+    try {
+        const state = await DashboardService.setPlayerPaceFilter(enabling);
+        playerPaceFilterEnabled.value = state?.enabled === true;
+        playerPaceStatusMessage.value = enabling ? 'Player Pace attivato' : 'Player Pace disattivato';
+    } catch {
+        playerPaceStatusMessage.value = 'Errore aggiornamento Player Pace';
+    } finally {
+        playerPaceToggleLoading.value = false;
+    }
+}
+
+onMounted(() => {
+    loadPlayerPaceFilter();
+});
+
+watch(
+    () => props.telemetryParsed,
+    () => {
+        const fromTelemetry = resolvePlayerPaceEnabledFromTelemetry();
+        if (fromTelemetry !== null && playerPaceFilterEnabled.value === null) {
+            playerPaceFilterEnabled.value = fromTelemetry;
+        }
+    },
+    { deep: true }
+);
+
 function isPlayerStreakRisk(row) {
+    if (!isPlayerPaceEnabled()) return false;
     const metrics = getPlayerStreakMetrics(row);
     if (metrics.outcome !== 'P') return false;
     if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) return false;
@@ -351,6 +416,24 @@ function formatPlayerPaceSeconds(value) {
 }
 
 function getPlayerPaceVisual(row) {
+    const threshold = resolvePlayerP1P5Threshold(securityFilterSetup.value.playerP1P5Threshold);
+    if (!isPlayerPaceEnabled()) {
+        return {
+            available: false,
+            active: false,
+            steps: [1, 2, 3, 4, 5].map((n) => ({ label: `P${n}`, filled: false })),
+            deltas: [],
+            status: 'disabled',
+            statusLabel: 'Player Pace disattivato',
+            count: 0,
+            total: 0,
+            mean: 0,
+            intervals: [],
+            outcome: '',
+            threshold
+        };
+    }
+
     const metrics = getPlayerStreakMetrics(row);
     const available = hasPlayerPaceTelemetry(row);
     const active = available && metrics.count > 0 && (metrics.outcome === 'P' || metrics.outcome === '');
@@ -561,7 +644,11 @@ function formatLastTwoDeltas(row) {
 }
 
 function getSummaryPill(row) {
-    if (!isSecurityFilterEnabled()) return 'FILTRO OFF';
+    if (!isSecurityFilterEnabled()) {
+        if (!isPlayerPaceEnabled()) return 'FILTRO OFF';
+        if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+        return 'NORMALE';
+    }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
     if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
@@ -589,18 +676,24 @@ function getScoreDotClass(row, point) {
 }
 
 function getRiskRank(row) {
-    if (!isSecurityFilterEnabled()) return 0;
+    if (!isSecurityFilterEnabled()) {
+        return isPlayerPaceEnabled() && isPlayerStreakRisk(row) ? 1 : 0;
+    }
     const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
-    if (isPlayerStreakRisk(row)) return 1;
+    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 1;
     return 0;
 }
 
 function getRiskLabel(row) {
-    if (!isSecurityFilterEnabled()) return 'DISATTIVATO';
+    if (!isSecurityFilterEnabled()) {
+        if (!isPlayerPaceEnabled()) return 'DISATTIVATO';
+        if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+        return 'NORMALE';
+    }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
-    if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
     return 'NORMALE';
 }
 
@@ -608,7 +701,7 @@ function getRiskStripReason(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'pausa';
     if (isRapidTriggerActive(row)) return 'trigger L5';
     if (Number(row?.SecurityRiskScore ?? 0) >= 3) return `score ${row.SecurityRiskScore}/4`;
-    if (isPlayerStreakRisk(row)) {
+    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
         const metrics = getPlayerStreakMetrics(row);
         return `PLAYER P1→P5 ${metrics.total.toFixed(0)}s ≤ ${metrics.threshold.toFixed(0)}s`;
     }
@@ -648,7 +741,7 @@ function getScoreBlockClass(row, point) {
 function getTriggerLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
     if (isRapidTriggerActive(row)) return 'TRIGGER ON';
-    if (isPlayerStreakRisk(row)) {
+    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
         const metrics = getPlayerStreakMetrics(row);
         return `P1→P5 ${metrics.total.toFixed(0)}s`;
     }
@@ -987,13 +1080,33 @@ function selectSecurityFilterBot(row) {
 
     <div class="col-span-12" v-if="securityFilterRows.length">
         <div class="card">
+            <div class="mb-4 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <div class="text-lg font-bold text-surface-900 dark:text-surface-0">PLAYER PACE</div>
+                    <div class="mt-1 text-sm text-muted-color">
+                        Config <code class="text-xs">PLAYER_PACE_FILTER_ENABLED={{ isPlayerPaceEnabled() ? '1' : '0' }}</code> — separato da
+                        <code class="text-xs">SECURITY_FILTER_ENABLED</code>.
+                    </div>
+                    <div v-if="playerPaceStatusMessage" class="mt-2 text-sm font-semibold text-primary">{{ playerPaceStatusMessage }}</div>
+                </div>
+                <button
+                    type="button"
+                    class="rounded-lg px-4 py-2 text-sm font-bold text-white disabled:opacity-60"
+                    :class="isPlayerPaceEnabled() ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'"
+                    :disabled="playerPaceToggleLoading"
+                    @click="togglePlayerPaceFilter"
+                >
+                    {{ isPlayerPaceEnabled() ? 'DISATTIVA PLAYER PACE' : 'ATTIVA PLAYER PACE' }}
+                </button>
+            </div>
+
             <div
                 v-if="!securityFilterOperational"
                 class="mb-4 rounded-xl border border-surface-300 bg-surface-100 p-4 text-center dark:border-surface-600 dark:bg-surface-900"
             >
                 <div class="text-lg font-bold text-surface-900 dark:text-surface-0">Security Filter disattivato</div>
                 <div class="mt-1 text-sm text-muted-color">
-                    Config <code class="text-xs">SECURITY_FILTER_ENABLED=0</code> — nessun AC3, pausa o blocco L6 da filtro. Player pace resta visibile aprendo un bot.
+                    Config <code class="text-xs">SECURITY_FILTER_ENABLED=0</code> — nessun AC3, pausa o blocco L6 da filtro. Player Pace si gestisce con il pulsante sopra.
                 </div>
             </div>
 
@@ -1062,7 +1175,7 @@ function selectSecurityFilterBot(row) {
                         <span class="text-sm font-semibold text-muted-color">{{ row.SecurityRiskScore ?? 0 }}/4</span>
                     </div>
 
-                    <div v-if="getPlayerPaceVisual(row).active" class="mb-3">
+                    <div v-if="isPlayerPaceEnabled() && getPlayerPaceVisual(row).active" class="mb-3">
                         <div class="mb-1 text-[10px] font-semibold uppercase tracking-wide text-blue-600 dark:text-blue-300">Streak PLAYER</div>
                         <div class="flex items-center gap-1">
                             <span
@@ -1106,7 +1219,7 @@ function selectSecurityFilterBot(row) {
                         <span class="text-lg font-bold">{{ getBotName(row) }}</span>
                         <span class="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-muted-color dark:bg-surface-700">FILTRO OFF</span>
                     </div>
-                    <div v-if="getPlayerPaceVisual(row).active" class="flex items-center gap-1">
+                    <div v-if="isPlayerPaceEnabled() && getPlayerPaceVisual(row).active" class="flex items-center gap-1">
                         <span
                             v-for="step in getPlayerPaceVisual(row).steps"
                             :key="`off-${getBotName(row)}-${step.label}`"
@@ -1116,6 +1229,7 @@ function selectSecurityFilterBot(row) {
                             {{ step.label.replace('P', '') }}
                         </span>
                     </div>
+                    <div v-else-if="!isPlayerPaceEnabled()" class="text-xs text-muted-color">Player Pace disattivato</div>
                     <div v-else class="text-xs text-muted-color">Apri per sequenza PLAYER</div>
                 </button>
             </div>
@@ -1137,7 +1251,7 @@ function selectSecurityFilterBot(row) {
                         </div>
                     </div>
 
-                    <div class="mb-4 rounded-xl border p-4" :class="getPlayerPacePanelClass(selectedSecurityFilterRow)">
+                    <div v-if="isPlayerPaceEnabled()" class="mb-4 rounded-xl border p-4" :class="getPlayerPacePanelClass(selectedSecurityFilterRow)">
                         <div class="mb-3 text-lg font-bold text-surface-900 dark:text-surface-0">Sequenza PLAYER</div>
 
                         <div v-if="!getPlayerPaceVisual(selectedSecurityFilterRow).available" class="text-base font-semibold text-muted-color">
@@ -1208,6 +1322,9 @@ function selectSecurityFilterBot(row) {
                                 </div>
                             </div>
                         </template>
+                    </div>
+                    <div v-else class="mb-4 rounded-xl border border-surface-200 p-4 text-sm font-semibold text-muted-color dark:border-surface-700">
+                        Player Pace disattivato — usa il pulsante in alto per attivarlo.
                     </div>
 
                     <div v-if="securityFilterOperational" class="grid grid-cols-1 gap-3 md:grid-cols-2">
