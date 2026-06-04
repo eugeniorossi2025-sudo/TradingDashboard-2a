@@ -1,0 +1,77 @@
+name: DASH2A Orphan Window Accounting Proof SQL
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type ORPHAN_SQL_READONLY to run orphan-window-accounting-proof.sql"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  proof:
+    name: Read-only orphan window SQL (14:25:10–18:32:29)
+    if: ${{ github.event.inputs.confirm == 'ORPHAN_SQL_READONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Guard read-only scope
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'ORPHAN_SQL_READONLY') {
+            throw 'Manual confirmation input is invalid.'
+          }
+          Write-Host 'READ ONLY: orphan-window-accounting-proof.sql — no writes.'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run orphan-window-accounting-proof.sql on runtime SQL 1434
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            throw 'DefaultConnection missing from shared production config.'
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+
+          $sqlFile = Join-Path $env:GITHUB_WORKSPACE 'ops\dash2a-readiness\orphan-window-accounting-proof.sql'
+          if (-not (Test-Path -LiteralPath $sqlFile)) {
+            throw "SQL script not found: $sqlFile"
+          }
+
+          $server = $parts['Server']
+          $db = $parts['Database']
+          $user = $parts['User Id']
+          $pass = $parts['Password']
+
+          Write-Host ""
+          Write-Host "=== orphan-window-accounting-proof.sql ==="
+          sqlcmd -S $server -U $user -P $pass -d $db -i $sqlFile -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed with exit code $LASTEXITCODE" }
