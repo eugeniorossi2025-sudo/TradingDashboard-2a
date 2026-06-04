@@ -1,5 +1,6 @@
 /*
   DASH2A Root Owner — READ ONLY verify UserId 13 before bootstrap
+  (Does not reference IsRootOwner — column may not exist yet.)
 */
 SET NOCOUNT ON;
 
@@ -11,20 +12,6 @@ BEGIN
     RETURN;
 END
 
-IF COL_LENGTH('dbo.Users_v2', 'IsRootOwner') IS NULL
-BEGIN
-    PRINT 'NOTE: IsRootOwner column not present yet — bootstrap will add it.';
-    SELECT Id, UserName, Email, Admin, LockoutEnd
-    FROM dbo.Users_v2
-    WHERE Id = 13;
-END
-ELSE
-BEGIN
-    SELECT Id, UserName, Email, Admin, IsRootOwner, LockoutEnd
-    FROM dbo.Users_v2
-    WHERE Id = 13;
-
-    SELECT Id, UserName, IsRootOwner
-    FROM dbo.Users_v2
-    WHERE IsRootOwner = 1;
-END
+SELECT Id, UserName, Email, Admin, LockoutEnd
+FROM dbo.Users_v2
+WHERE Id = 13;
