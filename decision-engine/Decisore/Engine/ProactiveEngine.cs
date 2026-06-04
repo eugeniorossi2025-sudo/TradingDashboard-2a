@@ -570,6 +570,11 @@ namespace Decisore.Engine
                                 ? $"L6 Bloccato (Trigger rapido L5)"
                                 : $"L6 Bloccato (Security Filter)";
                         }
+                        else if (isHotZone)
+                        {
+                            advice.StopL6 = true;
+                            advice.Reason = "L6 Bloccato (Hot Zone)";
+                        }
                         else if (SPOT_L6_PER_BOT_ENABLED && botSecurity.SpotL6Authorized)
                         {
                             advice.StopL6 = false;

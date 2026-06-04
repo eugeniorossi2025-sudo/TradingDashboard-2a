@@ -182,5 +182,48 @@ var advReuse = cons.FeedAndDecide("PC1", 1, 108, 0, 'B', 'B', 10, 6, "Sculping",
 Assert(cons.getSecurityFilterBot("PC1")?.SpotL6GrantedCount == 2, "secondo 5->6 dopo 2 nuove L5: grant=2");
 Assert(cons.getSecurityFilterBot("PC1")?.SpotL6Authorized == false, "secondo consumo: auth di nuovo spenta");
 
+// Hot Zone + SPOT per-bot (legacy globale OFF)
+static ProactiveEngine HotZoneEngine(int threshold = 2) => new()
+{
+    SPOT_RESET_THRESHOLD_L5 = threshold,
+    HOT_ZONES = new (int from, int to)[] { (0, 20), (45, 80) },
+    SECURITY_FILTER_ENABLED = false,
+    PLAYER_RACE_5_FILTER_ENABLED = false,
+    PLAYER_RACE_5_AC3_ENABLED = false,
+    PLAYER_RACE_8_FILTER_ENABLED = false,
+    PLAYER_RACE_8_AC3_ENABLED = false
+};
+
+var hzAuth = HotZoneEngine();
+L5Loss(hzAuth, "HZ1", 1);
+L5Loss(hzAuth, "HZ1", 2);
+Assert(hzAuth.getSecurityFilterBot("HZ1")?.SpotL6Authorized == true, "hot1: SpotL6Authorized prima L5 in HZ");
+var hzBlock = L5Loss(hzAuth, "HZ1", 10);
+Assert(hzBlock.HotZone, "hot1: HotZone=true su mazzo 10");
+Assert(hzBlock.StopL6, "hot1: L5 perso in HZ => StopL6");
+Assert(hzBlock.Reason == "L6 Bloccato (Hot Zone)", "hot1: Reason Hot Zone");
+Assert(hzBlock.ActionCode == 2, "hot1: ActionCode=2 (AC2)");
+
+var hzOpen = HotZoneEngine();
+L5Loss(hzOpen, "HZ2", 1);
+L5Loss(hzOpen, "HZ2", 2);
+var hzAllow = L5Loss(hzOpen, "HZ2", 30);
+Assert(!hzAllow.HotZone, "hot2: HotZone=false su mazzo 30");
+Assert(!hzAllow.StopL6, "hot2: fuori HZ => StopL6 false");
+Assert(hzAllow.Reason.Contains("L6 AUTORIZZATO", StringComparison.Ordinal), "hot2: SPOT L6 autorizzato");
+
+var hzProg = HotZoneEngine();
+var hzOne = L5Loss(hzProg, "HZ3", 30);
+Assert(!hzOne.StopL6, "hot3: 1/2 fuori HZ => no StopL6");
+Assert(hzOne.Reason.Contains("1/2", StringComparison.Ordinal), "hot3: reason progresso SPOT");
+
+var hzL6 = HotZoneEngine();
+L5Loss(hzL6, "HZ4", 1);
+L5Loss(hzL6, "HZ4", 2);
+var hzSix = hzL6.FeedAndDecide("HZ4", 1, 10, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(hzSix.HotZone, "hot4: L6 in HZ flag true");
+Assert(!hzSix.StopL6, "hot4: mart>=6 non imposta StopL6 da HZ");
+Assert(hzSix.Reason == "Autorizzazione [L6 - L8] concessa", "hot4: reason L6+ invariato");
+
 if (Environment.ExitCode == 0)
     Console.WriteLine("PASS spot-reset per-bot smoke");
