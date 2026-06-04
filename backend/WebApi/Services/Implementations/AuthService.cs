@@ -61,31 +61,28 @@ public class AuthService : IAuthService
             return null;
         }
 
-        // Sincronizza il campo Admin con i ruoli di Identity (mai degradare root owner)
-        var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
-
-        if (!user.IsRootOwner)
+        // Post-login DB sync must never block authentication (trigger/Identity errors → 401 otherwise).
+        try
         {
-            if (user.Admin && !isInAdminRole)
+            var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
+
+            if (!user.IsRootOwner)
+            {
+                if (user.Admin && !isInAdminRole)
+                    await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
+            }
+            else if (!isInAdminRole)
             {
                 await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-                _logger.LogInformation($"Added Admin role to user: {username}");
             }
-            else if (!user.Admin && isInAdminRole)
-            {
-                await _userManager.RemoveFromRoleAsync(user, AuthConstants.Roles.Admin);
-                _logger.LogInformation($"Removed Admin role from user: {username}");
-            }
-        }
-        else if (!isInAdminRole)
-        {
-            await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-            // Do not set user.Admin or UpdateAsync here — TR_Users_v2_RootOwnerProtect blocks Admin changes.
-        }
 
-        // Aggiorna LastLogin (allowed by root-owner trigger; does not touch protected columns)
-        user.LastLogin = DateTime.UtcNow;
-        await _userManager.UpdateAsync(user);
+            user.LastLogin = DateTime.UtcNow;
+            await _userManager.UpdateAsync(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Post-login sync failed for {Username}; issuing JWT anyway", username);
+        }
 
         _logger.LogInformation($"User logged in successfully: {username}");
         return await GenerateJwtToken(user);

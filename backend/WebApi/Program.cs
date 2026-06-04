@@ -123,8 +123,11 @@ using (var scope = app.Services.CreateScope())
 
         await WebApi.Data.DbInitializer.Initialize(services, app.Configuration);
 
-        var rootOwnerSchema = services.GetRequiredService<WebApi.Services.IRootOwnerSchemaService>();
-        await rootOwnerSchema.EnsureSchemaAsync();
+        if (app.Configuration.GetValue<bool>("RootOwner:EnsureSchemaOnStartup", false))
+        {
+            var rootOwnerSchema = services.GetRequiredService<WebApi.Services.IRootOwnerSchemaService>();
+            await rootOwnerSchema.EnsureSchemaAsync();
+        }
     }
     catch (Exception ex)
     {

@@ -17,15 +17,17 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly IUserAccessTracker _accessTracker;
+    private readonly ILogger<AuthController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="AuthController"/> class.
     /// </summary>
     /// <param name="authService">The authentication service.</param>
-    public AuthController(IAuthService authService, IUserAccessTracker accessTracker)
+    public AuthController(IAuthService authService, IUserAccessTracker accessTracker, ILogger<AuthController> logger)
     {
         _authService = authService;
         _accessTracker = accessTracker;
+        _logger = logger;
     }
 
     /// <summary>
@@ -38,23 +40,24 @@ public class AuthController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
+        var response = await _authService.LoginAsync(request.Username, request.Password);
+        if (response == null)
+            return Unauthorized("Invalid username or password");
+
         try
         {
-            var response = await _authService.LoginAsync(request.Username, request.Password);
-            if (response != null)
-            {
-                var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(response.Token);
-                var userIdValue = token.Claims.FirstOrDefault(c => c.Type == WebApi.Constants.AuthConstants.Claims.UserId)?.Value;
-                var username = token.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value ?? request.Username;
-                int.TryParse(userIdValue, out var userId);
-                await _accessTracker.TrackAsync(userId == 0 ? null : userId, username, "LOGIN", "/auth/login", HttpContext);
-            }
-            return Ok(response);
+            var token = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(response.Token);
+            var userIdValue = token.Claims.FirstOrDefault(c => c.Type == WebApi.Constants.AuthConstants.Claims.UserId)?.Value;
+            var username = token.Claims.FirstOrDefault(c => c.Type == System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.UniqueName)?.Value ?? request.Username;
+            int.TryParse(userIdValue, out var userId);
+            await _accessTracker.TrackAsync(userId == 0 ? null : userId, username, "LOGIN", "/auth/login", HttpContext);
         }
-        catch
+        catch (Exception ex)
         {
-            return Unauthorized("Invalid username or password");
+            _logger.LogWarning(ex, "LOGIN audit track failed for {Username}; login still succeeds", request.Username);
         }
+
+        return Ok(response);
     }
 
     /// <summary>
