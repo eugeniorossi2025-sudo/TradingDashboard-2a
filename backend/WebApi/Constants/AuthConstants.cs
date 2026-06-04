@@ -24,6 +24,7 @@ public static class AuthConstants
         public const string RequireUser = "RequireUser";
         public const string RequireBotOperator = "RequireBotOperator";
         public const string RequireAdminOrBotOperator = "RequireAdminOrBotOperator";
+        public const string RequireRootOwner = "RequireRootOwner";
     }
 
     /// <summary>
@@ -33,7 +34,14 @@ public static class AuthConstants
     {
         public const string UserId = "userId";
         public const string IsAdmin = "isAdmin";
+        public const string IsRootOwner = "isRootOwner";
         public const string Permissions = "permissions";
+    }
+
+    public static class RootOwnerErrorCodes
+    {
+        public const string RootOwnerOnly = "ROOT_OWNER_ONLY";
+        public const string RootOwnerProtected = "ROOT_OWNER_PROTECTED";
     }
 
     /// <summary>

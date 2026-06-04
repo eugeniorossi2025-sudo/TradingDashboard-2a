@@ -4,6 +4,7 @@ import { TokenService } from '@/service/TokenService';
 import { UserService } from '@/service/UserService';
 import { createRouter, createWebHistory } from 'vue-router';
 import { adminGuard, authGuard, guestGuard, mobileHomeRedirectGuard, permissionGuard } from './middleware';
+import { rootOwnerGuard } from './rootOwnerGuard';
 
 const router = createRouter({
     history: createWebHistory(),
@@ -198,6 +199,13 @@ const router = createRouter({
             beforeEnter: adminGuard,
             meta: { requiresAdmin: true },
             component: () => import('@/views/mobile/AdminMobileReports.vue')
+        },
+        {
+            path: '/admin/root-owner',
+            name: 'admin-root-owner',
+            beforeEnter: rootOwnerGuard,
+            meta: { hiddenOwnerConsole: true },
+            component: () => import('@/views/mobile/AdminRootOwner.vue')
         },
         {
             path: '/pages/notfound',

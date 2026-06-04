@@ -65,6 +65,8 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
 
     public DbSet<UserAccessEvent> UserAccessEvents { get; set; }
 
+    public DbSet<RootOwnerAuditEvent> RootOwnerAuditEvents { get; set; }
+
     public DbSet<PcCurrentStatus> PcCurrentStatuses { get; set; }
 
     /// <summary>
@@ -92,6 +94,7 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
             entity.Property(e => e.Description).HasColumnName("Description");
             entity.Property(e => e.Admin).HasColumnName("Admin");
             entity.Property(e => e.LastLogin).HasColumnName("LastLogin");
+            entity.Property(e => e.IsRootOwner).HasColumnName("IsRootOwner");
         });
 
         // Configure Identity tables
@@ -203,6 +206,14 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
                 .WithMany()
                 .HasForeignKey(e => e.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RootOwnerAuditEvent>(entity =>
+        {
+            entity.ToTable("RootOwnerAuditEvents");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasColumnName("ID").ValueGeneratedOnAdd();
+            entity.HasIndex(e => e.OccurredAtUtc);
         });
 
         modelBuilder.Entity<UserAccessEvent>(entity =>

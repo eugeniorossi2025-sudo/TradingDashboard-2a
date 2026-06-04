@@ -1,9 +1,11 @@
 <script setup>
 import { useAuth } from '@/composables/useAuth';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
+const route = useRoute();
 const { isAuthenticated, currentUser } = useAuth();
+const denialCode = route.query.code;
 
 const goBack = () => {
     router.go(-1);
@@ -24,7 +26,12 @@ const goToDashboard = () => {
                             <i class="pi pi-fw pi-lock !text-2xl text-orange-500"></i>
                         </div>
                         <h1 class="text-surface-900 dark:text-surface-0 font-bold text-5xl mb-2">Accesso Negato</h1>
-                        <span class="text-muted-color mb-4 text-center max-w-md"> Non hai i permessi necessari per accedere a questa risorsa. </span>
+                        <span class="text-muted-color mb-4 text-center max-w-md">
+                            <template v-if="denialCode === 'ROOT_OWNER_ONLY'">
+                                Accesso riservato al proprietario (403 ROOT_OWNER_ONLY).
+                            </template>
+                            <template v-else> Non hai i permessi necessari per accedere a questa risorsa. </template>
+                        </span>
                         <div v-if="isAuthenticated && currentUser" class="text-center mb-8">
                             <p class="text-surface-600 dark:text-surface-400">
                                 Utente: <strong>{{ currentUser.username }}</strong>

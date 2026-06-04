@@ -128,6 +128,9 @@ public static class ServiceCollectionExtensions
                 policy.RequireAssertion(context =>
                     context.User.HasClaim(c => c.Type == AuthConstants.Claims.IsAdmin && c.Value == "true") ||
                     context.User.HasClaim(c => c.Type == AuthConstants.Claims.Permissions && c.Value.Contains("bot.manage"))));
+
+            options.AddPolicy(AuthConstants.Policies.RequireRootOwner, policy =>
+                policy.RequireClaim(AuthConstants.Claims.IsRootOwner, "true"));
         });
 
         // Add Application Services
@@ -142,6 +145,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ICommandService, CommandService>();
         services.AddScoped<IUserGridConfigurationService, UserGridConfigurationService>();
         services.AddScoped<IUserAccessTracker, UserAccessTracker>();
+        services.AddScoped<IRootOwnerGuard, RootOwnerGuard>();
+        services.AddScoped<IRootOwnerAuditService, RootOwnerAuditService>();
+        services.AddScoped<IRootOwnerSchemaService, RootOwnerSchemaService>();
         services.AddScoped<IEmailSender, SmtpEmailSender>();
         services.AddScoped<IMissionReportBuilder, MissionReportBuilder>();
         services.AddScoped<IPushNotificationService, PushNotificationService>();

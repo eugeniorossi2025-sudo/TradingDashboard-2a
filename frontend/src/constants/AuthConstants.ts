@@ -18,6 +18,7 @@ export const AuthConstants = {
      */
     Claims: {
         IsAdmin: 'isAdmin',
+        IsRootOwner: 'isRootOwner',
         Permissions: 'permissions',
         Role: 'role',
         UserId: 'sub',

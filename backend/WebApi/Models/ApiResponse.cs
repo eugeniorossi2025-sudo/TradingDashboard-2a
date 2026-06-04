@@ -27,6 +27,11 @@ public class ApiResponse<T>
     public List<string> Errors { get; set; }
 
     /// <summary>
+    /// Optional machine-readable error code (e.g. ROOT_OWNER_ONLY).
+    /// </summary>
+    public string? Code { get; set; }
+
+    /// <summary>
     /// Gets or sets the timestamp of the response.
     /// </summary>
     public DateTime Timestamp { get; set; }
@@ -55,12 +60,13 @@ public class ApiResponse<T>
     /// <param name="message">The error message.</param>
     /// <param name="errors">The list of errors.</param>
     /// <returns>An error API response.</returns>
-    public static ApiResponse<T> ErrorResponse(string message, List<string> errors = null)
+    public static ApiResponse<T> ErrorResponse(string message, List<string> errors = null, string? code = null)
     {
         return new ApiResponse<T>
         {
             Success = false,
             Message = message,
+            Code = code,
             Data = default,
             Errors = errors ?? new List<string>(),
             Timestamp = DateTime.UtcNow

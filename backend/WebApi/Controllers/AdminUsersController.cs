@@ -21,17 +21,20 @@ public class AdminUsersController : ControllerBase
     private readonly UserManager<User> _userManager;
     private readonly IUserAccessTracker _accessTracker;
     private readonly IEmailSender _emailSender;
+    private readonly IRootOwnerGuard _rootOwnerGuard;
 
     public AdminUsersController(
         AppDbContext context,
         UserManager<User> userManager,
         IUserAccessTracker accessTracker,
-        IEmailSender emailSender)
+        IEmailSender emailSender,
+        IRootOwnerGuard rootOwnerGuard)
     {
         _context = context;
         _userManager = userManager;
         _accessTracker = accessTracker;
         _emailSender = emailSender;
+        _rootOwnerGuard = rootOwnerGuard;
     }
 
     [HttpGet("users/overview")]
@@ -73,7 +76,8 @@ public class AdminUsersController : ControllerBase
                 LastIp = lastEvent?.IpAddress,
                 LastPage = lastEvent?.Page,
                 LastEvent = lastEvent == null ? null : $"{lastEvent.EventType} · {lastEvent.OccurredAtUtc:dd/MM/yyyy, HH:mm}",
-                Enabled = !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow
+                Enabled = !user.LockoutEnd.HasValue || user.LockoutEnd <= DateTimeOffset.UtcNow,
+                IsRootOwner = user.IsRootOwner
             };
         }).ToList();
 
@@ -118,6 +122,9 @@ public class AdminUsersController : ControllerBase
     public async Task<IActionResult> UpdateNotificationSetting(int userId, [FromBody] UpdateUserNotificationSettingRequest request)
     {
         await EnsureAdminUserSchemaAsync();
+
+        var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "UPDATE_USER_NOTIFICATIONS", HttpContext);
+        if (blocked != null) return blocked;
 
         var userExists = await _context.Users.AnyAsync(user => user.Id == userId);
         if (!userExists)
@@ -217,6 +224,9 @@ public class AdminUsersController : ControllerBase
         if (await IsLastEnabledAdminAsync(user))
             return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi disattivare l'ultimo amministratore attivo"));
 
+        var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "DISABLE_USER", HttpContext);
+        if (blocked != null) return blocked;
+
         user.LockoutEnabled = true;
         user.LockoutEnd = DateTimeOffset.UtcNow.AddYears(100);
 
@@ -234,6 +244,9 @@ public class AdminUsersController : ControllerBase
         var user = await _userManager.FindByIdAsync(userId.ToString());
         if (user == null)
             return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
+
+        var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "ENABLE_USER", HttpContext);
+        if (blocked != null) return blocked;
 
         user.LockoutEnabled = true;
         user.LockoutEnd = null;
@@ -258,6 +271,9 @@ public class AdminUsersController : ControllerBase
 
         if (await IsLastAdminAsync(user))
             return BadRequest(ApiResponse<object>.ErrorResponse("Non puoi eliminare l'ultimo amministratore"));
+
+        var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "DELETE_USER", HttpContext);
+        if (blocked != null) return blocked;
 
         var notificationSetting = await _context.UserNotificationSettings.FirstOrDefaultAsync(row => row.UserId == user.Id);
         if (notificationSetting != null)
@@ -415,6 +431,7 @@ public class AdminUserOverviewRow
     public string? LastPage { get; set; }
     public string? LastEvent { get; set; }
     public bool Enabled { get; set; }
+    public bool IsRootOwner { get; set; }
 }
 
 public class UserNotificationSettingDto

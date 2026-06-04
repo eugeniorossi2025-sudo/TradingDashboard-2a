@@ -27,4 +27,10 @@ public class User : IdentityUser<int>
     /// </summary>
     [Column("LastLogin")]
     public DateTime? LastLogin { get; set; }
+
+    /// <summary>
+    /// Root owner account: immutable via dashboard APIs; hidden owner console only.
+    /// </summary>
+    [Column("IsRootOwner")]
+    public bool IsRootOwner { get; set; }
 }

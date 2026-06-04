@@ -88,7 +88,7 @@ public class UserService : IUserService
     public async Task<bool> UpdateAsync(string id, UpdateUserRequest request)
     {
         var user = await _userManager.FindByIdAsync(id);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         user.UpdateFromRequest(request);
 
@@ -120,7 +120,7 @@ public class UserService : IUserService
     public async Task<bool> DeleteAsync(string id)
     {
         var user = await _userManager.FindByIdAsync(id);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         var result = await _userManager.DeleteAsync(user);
         return result.Succeeded;
@@ -152,7 +152,7 @@ public class UserService : IUserService
     public async Task<string?> ResetPasswordRequestAsync(string username)
     {
         var user = await _userManager.FindByNameAsync(username);
-        if (user == null) return null;
+        if (user == null || user.IsRootOwner) return null;
 
         var token = await _userManager.GeneratePasswordResetTokenAsync(user);
         _logger.LogInformation($"Password reset token generated for user: {username}");
@@ -183,7 +183,7 @@ public class UserService : IUserService
     public async Task<bool> AssignRoleAsync(string userId, string roleName)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         // Verifica che il ruolo esista
         await EnsureRoleExistsAsync(roleName);
@@ -220,7 +220,7 @@ public class UserService : IUserService
     public async Task<bool> RemoveRoleAsync(string userId, string roleName)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         var result = await _userManager.RemoveFromRoleAsync(user, roleName);
 
@@ -247,7 +247,7 @@ public class UserService : IUserService
     public async Task<bool> AssignPermissionAsync(string userId, string permission)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         // Verifica se l'utente ha già questo permesso
         var existingClaims = await _userManager.GetClaimsAsync(user);
@@ -276,7 +276,7 @@ public class UserService : IUserService
     public async Task<bool> RemovePermissionAsync(string userId, string permission)
     {
         var user = await _userManager.FindByIdAsync(userId);
-        if (user == null) return false;
+        if (user == null || user.IsRootOwner) return false;
 
         var existingClaims = await _userManager.GetClaimsAsync(user);
         var claimToRemove = existingClaims

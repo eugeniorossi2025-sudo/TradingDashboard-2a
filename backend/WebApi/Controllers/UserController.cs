@@ -20,16 +20,18 @@ public class UserController : ControllerBase
 {
     private readonly IUserService _userService;
     private readonly RoleManager<Role> _roleManager;
+    private readonly IRootOwnerGuard _rootOwnerGuard;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="UserController"/> class.
     /// </summary>
     /// <param name="userService">The user service.</param>
     /// <param name="roleManager">The role manager for retrieving roles from database.</param>
-    public UserController(IUserService userService, RoleManager<Role> roleManager)
+    public UserController(IUserService userService, RoleManager<Role> roleManager, IRootOwnerGuard rootOwnerGuard)
     {
         _userService = userService;
         _roleManager = roleManager;
+        _rootOwnerGuard = rootOwnerGuard;
     }
 
     /// <summary>
@@ -118,6 +120,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Delete(string id)
     {
+        if (int.TryParse(id, out var userId))
+        {
+            var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "DELETE_USER", HttpContext);
+            if (blocked != null) return blocked;
+        }
+
         var result = await _userService.DeleteAsync(id);
         if (!result) return NotFound(ApiResponse<object>.ErrorResponse("User not found"));
         return Ok(ApiResponse<object>.SuccessResponse(new object(), "User deleted successfully"));
@@ -152,6 +160,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AssignRole(string id, [FromBody] AssignRoleRequest request)
     {
+        if (int.TryParse(id, out var userId))
+        {
+            var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "ASSIGN_ROLE", HttpContext);
+            if (blocked != null) return blocked;
+        }
+
         var result = await _userService.AssignRoleAsync(id, request.RoleName);
         if (!result) return NotFound(ApiResponse<object>.ErrorResponse("User not found or role assignment failed"));
         return Ok(ApiResponse<object>.SuccessResponse(new object(), $"Role '{request.RoleName}' assigned successfully"));
@@ -169,6 +183,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemoveRole(string id, string roleName)
     {
+        if (int.TryParse(id, out var userId))
+        {
+            var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "REMOVE_ROLE", HttpContext);
+            if (blocked != null) return blocked;
+        }
+
         var result = await _userService.RemoveRoleAsync(id, roleName);
         if (!result) return NotFound(ApiResponse<object>.ErrorResponse("User not found or role removal failed"));
         return Ok(ApiResponse<object>.SuccessResponse(new object(), $"Role '{roleName}' removed successfully"));
@@ -187,6 +207,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AssignPermission(string id, [FromBody] AssignPermissionRequest request)
     {
+        if (int.TryParse(id, out var userId))
+        {
+            var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "ASSIGN_PERMISSION", HttpContext);
+            if (blocked != null) return blocked;
+        }
+
         var result = await _userService.AssignPermissionAsync(id, request.Permission);
         if (!result) return NotFound(ApiResponse<object>.ErrorResponse("User not found or permission assignment failed"));
         return Ok(ApiResponse<object>.SuccessResponse(new object(), $"Permission '{request.Permission}' assigned successfully"));
@@ -204,6 +230,12 @@ public class UserController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> RemovePermission(string id, string permission)
     {
+        if (int.TryParse(id, out var userId))
+        {
+            var blocked = await _rootOwnerGuard.BlockTargetMutationAsync(userId, "REMOVE_PERMISSION", HttpContext);
+            if (blocked != null) return blocked;
+        }
+
         var result = await _userService.RemovePermissionAsync(id, permission);
         if (!result) return NotFound(ApiResponse<object>.ErrorResponse("User not found or permission removal failed"));
         return Ok(ApiResponse<object>.SuccessResponse(new object(), $"Permission '{permission}' removed successfully"));

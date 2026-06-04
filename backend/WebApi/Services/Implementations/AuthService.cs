@@ -61,20 +61,27 @@ public class AuthService : IAuthService
             return null;
         }
 
-        // Sincronizza il campo Admin con i ruoli di Identity
+        // Sincronizza il campo Admin con i ruoli di Identity (mai degradare root owner)
         var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
 
-        if (user.Admin && !isInAdminRole)
+        if (!user.IsRootOwner)
         {
-            // Se Admin=true ma non è nel ruolo, aggiungilo
-            await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-            _logger.LogInformation($"Added Admin role to user: {username}");
+            if (user.Admin && !isInAdminRole)
+            {
+                await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
+                _logger.LogInformation($"Added Admin role to user: {username}");
+            }
+            else if (!user.Admin && isInAdminRole)
+            {
+                await _userManager.RemoveFromRoleAsync(user, AuthConstants.Roles.Admin);
+                _logger.LogInformation($"Removed Admin role from user: {username}");
+            }
         }
-        else if (!user.Admin && isInAdminRole)
+        else if (!isInAdminRole)
         {
-            // Se Admin=false ma è nel ruolo, rimuovilo
-            await _userManager.RemoveFromRoleAsync(user, AuthConstants.Roles.Admin);
-            _logger.LogInformation($"Removed Admin role from user: {username}");
+            await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
+            user.Admin = true;
+            await _userManager.UpdateAsync(user);
         }
 
         // Aggiorna LastLogin
@@ -128,6 +135,12 @@ public class AuthService : IAuthService
             return false;
         }
 
+        if (user.IsRootOwner)
+        {
+            _logger.LogWarning($"Password reset blocked for root owner: {email}");
+            return false;
+        }
+
         var result = await _userManager.ResetPasswordAsync(user, token, newPassword);
         
         if (result.Succeeded)
@@ -155,7 +168,7 @@ public class AuthService : IAuthService
 
         // Ottieni i ruoli dell'utente
         var roles = await _userManager.GetRolesAsync(user);
-        var isAdmin = roles.Contains(AuthConstants.Roles.Admin);
+        var isAdmin = user.IsRootOwner || roles.Contains(AuthConstants.Roles.Admin);
 
         var claims = new List<Claim>
         {
@@ -164,6 +177,7 @@ public class AuthService : IAuthService
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? ""),
             new Claim(AuthConstants.Claims.UserId, user.Id.ToString()),
             new Claim(AuthConstants.Claims.IsAdmin, isAdmin.ToString().ToLower()),
+            new Claim(AuthConstants.Claims.IsRootOwner, user.IsRootOwner.ToString().ToLower()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

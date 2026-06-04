@@ -41,8 +41,11 @@ function formatDate(value) {
                 <div class="flex flex-wrap gap-2">
                     <Button label="Dettagli" size="small" severity="secondary" outlined @click="$emit('details', data)" />
                     <Button v-if="!adminBlock" label="Report accessi" size="small" severity="secondary" outlined @click="$emit('report', data)" />
-                    <Button :label="data.enabled ? 'Disattiva' : 'Riattiva'" size="small" :severity="data.enabled ? 'warn' : 'success'" outlined @click="$emit('toggle-enabled', data)" />
-                    <Button label="Elimina" size="small" severity="danger" outlined @click="$emit('delete', data)" />
+                    <template v-if="!data.isRootOwner">
+                        <Button :label="data.enabled ? 'Disattiva' : 'Riattiva'" size="small" :severity="data.enabled ? 'warn' : 'success'" outlined @click="$emit('toggle-enabled', data)" />
+                        <Button label="Elimina" size="small" severity="danger" outlined @click="$emit('delete', data)" />
+                    </template>
+                    <Tag v-else value="Root Owner protetto" severity="warning" />
                 </div>
             </template>
         </Column>

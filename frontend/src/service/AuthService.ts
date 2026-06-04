@@ -12,6 +12,7 @@ export interface CurrentUser {
     username: string;
     description: string;
     isAdmin: boolean;
+    isRootOwner: boolean;
     roles: string[];
     permissions: string[];
     token: string;
@@ -55,6 +56,7 @@ loadUserFromStorage();
 export const AuthService = {
     isAuthenticated: computed(() => !!currentUser.value),
     isAdmin: computed(() => currentUser.value?.isAdmin || false),
+    isRootOwner: computed(() => currentUser.value?.isRootOwner || false),
     currentUser: computed(() => currentUser.value),
 
     /**
@@ -99,6 +101,13 @@ export const AuthService = {
             if (!isAdmin && roles.some(r => r.toLowerCase() === 'admin')) {
                 isAdmin = true;
             }
+
+            let isRootOwner = false;
+            if (decodedToken) {
+                const rootClaim =
+                    decodedToken[AuthConstants.Claims.IsRootOwner] || decodedToken['isRootOwner'] || decodedToken['IsRootOwner'];
+                isRootOwner = rootClaim === 'true' || rootClaim === true;
+            }
             
             // Extract permissions from token
             let permissions: string[] = [];
@@ -125,6 +134,7 @@ export const AuthService = {
                 username: decodedToken?.unique_name || username,
                 description: '',
                 isAdmin: isAdmin,
+                isRootOwner: isRootOwner,
                 roles: roles,
                 permissions: permissions,
                 token: loginData.token,

@@ -1,0 +1,76 @@
+name: DASH2A Root Owner Bootstrap
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "ROOT_OWNER_VERIFY (readonly) or ROOT_OWNER_BOOTSTRAP (schema+UserId 13)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  root-owner-sql:
+    name: Root owner SQL on runtime 1434
+    if: ${{ github.event.inputs.confirm == 'ROOT_OWNER_VERIFY' || github.event.inputs.confirm == 'ROOT_OWNER_BOOTSTRAP' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Guard
+        shell: powershell
+        run: |
+          $c = '${{ github.event.inputs.confirm }}'
+          if ($c -ne 'ROOT_OWNER_VERIFY' -and $c -ne 'ROOT_OWNER_BOOTSTRAP') {
+            throw 'Invalid confirm. Use ROOT_OWNER_VERIFY or ROOT_OWNER_BOOTSTRAP.'
+          }
+          Write-Host "Mode: $c"
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run SQL
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+
+          $base = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness'
+          $verifySql = Join-Path $base 'root-owner-verify-user-13.sql'
+          if (-not (Test-Path -LiteralPath $verifySql)) { throw "Missing $verifySql" }
+
+          Write-Host '=== VERIFY UserId 13 ==='
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] -i $verifySql -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "verify sqlcmd failed" }
+
+          if ('${{ github.event.inputs.confirm }}' -eq 'ROOT_OWNER_BOOTSTRAP') {
+            $bootstrapSql = Join-Path $base 'root-owner-schema.sql'
+            if (-not (Test-Path -LiteralPath $bootstrapSql)) { throw "Missing $bootstrapSql" }
+            Write-Host '=== BOOTSTRAP schema + IsRootOwner=1 for Id 13 ==='
+            sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] -i $bootstrapSql -W -s "|"
+            if ($LASTEXITCODE -ne 0) { throw "bootstrap sqlcmd failed" }
+            Write-Host 'BOOTSTRAP_OK — re-login UserId 13 on mobile for JWT isRootOwner claim.'
+          }
