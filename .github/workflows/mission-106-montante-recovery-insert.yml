@@ -1,0 +1,77 @@
+name: DASH2A Mission 106 Montante Recovery INSERT
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type INSERT_MISSION_106_MONTANTE to run INSERT + verify SQL"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  insert-and-verify:
+    name: Insert mission 106 then verify
+    if: ${{ github.event.inputs.confirm == 'INSERT_MISSION_106_MONTANTE' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Guard insert scope
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'INSERT_MISSION_106_MONTANTE') {
+            throw 'Manual confirmation input is invalid.'
+          }
+          Write-Host 'INSERT: 02-insert then 03-verify — mission #105 must remain unchanged.'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run INSERT and verify on runtime SQL 1434
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            throw 'DefaultConnection missing from shared production config.'
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+
+          $base = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/mission-106-montante-recovery'
+          $insertSql = Join-Path $base '02-insert-mission-106-montante-recovery.sql'
+          $verifySql = Join-Path $base '03-verify-mission-106-montante-recovery.sql'
+          foreach ($f in @($insertSql, $verifySql)) {
+            if (-not (Test-Path -LiteralPath $f)) { throw "SQL script not found: $f" }
+          }
+
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] `
+            -v Confirm="INSERT_MISSION_106_MONTANTE" -i $insertSql -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "INSERT sqlcmd failed with exit code $LASTEXITCODE" }
+
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] `
+            -i $verifySql -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "VERIFY sqlcmd failed with exit code $LASTEXITCODE" }

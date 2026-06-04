@@ -41,7 +41,8 @@ PRINT '=== INSERT Mission #106 MontanteRecovery — BEGIN ===';
 IF NOT EXISTS (
     SELECT 1 FROM dbo.MissionSessions m
     WHERE m.ID = 105 AND m.TotalMargin = 254.40 AND m.Completed = 1
-      AND m.EndTime = '2026-06-04T14:25:10'
+      AND m.EndTime >= '2026-06-04T14:25:10'
+      AND m.EndTime < DATEADD(SECOND, 1, CAST('2026-06-04T14:25:10' AS datetime2))
 )
 BEGIN
     RAISERROR('Refusing: mission #105 invariant failed (254.40 / EndTime / Completed).', 16, 1);

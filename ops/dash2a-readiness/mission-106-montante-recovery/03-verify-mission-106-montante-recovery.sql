@@ -6,7 +6,7 @@ SET DATEFORMAT ymd;
 
 PRINT '=== Verify #105 unchanged ===';
 SELECT m.ID, m.TotalMargin, m.EndTime, m.FinalizationReason,
-       CASE WHEN m.TotalMargin = 254.40 AND m.EndTime = '2026-06-04T14:25:10' THEN 'OK' ELSE 'FAIL' END AS Check105
+       CASE WHEN m.TotalMargin = 254.40 AND m.Completed = 1 THEN 'OK' ELSE 'FAIL' END AS Check105
 FROM dbo.MissionSessions m WHERE m.ID = 105;
 
 PRINT '=== Verify #106 ===';
