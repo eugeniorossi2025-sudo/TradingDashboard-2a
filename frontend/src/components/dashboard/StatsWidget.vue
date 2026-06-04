@@ -209,8 +209,10 @@ const securityFilterRiskStrip = computed(() => {
 
 const hasSecurityFilterRisk = computed(() => securityFilterRows.value.some((row) => getRiskRank(row) >= 1));
 
+const securityFilterOperational = computed(() => isSecurityFilterEnabled());
+
 const securityFilterSetup = computed(() => ({
-    enabled: telemetryData.value?.SecurityFilterEnabled !== false,
+    enabled: securityFilterOperational.value,
     minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
     minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
     maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
@@ -494,7 +496,9 @@ function formatHandsRange(minValue, maxValue) {
 }
 
 function isSecurityFilterEnabled() {
-    return telemetryData.value?.SecurityFilterEnabled !== false;
+    const enabled =
+        telemetryData.value?.SecurityFilterEnabled ?? telemetryData.value?.securityFilterEnabled;
+    return enabled === true;
 }
 
 function getSecurityFilterStatus(row) {
@@ -558,6 +562,7 @@ function formatLastTwoDeltas(row) {
 }
 
 function getSummaryPill(row) {
+    if (!isSecurityFilterEnabled()) return 'FILTRO OFF';
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
     if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
@@ -585,6 +590,7 @@ function getScoreDotClass(row, point) {
 }
 
 function getRiskRank(row) {
+    if (!isSecurityFilterEnabled()) return 0;
     const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
     if (isPlayerStreakRisk(row)) return 1;
@@ -592,6 +598,7 @@ function getRiskRank(row) {
 }
 
 function getRiskLabel(row) {
+    if (!isSecurityFilterEnabled()) return 'DISATTIVATO';
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
     if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
@@ -868,8 +875,8 @@ function selectSecurityFilterBot(row) {
     <div class="col-span-12 mt-6">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
             <h3 class="text-xl font-semibold m-0">Security Filter (sperimentale)</h3>
-            <span class="text-sm" :class="telemetryData?.SecurityFilterEnabled === false ? 'text-red-500' : 'text-green-500'">
-                {{ telemetryData?.SecurityFilterEnabled === false ? 'Disattivato da Config' : 'Attivo da Config' }}
+            <span class="text-sm" :class="securityFilterOperational ? 'text-green-500' : 'text-red-500'">
+                {{ securityFilterOperational ? 'Attivo da Config' : 'Disattivato da Config' }}
             </span>
         </div>
     </div>
@@ -981,6 +988,17 @@ function selectSecurityFilterBot(row) {
 
     <div class="col-span-12" v-if="securityFilterRows.length">
         <div class="card">
+            <div
+                v-if="!securityFilterOperational"
+                class="mb-4 rounded-xl border border-surface-300 bg-surface-100 p-4 text-center dark:border-surface-600 dark:bg-surface-900"
+            >
+                <div class="text-lg font-bold text-surface-900 dark:text-surface-0">Security Filter disattivato</div>
+                <div class="mt-1 text-sm text-muted-color">
+                    Config <code class="text-xs">SECURITY_FILTER_ENABLED=0</code> — nessun AC3, pausa o blocco L6 da filtro. Player pace resta visibile aprendo un bot.
+                </div>
+            </div>
+
+            <template v-if="securityFilterOperational">
             <div class="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                 <div>
                     <span class="block text-muted-color font-medium">Security Filter Control Room</span>
@@ -1075,6 +1093,33 @@ function selectSecurityFilterBot(row) {
                     </div>
                 </button>
             </div>
+            </template>
+
+            <div v-else class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <button
+                    v-for="row in securityFilterRows"
+                    :key="`off-${getBotName(row)}`"
+                    type="button"
+                    class="min-h-28 rounded-xl border border-surface-200 bg-surface-50/80 p-4 text-left dark:border-surface-700 dark:bg-surface-900/40"
+                    @click="selectSecurityFilterBot(row)"
+                >
+                    <div class="mb-2 flex items-center justify-between">
+                        <span class="text-lg font-bold">{{ getBotName(row) }}</span>
+                        <span class="rounded-full bg-surface-200 px-2 py-0.5 text-xs font-semibold text-muted-color dark:bg-surface-700">FILTRO OFF</span>
+                    </div>
+                    <div v-if="getPlayerPaceVisual(row).active" class="flex items-center gap-1">
+                        <span
+                            v-for="step in getPlayerPaceVisual(row).steps"
+                            :key="`off-${getBotName(row)}-${step.label}`"
+                            class="inline-flex h-7 w-7 items-center justify-center rounded-md text-[10px] font-bold"
+                            :class="getPlayerStepClassCompact(step, row)"
+                        >
+                            {{ step.label.replace('P', '') }}
+                        </span>
+                    </div>
+                    <div v-else class="text-xs text-muted-color">Apri per sequenza PLAYER</div>
+                </button>
+            </div>
 
             <div v-if="selectedSecurityFilterRow" class="mt-5">
                 <div>
@@ -1166,7 +1211,7 @@ function selectSecurityFilterBot(row) {
                         </template>
                     </div>
 
-                    <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <div v-if="securityFilterOperational" class="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <div class="rounded-xl bg-surface-0 p-3 text-sm dark:bg-surface-900">
                             <div class="mb-2 font-semibold">Ritmo completo</div>
                             <div class="flex flex-col gap-1 leading-tight">
