@@ -202,7 +202,8 @@ public class MissionController : ControllerBase
                     EndUtc = session.EndTime,
                     Completed = session.Completed,
                     RuntimeMode = session.RuntimeMode,
-                    TotalMarginEuro = summary?.NetPnl ?? 0m,
+                    TotalMarginEuro = session.TotalMargin,
+                    PeriodNetPnlEuro = summary?.NetPnl ?? 0m,
                     FinalMarginEuro = summary?.FinalMargin ?? 0m,
                     GlobalTargetEuro = session.GlobalTarget,
                     KFactor = session.KFactor,
@@ -381,7 +382,10 @@ public class MissionReportSession
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public string RuntimeMode { get; set; } = "Production";
+    /// <summary>Margine missione ufficiale a chiusura (DB MissionSessions.TotalMargin).</summary>
+    public decimal MissionMarginEuro { get; set; }
     public decimal TotalMarginEuro { get; set; }
+    public decimal PeriodNetPnlEuro { get; set; }
     public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
     public int ActiveTables { get; set; }
@@ -405,6 +409,8 @@ public class MissionReportsIndexItem
     public bool Completed { get; set; }
     public string RuntimeMode { get; set; } = "Production";
     public decimal TotalMarginEuro { get; set; }
+    /// <summary>Delta sample nella finestra contabile (non è il margine missione a chiusura).</summary>
+    public decimal PeriodNetPnlEuro { get; set; }
     public decimal FinalMarginEuro { get; set; }
     public decimal GlobalTargetEuro { get; set; }
     public decimal KFactor { get; set; }

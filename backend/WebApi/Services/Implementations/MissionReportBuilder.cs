@@ -112,6 +112,7 @@ public class MissionReportBuilder : IMissionReportBuilder
                 StartTime = s.StartTime,
                 EndTime = s.EndTime,
                 RuntimeMode = s.RuntimeMode,
+                MissionMarginEuro = s.TotalMargin,
                 GlobalTargetEuro = s.GlobalTarget,
                 ActiveTables = s.ActiveTables,
                 RealHandsCount = s.RealHandsCount
@@ -133,8 +134,9 @@ public class MissionReportBuilder : IMissionReportBuilder
         foreach (var session in report.Sessions)
         {
             var summary = sampleSummaries.GetValueOrDefault(session.SessionId);
-            session.TotalMarginEuro = summary?.NetPnl ?? 0m;
+            session.PeriodNetPnlEuro = summary?.NetPnl ?? 0m;
             session.FinalMarginEuro = summary?.FinalMargin ?? 0m;
+            session.TotalMarginEuro = session.MissionMarginEuro;
         }
 
         var dailyRows = BuildDailyRows(report.Samples, fromDate, toDateExclusive, investedCapitalBase);
@@ -151,8 +153,9 @@ public class MissionReportBuilder : IMissionReportBuilder
             ? 0m
             : report.Sessions.Max(s => s.GlobalTargetEuro);
 
+        var missionMarginSum = Math.Round(report.Sessions.Sum(s => s.MissionMarginEuro), 2);
         report.Totals.PeriodResultEuro = periodResult;
-        report.Totals.TotalMarginEuro = periodResult;
+        report.Totals.TotalMarginEuro = missionMarginSum;
         report.Totals.FinalMarginEuro = Math.Round(report.Sessions.Sum(s => s.FinalMarginEuro), 2);
         report.Totals.GlobalTargetEuro = target;
         report.Totals.ProgressPct = target == 0 ? 0 : Math.Round(periodResult / target * 100, 2);
@@ -176,7 +179,7 @@ public class MissionReportBuilder : IMissionReportBuilder
     private static void EnsureReportCoherence(MissionRangeReportResponse report)
     {
         var periodResult = Math.Round(report.Totals.PeriodResultEuro, 2);
-        var sessionSum = Math.Round(report.Sessions.Sum(s => s.TotalMarginEuro), 2);
+        var sessionSum = Math.Round(report.Sessions.Sum(s => s.PeriodNetPnlEuro), 2);
         var dailySum = Math.Round(report.DailyRows.Sum(r => r.NetPnl), 2);
         var lastCurve = Math.Round(report.DailyRows.LastOrDefault()?.CumulativePnl ?? 0m, 2);
 
