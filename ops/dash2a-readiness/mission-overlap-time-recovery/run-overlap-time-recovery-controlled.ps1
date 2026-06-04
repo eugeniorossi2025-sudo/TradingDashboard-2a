@@ -19,14 +19,14 @@ function Get-ConnParts([string]$Cs) {
 function Invoke-SqlFile([string]$Server, [string]$Database, [string]$User, [string]$Password, [string]$FilePath) {
     Write-Host ""
     Write-Host "==> $FilePath"
-    $out = sqlcmd -S $Server -d $Database -U $User -P $Password -i $FilePath -W -b 2>&1
+    $out = sqlcmd -S $Server -d $Database -U $User -P $Password -I -i $FilePath -W -b 2>&1
     $out | ForEach-Object { Write-Host $_ }
     if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed ($FilePath) exit=$LASTEXITCODE" }
     return ($out | Out-String)
 }
 
 function Invoke-SqlQuery([string]$Server, [string]$Database, [string]$User, [string]$Password, [string]$Query) {
-    $out = sqlcmd -S $Server -d $Database -U $User -P $Password -Q $Query -W -h-1 -b 2>&1
+    $out = sqlcmd -S $Server -d $Database -U $User -P $Password -I -Q $Query -W -h-1 -b 2>&1
     if ($LASTEXITCODE -ne 0) { throw "sqlcmd query failed exit=$LASTEXITCODE" }
     return ($out | Out-String)
 }

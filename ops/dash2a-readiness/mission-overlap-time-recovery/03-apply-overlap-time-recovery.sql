@@ -5,6 +5,8 @@
   Prerequisiti: 01 dry-run OK, 02 backup eseguito.
 */
 SET NOCOUNT ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_NULLS ON;
 SET XACT_ABORT ON;
 
 BEGIN TRANSACTION;

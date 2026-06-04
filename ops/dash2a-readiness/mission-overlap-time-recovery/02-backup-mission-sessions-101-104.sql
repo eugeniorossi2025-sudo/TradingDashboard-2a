@@ -4,14 +4,9 @@
 */
 SET NOCOUNT ON;
 
-DECLARE @BackupTable sysname = N'MissionSessions_bkp_overlap_time_' + CONVERT(varchar(8), GETUTCDATE(), 112);
+DECLARE @BackupTable sysname = N'MissionSessions_bkp_overlap_time_' + CONVERT(varchar(8), GETUTCDATE(), 112)
+    + N'_' + REPLACE(CONVERT(varchar(8), GETUTCDATE(), 108), ':', '');
 DECLARE @sql nvarchar(max);
-
-IF OBJECT_ID(N'dbo.' + @BackupTable, N'U') IS NOT NULL
-BEGIN
-    RAISERROR('Backup table already exists for today: %s. Use a new suffix or drop manually after review.', 16, 1, @BackupTable);
-    RETURN;
-END
 
 SET @sql = N'SELECT * INTO dbo.' + QUOTENAME(@BackupTable) + N' FROM dbo.MissionSessions WHERE ID IN (101, 102, 103, 104);';
 EXEC sp_executesql @sql;
