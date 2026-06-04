@@ -1,5 +1,7 @@
 namespace WebApi.Services;
 
+using System.Text.Json.Serialization;
+
 public interface IMissionLifecycleService
 {
     Task<MissionLifecycleState> GetCurrentAsync(CancellationToken cancellationToken = default);
@@ -8,6 +10,39 @@ public interface IMissionLifecycleService
     Task<MissionLifecycleResult?> ObserveLiveStateAsync(CancellationToken cancellationToken = default);
     Task RecordResetBoundaryAsync(CancellationToken cancellationToken = default);
     Task<int> SendMissionEmailAsync(int sessionId, string eventType, CancellationToken cancellationToken = default);
+    Task<MissionOpenSessionsSnapshot> GetOpenSessionsSnapshotAsync(CancellationToken cancellationToken = default);
+    Task<MissionAccountingHealth> GetAccountingHealthAsync(CancellationToken cancellationToken = default);
+    Task<MissionRecoveryResult> RecoverMultipleOpenSessionsAsync(CancellationToken cancellationToken = default);
+    Task EnsureAccountingInvariantAtStartupAsync(CancellationToken cancellationToken = default);
+}
+
+public sealed class MissionOpenSessionsSnapshot
+{
+    public int Count { get; set; }
+    public IReadOnlyList<int> SessionIds { get; set; } = Array.Empty<int>();
+    public int? CanonicalSessionId { get; set; }
+}
+
+public sealed class MissionAccountingHealth
+{
+    public bool Healthy => MultipleOpenSessions.Count <= 1;
+
+    [JsonPropertyName("MULTIPLE_OPEN_SESSIONS")]
+    public MissionOpenSessionsCheck MultipleOpenSessions { get; set; } = new();
+}
+
+public sealed class MissionOpenSessionsCheck
+{
+    public int Count { get; set; }
+    public IReadOnlyList<int> SessionIds { get; set; } = Array.Empty<int>();
+}
+
+public sealed class MissionRecoveryResult
+{
+    public bool RecoveryPerformed { get; set; }
+    public int OpenCountBefore { get; set; }
+    public IReadOnlyList<int> FinalizedSessionIds { get; set; } = Array.Empty<int>();
+    public int? KeptSessionId { get; set; }
 }
 
 public class MissionLifecycleState

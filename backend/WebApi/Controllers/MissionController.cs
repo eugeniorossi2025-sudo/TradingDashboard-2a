@@ -41,6 +41,14 @@ public class MissionController : ControllerBase
         return Ok(ApiResponse<MissionLifecycleState>.SuccessResponse(current));
     }
 
+    [HttpGet("accounting-health")]
+    [ProducesResponseType(typeof(ApiResponse<MissionAccountingHealth>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAccountingHealth(CancellationToken cancellationToken)
+    {
+        var health = await _missionLifecycleService.GetAccountingHealthAsync(cancellationToken);
+        return Ok(ApiResponse<MissionAccountingHealth>.SuccessResponse(health));
+    }
+
     [HttpPost("start-current")]
     [Authorize(Policy = AuthConstants.Policies.RequireAdmin)]
     [ProducesResponseType(typeof(ApiResponse<MissionLifecycleResult>), StatusCodes.Status200OK)]

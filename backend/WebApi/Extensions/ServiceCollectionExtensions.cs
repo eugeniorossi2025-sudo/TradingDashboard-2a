@@ -149,6 +149,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IL7AlertWatchService, L7AlertWatchService>();
         
         // Add Background Services
+        services.AddHostedService<MissionAccountingStartupHostedService>();
         services.AddHostedService<DashboardUpdateService>();
 
         return services;

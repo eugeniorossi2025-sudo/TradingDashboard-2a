@@ -1,3 +1,4 @@
+using System.Data;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -15,6 +16,8 @@ public class MissionLifecycleService : IMissionLifecycleService
     private const string StopWinKey = "STOP_WIN";
     private const string MissionLastResetAtKey = "MISSION_LAST_RESET_AT_UTC";
     private const string MissionSuppressStartUntilResetKey = "MISSION_SUPPRESS_START_UNTIL_RESET";
+    private const string MissionAccountingRecoveryAtKey = "MISSION_ACCOUNTING_RECOVERY_AT_UTC";
+    private const string MultipleOpenRecoveryReason = "MultipleOpenRecovery";
     private const int OnlineWindowMinutes = 5;
 
     private readonly AppDbContext _context;
@@ -79,9 +82,97 @@ public class MissionLifecycleService : IMissionLifecycleService
         };
     }
 
+    public async Task<MissionOpenSessionsSnapshot> GetOpenSessionsSnapshotAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureMissionReportSchemaAsync(cancellationToken);
+        var ids = await _context.MissionSessions
+            .AsNoTracking()
+            .Where(session => !session.Completed)
+            .OrderByDescending(session => session.StartTime)
+            .Select(session => session.Id)
+            .ToListAsync(cancellationToken);
+
+        return new MissionOpenSessionsSnapshot
+        {
+            Count = ids.Count,
+            SessionIds = ids,
+            CanonicalSessionId = ids.Count > 0 ? ids[0] : null
+        };
+    }
+
+    public async Task<MissionAccountingHealth> GetAccountingHealthAsync(CancellationToken cancellationToken = default)
+    {
+        var snapshot = await GetOpenSessionsSnapshotAsync(cancellationToken);
+        return new MissionAccountingHealth
+        {
+            MultipleOpenSessions = new MissionOpenSessionsCheck
+            {
+                Count = snapshot.Count,
+                SessionIds = snapshot.SessionIds
+            }
+        };
+    }
+
+    public async Task<MissionRecoveryResult> RecoverMultipleOpenSessionsAsync(CancellationToken cancellationToken = default)
+    {
+        await EnsureMissionReportSchemaAsync(cancellationToken);
+
+        var openSessions = await _context.MissionSessions
+            .Where(session => !session.Completed)
+            .OrderByDescending(session => session.StartTime)
+            .ToListAsync(cancellationToken);
+
+        if (openSessions.Count <= 1)
+        {
+            return new MissionRecoveryResult
+            {
+                OpenCountBefore = openSessions.Count,
+                KeptSessionId = openSessions.FirstOrDefault()?.Id
+            };
+        }
+
+        var ids = openSessions.Select(session => session.Id).ToList();
+        _logger.LogCritical(
+            "MULTIPLE_OPEN_SESSIONS detected: count={Count} ids=[{Ids}]. Finalizing stale sessions, keeping #{KeepId}.",
+            openSessions.Count,
+            string.Join(",", ids),
+            openSessions[0].Id);
+
+        var finalizedIds = new List<int>();
+        foreach (var stale in openSessions.Skip(1))
+        {
+            await FinalizeSessionAsync(stale, MultipleOpenRecoveryReason, cancellationToken, sendMissionEmail: false);
+            finalizedIds.Add(stale.Id);
+        }
+
+        await RecordRecoveryEventAsync(openSessions.Count, finalizedIds, openSessions[0].Id, cancellationToken);
+
+        return new MissionRecoveryResult
+        {
+            RecoveryPerformed = true,
+            OpenCountBefore = openSessions.Count,
+            FinalizedSessionIds = finalizedIds,
+            KeptSessionId = openSessions[0].Id
+        };
+    }
+
+    public async Task EnsureAccountingInvariantAtStartupAsync(CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Mission accounting startup invariant check starting");
+        var recovery = await RecoverMultipleOpenSessionsAsync(cancellationToken);
+        if (recovery.RecoveryPerformed)
+        {
+            _logger.LogWarning(
+                "Mission accounting startup recovery completed: finalized [{FinalizedIds}], kept #{KeptId}",
+                string.Join(",", recovery.FinalizedSessionIds),
+                recovery.KeptSessionId);
+        }
+    }
+
     public async Task<MissionLifecycleResult?> ObserveLiveStateAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
+        await RecoverMultipleOpenSessionsAsync(cancellationToken);
 
         var open = await _context.MissionSessions
             .Where(session => !session.Completed)
@@ -140,6 +231,7 @@ public class MissionLifecycleService : IMissionLifecycleService
     public async Task<MissionLifecycleResult> StartCurrentAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
+        await RecoverMultipleOpenSessionsAsync(cancellationToken);
 
         var existing = await _context.MissionSessions
             .Where(session => !session.Completed)
@@ -172,6 +264,7 @@ public class MissionLifecycleService : IMissionLifecycleService
     public async Task<MissionLifecycleResult> FinalizeCurrentAsync(string reason, CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);
+        await RecoverMultipleOpenSessionsAsync(cancellationToken);
 
         var session = await _context.MissionSessions
             .Where(row => !row.Completed)
@@ -189,91 +282,7 @@ public class MissionLifecycleService : IMissionLifecycleService
             };
         }
 
-        var now = DateTime.UtcNow;
-        var activeTables = await GetActiveTablesAsync(cancellationToken);
-        var currentMargin = await GetCurrentMarginAsync(cancellationToken);
-        var marginPoints = await _context.Margini
-            .AsNoTracking()
-            .Where(point => point.Data.HasValue && point.Data.Value >= session.StartTime && point.Data.Value <= now)
-            .OrderBy(point => point.Data)
-            .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
-            .ToListAsync(cancellationToken);
-
-        var existingTimestamps = await _context.MissionMarginSamples
-            .Where(sample => sample.SessionId == session.Id)
-            .Select(sample => sample.Timestamp)
-            .ToListAsync(cancellationToken);
-        var timestampSet = existingTimestamps.ToHashSet();
-
-        var newSamples = new List<MissionMarginSample>();
-        foreach (var point in marginPoints)
-        {
-            if (timestampSet.Contains(point.Timestamp))
-                continue;
-
-            newSamples.Add(new MissionMarginSample
-            {
-                SessionId = session.Id,
-                Timestamp = point.Timestamp,
-                TotalMargin = point.Margin,
-                ActiveTables = activeTables,
-                VmCurrent = point.Margin,
-                RuntimeMode = session.RuntimeMode
-            });
-        }
-
-        if (!timestampSet.Contains(now))
-        {
-            newSamples.Add(new MissionMarginSample
-            {
-                SessionId = session.Id,
-                Timestamp = now,
-                TotalMargin = currentMargin,
-                ActiveTables = activeTables,
-                VmCurrent = currentMargin,
-                RuntimeMode = session.RuntimeMode
-            });
-        }
-
-        if (newSamples.Count > 0)
-            _context.MissionMarginSamples.AddRange(newSamples);
-
-        session.EndTime = now;
-        session.TotalMargin = currentMargin;
-        session.ActiveTables = activeTables;
-        session.RealHandsCount = await GetRealHandsCountAsync(session.StartTime, now, cancellationToken);
-        session.Completed = true;
-        session.ReportPublishedAt = now;
-        session.FinalizationReason = string.IsNullOrWhiteSpace(reason) ? "ManualFinalize" : reason;
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var emailSent = await SendMissionEmailAsync(session.Id, "finalized", cancellationToken);
-
-        return new MissionLifecycleResult
-        {
-            Success = true,
-            Message = "Missione finalizzata",
-            MissionFinalized = true,
-            MissionSessionId = session.Id,
-            EmailSent = emailSent,
-            Mission = new MissionLifecycleState
-            {
-                HasOpenMission = false,
-                SessionId = session.Id,
-                RuntimeMode = session.RuntimeMode,
-                StartTime = session.StartTime,
-                EndTime = session.EndTime,
-                CurrentMargin = currentMargin,
-                TotalMargin = session.TotalMargin,
-                GlobalTarget = session.GlobalTarget,
-                ActiveTables = session.ActiveTables,
-                RealHandsCount = session.RealHandsCount,
-                SamplesCount = await _context.MissionMarginSamples.CountAsync(sample => sample.SessionId == session.Id, cancellationToken),
-                Completed = true,
-                FinalizationReason = session.FinalizationReason
-            }
-        };
+        return await FinalizeSessionAsync(session, reason, cancellationToken);
     }
 
     public async Task<int> SendMissionEmailAsync(int sessionId, string eventType, CancellationToken cancellationToken = default)
@@ -418,8 +427,20 @@ public class MissionLifecycleService : IMissionLifecycleService
         return string.Equals(value, Demo, StringComparison.OrdinalIgnoreCase) ? Demo : Production;
     }
 
-    private async Task<MissionLifecycleResult> StartMissionFromFirstMarginPointAsync(DateTime startTime, decimal startMargin, CancellationToken cancellationToken)
+    private async Task<MissionLifecycleResult?> StartMissionFromFirstMarginPointAsync(DateTime startTime, decimal startMargin, CancellationToken cancellationToken)
     {
+        await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+
+        var openCount = await _context.MissionSessions.CountAsync(session => !session.Completed, cancellationToken);
+        if (openCount > 0)
+        {
+            await transaction.RollbackAsync(cancellationToken);
+            _logger.LogWarning(
+                "Mission start blocked: {OpenCount} open session(s) already exist (invariant: at most one).",
+                openCount);
+            return null;
+        }
+
         var now = DateTime.UtcNow;
         var runtimeMode = await GetCurrentModeAsync(cancellationToken);
         var activeTables = await GetActiveTablesAsync(cancellationToken);
@@ -450,6 +471,7 @@ public class MissionLifecycleService : IMissionLifecycleService
             RuntimeMode = runtimeMode
         });
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         var emailSent = await SendMissionEmailAsync(session.Id, "started", cancellationToken);
 
@@ -462,6 +484,123 @@ public class MissionLifecycleService : IMissionLifecycleService
             EmailSent = emailSent,
             Mission = await GetCurrentAsync(cancellationToken)
         };
+    }
+
+    private async Task<MissionLifecycleResult> FinalizeSessionAsync(
+        MissionSession session,
+        string reason,
+        CancellationToken cancellationToken,
+        bool sendMissionEmail = true)
+    {
+        var now = DateTime.UtcNow;
+        var activeTables = await GetActiveTablesAsync(cancellationToken);
+        var currentMargin = await GetCurrentMarginAsync(cancellationToken);
+        var marginPoints = await _context.Margini
+            .AsNoTracking()
+            .Where(point => point.Data.HasValue && point.Data.Value >= session.StartTime && point.Data.Value <= now)
+            .OrderBy(point => point.Data)
+            .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
+            .ToListAsync(cancellationToken);
+
+        var existingTimestamps = await _context.MissionMarginSamples
+            .Where(sample => sample.SessionId == session.Id)
+            .Select(sample => sample.Timestamp)
+            .ToListAsync(cancellationToken);
+        var timestampSet = existingTimestamps.ToHashSet();
+
+        var newSamples = new List<MissionMarginSample>();
+        foreach (var point in marginPoints)
+        {
+            if (timestampSet.Contains(point.Timestamp))
+                continue;
+
+            newSamples.Add(new MissionMarginSample
+            {
+                SessionId = session.Id,
+                Timestamp = point.Timestamp,
+                TotalMargin = point.Margin,
+                ActiveTables = activeTables,
+                VmCurrent = point.Margin,
+                RuntimeMode = session.RuntimeMode
+            });
+        }
+
+        if (!timestampSet.Contains(now))
+        {
+            newSamples.Add(new MissionMarginSample
+            {
+                SessionId = session.Id,
+                Timestamp = now,
+                TotalMargin = currentMargin,
+                ActiveTables = activeTables,
+                VmCurrent = currentMargin,
+                RuntimeMode = session.RuntimeMode
+            });
+        }
+
+        if (newSamples.Count > 0)
+            _context.MissionMarginSamples.AddRange(newSamples);
+
+        session.EndTime = now;
+        session.TotalMargin = currentMargin;
+        session.ActiveTables = activeTables;
+        session.RealHandsCount = await GetRealHandsCountAsync(session.StartTime, now, cancellationToken);
+        session.Completed = true;
+        session.ReportPublishedAt = now;
+        session.FinalizationReason = string.IsNullOrWhiteSpace(reason) ? "ManualFinalize" : reason;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var emailSent = 0;
+        if (sendMissionEmail)
+            emailSent = await SendMissionEmailAsync(session.Id, "finalized", cancellationToken);
+
+        return new MissionLifecycleResult
+        {
+            Success = true,
+            Message = "Missione finalizzata",
+            MissionFinalized = true,
+            MissionSessionId = session.Id,
+            EmailSent = emailSent,
+            Mission = new MissionLifecycleState
+            {
+                HasOpenMission = false,
+                SessionId = session.Id,
+                RuntimeMode = session.RuntimeMode,
+                StartTime = session.StartTime,
+                EndTime = session.EndTime,
+                CurrentMargin = currentMargin,
+                TotalMargin = session.TotalMargin,
+                GlobalTarget = session.GlobalTarget,
+                ActiveTables = session.ActiveTables,
+                RealHandsCount = session.RealHandsCount,
+                SamplesCount = await _context.MissionMarginSamples.CountAsync(sample => sample.SessionId == session.Id, cancellationToken),
+                Completed = true,
+                FinalizationReason = session.FinalizationReason
+            }
+        };
+    }
+
+    private async Task RecordRecoveryEventAsync(
+        int openCountBefore,
+        IReadOnlyList<int> finalizedSessionIds,
+        int keptSessionId,
+        CancellationToken cancellationToken)
+    {
+        var payload = JsonSerializer.Serialize(new
+        {
+            atUtc = DateTime.UtcNow,
+            openCountBefore,
+            finalizedSessionIds,
+            keptSessionId,
+            reason = MultipleOpenRecoveryReason
+        });
+
+        await SetConfigurationValueAsync(
+            MissionAccountingRecoveryAtKey,
+            payload,
+            "Last mission accounting recovery for multiple open sessions (MULTIPLE_OPEN_SESSIONS).",
+            cancellationToken);
     }
 
     private async Task<PbtTelemetry?> GetLatestPbtTelemetryAsync(CancellationToken cancellationToken)

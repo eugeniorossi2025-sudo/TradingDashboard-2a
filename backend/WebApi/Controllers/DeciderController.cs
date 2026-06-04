@@ -56,6 +56,7 @@ public class DeciderController : ControllerBase
         client.Timeout = TimeSpan.FromSeconds(15);
         try
         {
+            await _missionLifecycleService.RecoverMultipleOpenSessionsAsync(cancellationToken);
             var missionResult = await _missionLifecycleService.FinalizeCurrentAsync("ResetDashboard", cancellationToken);
             var response = await client.GetAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)
