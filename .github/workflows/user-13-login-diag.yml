@@ -1,0 +1,71 @@
+name: DASH2A User 13 Login Diagnostic
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type USER_13_LOGIN_DIAG to run read-only SQL for UserId 13"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  diag:
+    name: User 13 login readonly SQL
+    if: ${{ github.event.inputs.confirm == 'USER_13_LOGIN_DIAG' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run diag-user-13-login-readonly.sql
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+          $sql = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/diag-user-13-login-readonly.sql'
+          if (-not (Test-Path -LiteralPath $sql)) { throw "Missing $sql" }
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] -i $sql -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed" }
+
+      - name: Probe API login (no password in logs)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $base = 'https://vps-b0942869.vps.ovh.net/api/Auth'
+          try {
+            $test = Invoke-RestMethod -Uri "$base/test" -Method Get -TimeoutSec 15
+            Write-Host "AUTH_TEST_OK=$($test.success)"
+          } catch {
+            Write-Host "AUTH_TEST_FAILED=$($_.Exception.Message)"
+          }
+          foreach ($u in @('Eugenio', 'Eugenio@dash2a.local', 'admin')) {
+            try {
+              $body = @{ username = $u; password = '___invalid_probe___' } | ConvertTo-Json
+              $r = Invoke-WebRequest -Uri "$base/login" -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 15 -SkipHttpErrorCheck
+              Write-Host "PROBE user=$u status=$($r.StatusCode) bodyLen=$($r.Content.Length)"
+            } catch {
+              Write-Host "PROBE user=$u error=$($_.Exception.Message)"
+            }
+          }

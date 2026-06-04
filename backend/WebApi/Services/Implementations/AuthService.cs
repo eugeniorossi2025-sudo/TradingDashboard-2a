@@ -80,11 +80,10 @@ public class AuthService : IAuthService
         else if (!isInAdminRole)
         {
             await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-            user.Admin = true;
-            await _userManager.UpdateAsync(user);
+            // Do not set user.Admin or UpdateAsync here — TR_Users_v2_RootOwnerProtect blocks Admin changes.
         }
 
-        // Aggiorna LastLogin
+        // Aggiorna LastLogin (allowed by root-owner trigger; does not touch protected columns)
         user.LastLogin = DateTime.UtcNow;
         await _userManager.UpdateAsync(user);
 

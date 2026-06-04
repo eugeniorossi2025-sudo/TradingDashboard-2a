@@ -1,0 +1,64 @@
+name: DASH2A Reset Login User 13
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RESET_LOGIN_USER_13 to reset login secret for root owner (UserId 13) only"
+        required: true
+        type: string
+      new_secret:
+        description: "New login secret (min 8 chars; upper, lower, digit, symbol)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    name: Reset Eugenio login via Identity
+    if: ${{ github.event.inputs.confirm == 'RESET_LOGIN_USER_13' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 15
+
+    steps:
+      - name: Guard
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'RESET_LOGIN_USER_13') {
+            throw 'Invalid confirm token.'
+          }
+          $pw = '${{ github.event.inputs.new_secret }}'
+          if ($pw.Length -lt 8) { throw 'Secret must be at least 8 characters.' }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reset login (UserId 13)
+        shell: powershell
+        env:
+          RESET_SECRET: ${{ github.event.inputs.new_secret }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          dotnet run --project (Join-Path $env:GITHUB_WORKSPACE 'tools/reset-local-admin/ResetLocalAdmin.csproj') -c Release -- `
+            --prod `
+            --user-id 13 `
+            --password $env:RESET_SECRET
+          if ($LASTEXITCODE -ne 0) { throw "reset tool failed" }
+          Write-Host 'RESET_OK — login with UserName Eugenio (not email) and the new secret.'
+
+      - name: Verify login API
+        shell: powershell
+        env:
+          RESET_SECRET: ${{ github.event.inputs.new_secret }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $body = @{ username = 'Eugenio'; password = $env:RESET_SECRET } | ConvertTo-Json
+          $r = Invoke-RestMethod -Uri 'https://vps-b0942869.vps.ovh.net/api/Auth/login' -Method Post -Body $body -ContentType 'application/json' -TimeoutSec 30
+          if (-not $r.token) { throw 'Login response missing token after reset.' }
+          Write-Host 'LOGIN_VERIFY_OK=true'
