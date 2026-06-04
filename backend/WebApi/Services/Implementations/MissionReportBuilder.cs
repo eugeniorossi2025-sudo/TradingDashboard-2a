@@ -93,10 +93,9 @@ public class MissionReportBuilder : IMissionReportBuilder
                 })
                 .ToListAsync(cancellationToken);
 
-        var sessionIdsWithSamples = samples.Select(sample => sample.SessionId).Distinct().ToHashSet();
-        var sessions = candidateSessions
-            .Where(session => sessionIdsWithSamples.Contains(session.Id))
-            .ToList();
+        // Include every completed session overlapping the period (by UTC bounds).
+        // Do not drop missions that lack margin samples clipped inside the window.
+        var sessions = candidateSessions;
 
         var investedCapitalBase = await GetInvestedCapitalBaseAsync();
         var report = new MissionRangeReportResponse

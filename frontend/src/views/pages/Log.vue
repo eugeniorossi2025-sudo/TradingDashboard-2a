@@ -309,9 +309,9 @@ function formatLocalDate(date) {
                         </Column>
                         <Column field="kFactor" header="K" />
                         <Column field="activeTables" header="Tavoli" />
-                        <Column field="finalMarginEuro" header="Margine finale">
+                        <Column field="totalMarginEuro" header="Margine missione">
                             <template #body="{ data }">
-                                <span :class="Number(data.finalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.finalMarginEuro || 0) }}</span>
+                                <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro || 0) }}</span>
                             </template>
                         </Column>
                         <Column field="globalTargetEuro" header="Target" />
