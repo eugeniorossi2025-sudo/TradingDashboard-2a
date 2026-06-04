@@ -35,6 +35,11 @@ export const mobileHomeRedirectGuard = (
         return;
     }
 
+    if (AuthService.isRootOwner.value) {
+        next({ name: 'admin-root-owner' });
+        return;
+    }
+
     next({
         name: AuthService.isAdmin.value ? 'admin-mobile-live' : 'client-mobile',
     });

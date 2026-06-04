@@ -2,6 +2,7 @@
 import { FinancialReportService } from '@/service/FinancialReportService';
 import { REPORT_PERIOD_CHIPS, getPeriodRange, type ReportPeriodChip } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
+import MobileAdminQuickNav from '@/components/mobile/MobileAdminQuickNav.vue';
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 
@@ -135,6 +136,7 @@ onMounted(() => applyPeriodChip('month'));
                     </div>
                     <button type="button" class="link-btn" @click="goBack">Live</button>
                 </div>
+                <MobileAdminQuickNav />
             </section>
 
             <div v-if="error" class="error-banner">{{ error }}</div>

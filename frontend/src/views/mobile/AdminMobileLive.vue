@@ -1,16 +1,14 @@
 <script setup>
-import { AuthService } from '@/service/AuthService';
 import { DashboardService } from '@/service/DashboardService';
 import { FinancialReportService } from '@/service/FinancialReportService';
+import MobileAdminQuickNav from '@/components/mobile/MobileAdminQuickNav.vue';
 import MobilePushPanel from '@/components/mobile/MobilePushPanel.vue';
 import { useMobileLiveRefresh } from '@/composables/useMobileLiveRefresh';
 import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
 
-const router = useRouter();
 const loading = ref(true);
 const error = ref('');
 const tableRows = ref([]);
@@ -205,15 +203,6 @@ function downloadReport(runtimeMode) {
     return FinancialReportService.openHtmlReport(runtimeMode, rangeFrom, rangeTo);
 }
 
-function openFinancialReports() {
-    router.push('/admin/mobile-reports');
-}
-
-async function logout() {
-    await AuthService.logout();
-    router.push('/auth/login');
-}
-
 onMounted(loadData);
 </script>
 
@@ -233,11 +222,7 @@ onMounted(loadData);
                     <div class="brand-signature-mark">D2A</div>
                     <div class="brand-signature-copy">EuGenio Lab<br />Trading Dashboard 2A</div>
                 </div>
-                <div class="actions">
-                    <button type="button" class="link-btn" @click="loadData">Sync</button>
-                    <button type="button" class="link-btn" @click="openFinancialReports">Report finanziari</button>
-                    <button type="button" class="logout-btn" @click="logout">Logout</button>
-                </div>
+                <MobileAdminQuickNav :on-sync="loadData" />
             </section>
 
             <div v-if="error" class="error-banner">{{ error }}</div>

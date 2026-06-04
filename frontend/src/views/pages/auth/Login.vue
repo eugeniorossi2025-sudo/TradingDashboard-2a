@@ -23,6 +23,7 @@ const isMobileViewport = () => {
 };
 
 const getMobileHome = () => {
+    if (AuthService.isRootOwner.value) return '/admin/root-owner';
     return AuthService.isAdmin.value ? '/admin/mobile-live' : '/client/mobile';
 };
 
@@ -32,7 +33,10 @@ const resolvePostLoginRoute = () => {
     const redirectTo = Array.isArray(requestedRedirect) ? requestedRedirect[0] : requestedRedirect;
 
     if (isMobileViewport()) {
-        const explicitMobile = redirectTo === '/admin/mobile-live' || redirectTo === '/client/mobile';
+        const explicitMobile =
+            redirectTo === '/admin/mobile-live' ||
+            redirectTo === '/admin/root-owner' ||
+            redirectTo === '/client/mobile';
         return explicitMobile ? redirectTo : getMobileHome();
     }
 
