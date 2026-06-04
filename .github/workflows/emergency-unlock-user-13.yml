@@ -1,0 +1,29 @@
+name: DASH2A Emergency Unlock User 13
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type UNLOCK_USER_13 to clear lockout on Eugenio (no password change)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  unlock:
+    if: ${{ github.event.inputs.confirm == 'UNLOCK_USER_13' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $config = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $cs = $config.ConnectionStrings.DefaultConnection
+          $p = @{}; $cs -split ';' | ForEach-Object { $kv = $_ -split '=',2; if($kv.Count -eq 2){$p[$kv[0].Trim()]=$kv[1].Trim()} }
+          $sql = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/emergency-unlock-user-13.sql'
+          sqlcmd -S $p.Server -U $p['User Id'] -P $p.Password -d $p.Database -i $sql -v Confirm="UNLOCK_USER_13" -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw 'sqlcmd failed' }

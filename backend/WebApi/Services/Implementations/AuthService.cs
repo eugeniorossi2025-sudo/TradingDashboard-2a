@@ -42,42 +42,44 @@ public class AuthService : IAuthService
         _logger.LogInformation($"Login attempt for username: {username}");
         
         var user = await _userManager.FindByNameAsync(username);
+        if (user == null && username.Contains('@', StringComparison.Ordinal))
+            user = await _userManager.FindByEmailAsync(username);
+
         if (user == null)
         {
             _logger.LogWarning($"Login failed: user not found - {username}");
-            _logger.LogInformation($"Connection String DB: {_configuration.GetConnectionString("DefaultConnection")?.Substring(0, 50)}...");
             return null;
         }
 
         _logger.LogInformation($"User found: {user.UserName}, Email: {user.Email}, HasPassword: {!string.IsNullOrEmpty(user.PasswordHash)}");
 
-        var result = await _signInManager.CheckPasswordSignInAsync(user, password, lockoutOnFailure: false);
-        
-        _logger.LogInformation($"Password check result: Succeeded={result.Succeeded}, IsLockedOut={result.IsLockedOut}, IsNotAllowed={result.IsNotAllowed}, RequiresTwoFactor={result.RequiresTwoFactor}");
-        
-        if (!result.Succeeded)
+        if (await _userManager.IsLockedOutAsync(user))
+            await _userManager.SetLockoutEndDateAsync(user, null);
+
+        if (!await _userManager.CheckPasswordAsync(user, password))
         {
             _logger.LogWarning($"Login failed: invalid password - {username}");
             return null;
         }
 
-        // Post-login DB sync must never block authentication (trigger/Identity errors → 401 otherwise).
+        // Post-login DB sync must never block authentication (root-owner trigger blocks many UPDATEs).
         try
         {
-            var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
-
             if (!user.IsRootOwner)
             {
+                var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
                 if (user.Admin && !isInAdminRole)
                     await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-            }
-            else if (!isInAdminRole)
-            {
-                await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
-            }
 
-            user.LastLogin = DateTime.UtcNow;
-            await _userManager.UpdateAsync(user);
+                user.LastLogin = DateTime.UtcNow;
+                await _userManager.UpdateAsync(user);
+            }
+            else
+            {
+                var isInAdminRole = await _userManager.IsInRoleAsync(user, AuthConstants.Roles.Admin);
+                if (!isInAdminRole)
+                    await _userManager.AddToRoleAsync(user, AuthConstants.Roles.Admin);
+            }
         }
         catch (Exception ex)
         {
