@@ -53,6 +53,10 @@ namespace Decisore.Engine
         public int L6_AUTH_INCREMENT = 1;
         public int L6_AUTH_LOSS = 8;
         public int L6_AUTH_PB_RESET_COUNTER = 600;
+        public int SPOT_RESET_THRESHOLD_L5 = 2;
+        public bool SPOT_L6_PER_BOT_ENABLED = true;
+        /// <summary>Opzione A: logica SPOT/L6 globale disattivata — solo SPOT per-bot è operativo.</summary>
+        public const bool LEGACY_GLOBAL_SPOT_L6_ENABLED = false;
 
         public (int from, int to)[] HOT_ZONES =
         {
@@ -117,6 +121,12 @@ namespace Decisore.Engine
         private int totalSecurityFilterPreventedL6 = 0;
         private int totalPlayerPaceAC3Activated = 0;
         private readonly Dictionary<string, bool> _prevPlayerPaceAC3Active = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _spotL5LossByComputer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _spotL5PlayedByComputer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _spotL6GrantedByComputer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _spotPbHandsByComputer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _spotCycleIdByComputer = new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> _lastMartingalaByComputer = new(StringComparer.OrdinalIgnoreCase);
 
         private int spotID = 0;
         
@@ -143,10 +153,15 @@ namespace Decisore.Engine
             telemetry.BotMargins = _lastBotMargin;
             
             /* Inizio nuovi campi */
-            telemetry.SpotID = spotID;
-            telemetry.SpotPBHandsPlayed = _globalPBHandsPlayed;
+            telemetry.SpotID = LEGACY_GLOBAL_SPOT_L6_ENABLED ? spotID : 0;
+            telemetry.SpotPBHandsPlayed = LEGACY_GLOBAL_SPOT_L6_ENABLED ? _globalPBHandsPlayed : 0;
             telemetry.SpotAuthL6Counter = _globalAuthL6Counter;
-            telemetry.SpotL5Loss = _globalL5Loss;
+            telemetry.SpotL5Loss = LEGACY_GLOBAL_SPOT_L6_ENABLED ? _globalL5Loss : 0;
+            telemetry.SpotL6ThresholdL5 = IsSpotL6ThresholdConfigured() ? SPOT_RESET_THRESHOLD_L5 : 0;
+            telemetry.SpotCyclePbHandsLimit = SpotCyclePbHandsLimit;
+            telemetry.SpotPerBotOnlyEnabled = SPOT_L6_PER_BOT_ENABLED && !LEGACY_GLOBAL_SPOT_L6_ENABLED;
+            telemetry.SpotL6PerBotEnabled = SPOT_L6_PER_BOT_ENABLED;
+            telemetry.SpotLegacyGlobalEnabled = LEGACY_GLOBAL_SPOT_L6_ENABLED;
             
             telemetry.GlobalPauseScalping = pbPauseActive || timePauseActive;
 
@@ -276,7 +291,14 @@ namespace Decisore.Engine
                     LastUpdatedUtc = x.Value.LastUpdatedUtc,
                     HandSamples = x.Value.HandSamples,
                     ValidSamples = x.Value.ValidSamples,
-                    GapFilteredCount = x.Value.GapFilteredCount
+                    GapFilteredCount = x.Value.GapFilteredCount,
+                    SpotL5PlayedCount = x.Value.SpotL5PlayedCount,
+                    SpotL5LossCount = x.Value.SpotL5LossCount,
+                    SpotL6GrantedCount = x.Value.SpotL6GrantedCount,
+                    SpotL6Authorized = x.Value.SpotL6Authorized,
+                    NextL5LossWillAuthorizeL6 = x.Value.NextL5LossWillAuthorizeL6,
+                    SpotCycleId = x.Value.SpotCycleId,
+                    SpotPbHandsPlayed = x.Value.SpotPbHandsPlayed
                 });
             
             /* Fine nuovi campi */
@@ -373,15 +395,6 @@ namespace Decisore.Engine
                 UpdatePBIndicators(globalMargin);
             }
 
-            if (_globalPBHandsPlayed >= L6_AUTH_PB_RESET_COUNTER)
-            {
-                spotID++;
-
-                _globalPBHandsPlayed = 0;
-                _globalAuthL6Counter = INITIAL_L6_AUTH;
-                _globalL5Loss = 0;
-            }
-
             #endregion
 
             #region SECURITY FILTER
@@ -399,6 +412,8 @@ namespace Decisore.Engine
                 botSecurity = new SecurityFilterBotTelemetry { Computer = computer };
                 _securityFilterByBot[computer] = botSecurity;
             }
+
+            ApplySpotL6PerBot(computer, martingalaCounter, botSecurity, l5PlayedThisCall: false, l5LostThisCall: false);
 
             // — shoe change: reset avg window (mazzo/deck counter decreased) —
             if (_lastMazzoByComputer.TryGetValue(computer, out var lastMazzo) && handIndexMazzo < lastMazzo)
@@ -495,52 +510,80 @@ namespace Decisore.Engine
             if (martingalaCounter == 5)
             {
                 if (esito != 'T')
+                {
                     totalL5Played++;
+                    ApplySpotL6PerBot(
+                        computer,
+                        martingalaCounter,
+                        botSecurity,
+                        l5PlayedThisCall: true,
+                        l5LostThisCall: esito != coloreGiocato);
+                }
 
                 if (esito != 'T') {
                     if (esito != coloreGiocato)
                     {
-                        _globalL5Loss++;
                         totalL5Lost++;
 
-                        if (_globalL5Loss >= L6_AUTH_LOSS)
+                        if (LEGACY_GLOBAL_SPOT_L6_ENABLED)
                         {
-                            _globalL5Loss = 0;
-                            _globalAuthL6Counter += L6_AUTH_INCREMENT;
-                        }
+                            _globalL5Loss++;
 
-                        if (_globalAuthL6Counter > 0 && !isHotZone)
-                        {
-                            if (securityFilterActive || rapidL5TriggerActive)
+                            if (_globalL5Loss >= L6_AUTH_LOSS)
                             {
-                                advice.StopL6 = true;
-                                securityFilterPreventedL6ThisCall = true;
-                                advice.Reason = rapidL5TriggerActive
-                                    ? $"L6 Bloccato (Trigger rapido L5)"
-                                    : $"L6 Bloccato (Security Filter)";
+                                _globalL5Loss = 0;
+                                _globalAuthL6Counter += L6_AUTH_INCREMENT;
+                            }
+
+                            if (_globalAuthL6Counter > 0 && !isHotZone)
+                            {
+                                if (securityFilterActive || rapidL5TriggerActive)
+                                {
+                                    advice.StopL6 = true;
+                                    securityFilterPreventedL6ThisCall = true;
+                                    advice.Reason = rapidL5TriggerActive
+                                        ? $"L6 Bloccato (Trigger rapido L5)"
+                                        : $"L6 Bloccato (Security Filter)";
+                                }
+                                else
+                                {
+                                    advice.StopL6 = false;
+                                    _globalAuthL6Counter--;
+                                    totalAuthL6Authorized++;
+                                    l6AuthorizedThisCall = true;
+                                    advice.Reason = $"L6 Autorizzato";
+                                }
                             }
                             else
                             {
-                                advice.StopL6 = false;
-                                _globalAuthL6Counter--;
-                                totalAuthL6Authorized++;
-                                l6AuthorizedThisCall = true;
-
-                                advice.Reason = $"L6 Autorizzato";
+                                advice.StopL6 = true;
+                                advice.Reason = isHotZone
+                                    ? $"L6 Bloccato (Hot Zone)"
+                                    : $"L6 Bloccato (0 Autorizzazioni L6 residue)";
                             }
+                        }
+                        else if (securityFilterActive || rapidL5TriggerActive)
+                        {
+                            advice.StopL6 = true;
+                            securityFilterPreventedL6ThisCall = true;
+                            advice.Reason = rapidL5TriggerActive
+                                ? $"L6 Bloccato (Trigger rapido L5)"
+                                : $"L6 Bloccato (Security Filter)";
+                        }
+                        else if (SPOT_L6_PER_BOT_ENABLED && botSecurity.SpotL6Authorized)
+                        {
+                            advice.StopL6 = false;
+                            advice.Reason =
+                                $"L6 AUTORIZZATO [{botSecurity.SpotL5LossCount}/{SPOT_RESET_THRESHOLD_L5} L5 persi nel ciclo SPOT]";
                         }
                         else
                         {
-                            advice.StopL6 = true;
-
-                            if (isHotZone)
-                            {
-                                advice.Reason = $"L6 Bloccato (Hot Zone)";
-                            }
-                            else
-                            {
-                                advice.Reason = $"L6 Bloccato (0 Autorizzazioni L6 residue)";
-                            }
+                            advice.StopL6 = false;
+                            advice.Reason = !SPOT_L6_PER_BOT_ENABLED
+                                ? "L5 perso (SPOT L6 per bot spento)"
+                                : IsSpotL6ThresholdConfigured()
+                                    ? $"L5 perso [{botSecurity.SpotL5LossCount}/{SPOT_RESET_THRESHOLD_L5} verso L6]"
+                                    : "L5 perso (soglia L6 per bot non configurata)";
                         }
                     }
                     else
@@ -571,6 +614,15 @@ namespace Decisore.Engine
 
             advice.GlobalAuthL6Counter = _globalAuthL6Counter;
             advice.GlobalL5Loss = _globalL5Loss;
+            advice.SpotL5PlayedCount = botSecurity.SpotL5PlayedCount;
+            advice.SpotL5LossCount = botSecurity.SpotL5LossCount;
+            advice.SpotL6GrantedCount = botSecurity.SpotL6GrantedCount;
+            advice.SpotL6Authorized = botSecurity.SpotL6Authorized;
+            advice.NextL5LossWillAuthorizeL6 = botSecurity.NextL5LossWillAuthorizeL6;
+            advice.SpotL6PerBotEnabled = SPOT_L6_PER_BOT_ENABLED;
+            advice.SpotCycleId = botSecurity.SpotCycleId;
+            advice.SpotPbHandsPlayed = botSecurity.SpotPbHandsPlayed;
+            advice.SpotL6ThresholdL5 = IsSpotL6ThresholdConfigured() ? SPOT_RESET_THRESHOLD_L5 : 0;
             advice.GlobalPBHandsPlayed = _globalPBHandsPlayed;
 
             #endregion
@@ -580,7 +632,10 @@ namespace Decisore.Engine
             // — contatori transizione false→true —
             bool prevActive = _prevSecFilterActive.GetValueOrDefault(computer, false);
             if (pbHandPlayedThisCall)
+            {
                 botSecurity.PBHandsPlayed++;
+                IncrementSpotPbHandForBot(computer, botSecurity);
+            }
 
             if (securityFilterActive && !prevActive)
             {
@@ -733,8 +788,13 @@ namespace Decisore.Engine
             botSecurity.PauseComputer = securityFilterActive || playerRaceAc3 ? computer : "";
             botSecurity.LastShoeHand = handIndexMazzo;
             botSecurity.Martingala = martingalaCounter;
-            botSecurity.HasL6Credit = _globalAuthL6Counter > 0;
-            if (playerRace8Ac3)
+            botSecurity.HasL6Credit = LEGACY_GLOBAL_SPOT_L6_ENABLED && _globalAuthL6Counter > 0;
+            if (botSecurity.SpotL6Authorized)
+            {
+                botSecurity.LastReason =
+                    $"L6 AUTORIZZATO [{botSecurity.SpotL5LossCount}/{Math.Max(1, SPOT_RESET_THRESHOLD_L5)} L5 persi nel ciclo SPOT]";
+            }
+            else if (playerRace8Ac3)
             {
                 botSecurity.LastReason =
                     $"PLAYER RACE 8 AC3 [{botSecurity.PlayerStreakCount} PLAYER consecutivi ≥ {PLAYER_RACE_8_MIN_STREAK}]";
@@ -999,6 +1059,120 @@ namespace Decisore.Engine
         bool EvaluatePlayerRace8Ac3(SecurityFilterBotTelemetry botSecurity) =>
             PLAYER_RACE_8_AC3_ENABLED && AtPlayerRace8(botSecurity);
 
+        bool IsSpotL6ThresholdConfigured() =>
+            SPOT_RESET_THRESHOLD_L5 >= 1;
+
+        int SpotCyclePbHandsLimit =>
+            L6_AUTH_PB_RESET_COUNTER >= 1 ? L6_AUTH_PB_RESET_COUNTER : 0;
+
+        void EnsureSpotCycleIdInitialized(string computer)
+        {
+            if (!_spotCycleIdByComputer.ContainsKey(computer))
+                _spotCycleIdByComputer[computer] = 1;
+        }
+
+        void ClearSpotL6FieldsForBot(SecurityFilterBotTelemetry bot)
+        {
+            bot.SpotL5PlayedCount = 0;
+            bot.SpotL5LossCount = 0;
+            bot.SpotL6GrantedCount = 0;
+            bot.SpotL6Authorized = false;
+            bot.NextL5LossWillAuthorizeL6 = false;
+            bot.HasL6Credit = false;
+        }
+
+        void ResetSpotL6CountersForBot(string computer, SecurityFilterBotTelemetry bot)
+        {
+            _spotL5LossByComputer[computer] = 0;
+            _spotL5PlayedByComputer[computer] = 0;
+            _spotL6GrantedByComputer[computer] = 0;
+            ClearSpotL6FieldsForBot(bot);
+            SyncSpotL6BotFields(computer, bot);
+        }
+
+        void ResetSpotCycleForBot(string computer, SecurityFilterBotTelemetry bot)
+        {
+            EnsureSpotCycleIdInitialized(computer);
+            _spotCycleIdByComputer[computer]++;
+            _spotPbHandsByComputer[computer] = 0;
+            _spotL5LossByComputer[computer] = 0;
+            _spotL5PlayedByComputer[computer] = 0;
+            _spotL6GrantedByComputer[computer] = 0;
+            ClearSpotL6FieldsForBot(bot);
+            bot.SpotPbHandsPlayed = 0;
+            SyncSpotL6BotFields(computer, bot);
+        }
+
+        void IncrementSpotPbHandForBot(string computer, SecurityFilterBotTelemetry bot)
+        {
+            if (!SPOT_L6_PER_BOT_ENABLED)
+                return;
+
+            EnsureSpotCycleIdInitialized(computer);
+            var count = _spotPbHandsByComputer.GetValueOrDefault(computer) + 1;
+            _spotPbHandsByComputer[computer] = count;
+            bot.SpotPbHandsPlayed = count;
+            SyncSpotL6BotFields(computer, bot);
+
+            var limit = SpotCyclePbHandsLimit;
+            // Mostra N/N alla mano N; nuovo ciclo alla mano successiva (N+1).
+            if (limit >= 1 && count > limit)
+                ResetSpotCycleForBot(computer, bot);
+        }
+
+        void SyncSpotL6BotFields(string computer, SecurityFilterBotTelemetry bot)
+        {
+            EnsureSpotCycleIdInitialized(computer);
+            var threshold = IsSpotL6ThresholdConfigured() ? SPOT_RESET_THRESHOLD_L5 : 0;
+            bot.SpotCycleId = _spotCycleIdByComputer[computer];
+            bot.SpotL5PlayedCount = _spotL5PlayedByComputer.GetValueOrDefault(computer);
+            bot.SpotL5LossCount = _spotL5LossByComputer.GetValueOrDefault(computer);
+            bot.SpotL6GrantedCount = _spotL6GrantedByComputer.GetValueOrDefault(computer);
+            bot.SpotPbHandsPlayed = _spotPbHandsByComputer.GetValueOrDefault(computer);
+            bot.SpotL6Authorized = threshold >= 1 && bot.SpotL5LossCount >= threshold;
+            bot.NextL5LossWillAuthorizeL6 =
+                threshold >= 1 && !bot.SpotL6Authorized && bot.SpotL5LossCount == threshold - 1;
+        }
+
+        void ApplySpotL6PerBot(
+            string computer,
+            int martingalaCounter,
+            SecurityFilterBotTelemetry botSecurity,
+            bool l5PlayedThisCall,
+            bool l5LostThisCall)
+        {
+            if (!SPOT_L6_PER_BOT_ENABLED)
+            {
+                ClearSpotL6FieldsForBot(botSecurity);
+                botSecurity.SpotCycleId = 0;
+                botSecurity.SpotPbHandsPlayed = 0;
+                return;
+            }
+
+            var prevM = _lastMartingalaByComputer.GetValueOrDefault(computer);
+
+            if (prevM > 1 && martingalaCounter == 1)
+                ResetSpotL6CountersForBot(computer, botSecurity);
+
+            if (l5PlayedThisCall)
+                _spotL5PlayedByComputer[computer] = _spotL5PlayedByComputer.GetValueOrDefault(computer) + 1;
+
+            if (l5LostThisCall)
+                _spotL5LossByComputer[computer] = _spotL5LossByComputer.GetValueOrDefault(computer) + 1;
+
+            SyncSpotL6BotFields(computer, botSecurity);
+
+            if (prevM == 5 && martingalaCounter >= 6 && botSecurity.SpotL6Authorized)
+            {
+                _spotL6GrantedByComputer[computer] = _spotL6GrantedByComputer.GetValueOrDefault(computer) + 1;
+                // Consumo autorizzazione: una sola L6 per maturazione 2/2; serve di nuovo N L5 perse.
+                _spotL5LossByComputer[computer] = 0;
+            }
+
+            _lastMartingalaByComputer[computer] = martingalaCounter;
+            SyncSpotL6BotFields(computer, botSecurity);
+        }
+
         void UpdatePlayerStreakPace(string computer, char esito, DateTime nowUtc, SecurityFilterBotTelemetry botSecurity)
         {
             if (!_playerStreakTimestampsByComputer.TryGetValue(computer, out var timestamps))
@@ -1127,13 +1301,14 @@ namespace Decisore.Engine
                     $"💥 Esposizione reale: {realExposure:+0;-0}€ | " +
                     $"Valore totale puntate attive: {activeBetsTotal:0}€",
 
-                ["SISTEMA_L6"] =
-                    $"🔐 Autorizzazioni L6 disponibili: {_globalAuthL6Counter} | " +
-                    $"Perdite consecutive in L5: {_globalL5Loss} su {L6_AUTH_LOSS}",
+                ["SISTEMA_L6"] = LEGACY_GLOBAL_SPOT_L6_ENABLED
+                    ? $"🔐 Autorizzazioni L6 disponibili: {_globalAuthL6Counter} | " +
+                      $"Perdite consecutive in L5: {_globalL5Loss} su {L6_AUTH_LOSS}"
+                    : $"🔺 SPOT per-bot attivo | soglia {SPOT_RESET_THRESHOLD_L5} L5 persi | legacy globale OFF",
 
-                ["MANI_GIOCATE_PB"] =
-                    $"🎴 Mani Player/Banker giocate: {_globalPBHandsPlayed} su {L6_AUTH_PB_RESET_COUNTER} " +
-                    $"(reset automatico)",
+                ["MANI_GIOCATE_PB"] = SpotCyclePbHandsLimit >= 1
+                    ? $"🎴 Ciclo SPOT per-bot: {SpotCyclePbHandsLimit}/{SpotCyclePbHandsLimit} poi nuovo ciclo alla mano {SpotCyclePbHandsLimit + 1}"
+                    : $"🎴 Mani PB totali missione: {_globalPBHandsPlayed}",
 
                 ["STATISTICHE_OPERATIVE"] =
                     $"📈 Livello 5: {totalL5Won} vinte su {totalL5Played} " +

@@ -281,6 +281,11 @@ public class DashboardTelemetry
     public int SpotPbHandsPlayed { get; set; }
     public int SpotAuthL6Counter { get; set; }
     public int SpotL5Loss { get; set; }
+    public int SpotL6ThresholdL5 { get; set; } = 2;
+    public int SpotCyclePbHandsLimit { get; set; } = 600;
+    public bool SpotPerBotOnlyEnabled { get; set; } = true;
+    public bool SpotL6PerBotEnabled { get; set; } = true;
+    public bool SpotLegacyGlobalEnabled { get; set; }
     public bool SecurityFilterEnabled { get; set; } = true;
     public bool PlayerRace5FilterEnabled { get; set; }
     public bool PlayerRace5Ac3Enabled { get; set; }
@@ -393,6 +398,19 @@ public class SecurityFilterBotTelemetryDto
     public int HandSamples { get; set; }
     public int ValidSamples { get; set; }
     public int GapFilteredCount { get; set; }
+    public int SpotCycleId { get; set; } = 1;
+    public int SpotL5PlayedCount { get; set; }
+    public int SpotL5LossCount { get; set; }
+    public int SpotL6GrantedCount { get; set; }
+    public bool SpotL6Authorized { get; set; }
+    public bool NextL5LossWillAuthorizeL6 { get; set; }
+    [System.Text.Json.Serialization.JsonPropertyName("SpotResetAuthorized")]
+    public bool SpotResetAuthorizedCompat
+    {
+        get => SpotL6Authorized;
+        set => SpotL6Authorized = value;
+    }
+    public int SpotPbHandsPlayed { get; set; }
 }
 
 /// <summary>

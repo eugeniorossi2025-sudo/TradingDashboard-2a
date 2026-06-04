@@ -337,6 +337,27 @@ public static class DbInitializer
                 Description = "Player Race 8 AC3: 1 genera AC3 a 8 PLAYER consecutivi.",
                 Value = "0",
                 Pos = 913
+            },
+            new Configuration
+            {
+                Key = "SPOT_RESET_THRESHOLD_L5",
+                Description = "Soglia L6 per bot: dopo N L5 persi nel ciclo SPOT, solo quel bot può passare a L6.",
+                Value = "2",
+                Pos = 914
+            },
+            new Configuration
+            {
+                Key = "SPOT_CYCLE_PB_HANDS",
+                Description = "Mani PB per ciclo SPOT di ogni singolo bot; alla soglia si chiude il ciclo solo di quel bot.",
+                Value = "600",
+                Pos = 915
+            },
+            new Configuration
+            {
+                Key = "SPOT_L6_PER_BOT_ENABLED",
+                Description = "SPOT L6 per bot: 1 attivo (L6 dopo N L5 perse nel ciclo SPOT del bot), 0 spento.",
+                Value = "1",
+                Pos = 916
             }
         };
 

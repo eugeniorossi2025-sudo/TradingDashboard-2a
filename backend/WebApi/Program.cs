@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
 using WebApi.Extensions;
@@ -109,9 +110,14 @@ using (var scope = app.Services.CreateScope())
     var services = scope.ServiceProvider;
     try
     {
-        if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:EnsureCreated"))
+        var context = services.GetRequiredService<AppDbContext>();
+        if (app.Environment.EnvironmentName == "LocalProdLike"
+            && app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
         {
-            var context = services.GetRequiredService<AppDbContext>();
+            await context.Database.MigrateAsync();
+        }
+        else if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Database:EnsureCreated"))
+        {
             await context.Database.EnsureCreatedAsync();
         }
 
@@ -125,7 +131,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Configure the HTTP request pipeline
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.EnvironmentName == "LocalProdLike")
 {
     // Abilita OpenAPI nativo di .NET 9
     app.MapOpenApi();

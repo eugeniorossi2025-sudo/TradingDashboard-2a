@@ -16,7 +16,13 @@ public class Telemetry
     public int SpotPBHandsPlayed { get; set; } = 0;
     public int SpotAuthL6Counter { get; set; } = 0;
     public int SpotL5Loss { get; set; } = 0;
-    
+    public int SpotL6ThresholdL5 { get; set; } = 2;
+    /// <summary>Mani PB globali nel ciclo SPOT prima del reset (configurabile, es. 600).</summary>
+    public int SpotCyclePbHandsLimit { get; set; } = 600;
+    public bool SpotPerBotOnlyEnabled { get; set; } = true;
+    public bool SpotL6PerBotEnabled { get; set; } = true;
+    public bool SpotLegacyGlobalEnabled { get; set; }
+
     public bool GlobalPauseScalping { get; set; } = false;
     public string GlobalPauseScalpingDetails { get; set; } = "Pausa non attiva";
     public string GlobalPauseScalpingDuration { get; set; } = "0";
@@ -140,4 +146,18 @@ public class SecurityFilterBotTelemetry
     public int ValidSamples { get; set; }
     /// <summary>Deltas discarded because gap exceeded 60s (pause/off/dead time).</summary>
     public int GapFilteredCount { get; set; }
+    /// <summary>L5 giocate nel ciclo SPOT corrente (esito non tie a L5).</summary>
+    public int SpotL5PlayedCount { get; set; }
+    /// <summary>L5 perse nel ciclo SPOT corrente.</summary>
+    public int SpotL5LossCount { get; set; }
+    /// <summary>Volte che il bot è passato a L6 nel ciclo SPOT corrente.</summary>
+    public int SpotL6GrantedCount { get; set; }
+    /// <summary>Bot autorizzato a passare a L6 nel ciclo SPOT corrente.</summary>
+    public bool SpotL6Authorized { get; set; }
+    /// <summary>Se la prossima L5 persa raggiunge la soglia L6 per questo bot.</summary>
+    public bool NextL5LossWillAuthorizeL6 { get; set; }
+    /// <summary>Identificatore ciclo SPOT del singolo bot.</summary>
+    public int SpotCycleId { get; set; } = 1;
+    /// <summary>Mani PB del bot nel ciclo SPOT corrente (es. 11/600).</summary>
+    public int SpotPbHandsPlayed { get; set; }
 }

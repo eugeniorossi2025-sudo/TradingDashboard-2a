@@ -32,6 +32,24 @@ const playerRace8FilterStatus = ref('');
 const playerRace8Ac3Enabled = ref(null);
 const playerRace8Ac3Loading = ref(false);
 const playerRace8Ac3Status = ref('');
+const spotResetThreshold = ref(2);
+const spotResetThresholdDraft = ref(2);
+const spotCyclePbHands = ref(600);
+const spotCyclePbHandsDraft = ref(600);
+const spotResetThresholdLoading = ref(false);
+const spotResetThresholdStatus = ref('');
+const spotL6PerBotEnabled = ref(null);
+const spotL6PerBotLoading = ref(false);
+const spotL6PerBotStatus = ref('');
+const securityFilterModuleEnabled = ref(null);
+const securityFilterLoading = ref(false);
+const securityFilterStatus = ref('');
+const securityFilterMaxAvg = ref(null);
+const securityFilterVeryFast = ref(null);
+const securityFilterMinScore = ref(null);
+const securityFilterMaxAvgDraft = ref(23.5);
+const securityFilterVeryFastDraft = ref(21);
+const securityFilterMinScoreDraft = ref(3);
 
 const PLAYER_STEP_PULSE_MS = 1600;
 
@@ -50,6 +68,13 @@ function mergeTelemetryFromApi(api) {
         SpotPBHandsPlayed: api.spotPbHandsPlayed,
         SpotAuthL6Counter: api.spotAuthL6Counter,
         SpotL5Loss: api.spotL5Loss,
+        SpotL6ThresholdL5: api.spotL6ThresholdL5 ?? api.spotResetThresholdL5,
+        SpotResetThresholdL5: api.spotL6ThresholdL5 ?? api.spotResetThresholdL5,
+        SpotCyclePbHandsLimit: api.spotCyclePbHandsLimit,
+        SpotPerBotOnlyEnabled: api.spotPerBotOnlyEnabled,
+        SpotL6PerBotEnabled: api.spotL6PerBotEnabled,
+        SpotLegacyGlobalEnabled: api.spotLegacyGlobalEnabled,
+        SpotId: api.spotId,
         GlobalPauseScalping: api.globalPauseScalping,
         GlobalPauseScalpingDetails: api.globalPauseScalpingDetails,
         GlobalPauseScalpingDuration: api.globalPauseScalpingDuration,
@@ -91,6 +116,12 @@ function pickRowField(row, pascalKey, camelKey) {
     return undefined;
 }
 
+function pickSpotL6Authorized(row) {
+    const v = pickRowField(row, 'SpotL6Authorized', 'spotL6Authorized');
+    if (v !== undefined) return v;
+    return pickRowField(row, 'SpotResetAuthorized', 'spotResetAuthorized');
+}
+
 function normalizeSecurityFilterBotRow(computer, row) {
     const base = row && typeof row === 'object' ? row : {};
     return {
@@ -120,7 +151,19 @@ function normalizeSecurityFilterBotRow(computer, row) {
         PlayerPaceRiskActive: pickRowField(base, 'PlayerPaceRiskActive', 'playerPaceRiskActive'),
         playerPaceRiskActive: pickRowField(base, 'playerPaceRiskActive', 'PlayerPaceRiskActive'),
         PlayerPaceTriggeredAC3: pickRowField(base, 'PlayerPaceTriggeredAC3', 'playerPaceTriggeredAC3'),
-        playerPaceTriggeredAC3: pickRowField(base, 'playerPaceTriggeredAC3', 'PlayerPaceTriggeredAC3')
+        playerPaceTriggeredAC3: pickRowField(base, 'playerPaceTriggeredAC3', 'PlayerPaceTriggeredAC3'),
+        SpotCycleId: pickRowField(base, 'SpotCycleId', 'spotCycleId'),
+        spotCycleId: pickRowField(base, 'spotCycleId', 'SpotCycleId'),
+        SpotL5PlayedCount: pickRowField(base, 'SpotL5PlayedCount', 'spotL5PlayedCount'),
+        spotL5PlayedCount: pickRowField(base, 'spotL5PlayedCount', 'SpotL5PlayedCount'),
+        SpotL5LossCount: pickRowField(base, 'SpotL5LossCount', 'spotL5LossCount'),
+        spotL5LossCount: pickRowField(base, 'spotL5LossCount', 'SpotL5LossCount'),
+        SpotL6GrantedCount: pickRowField(base, 'SpotL6GrantedCount', 'spotL6GrantedCount'),
+        spotL6GrantedCount: pickRowField(base, 'spotL6GrantedCount', 'SpotL6GrantedCount'),
+        SpotL6Authorized: pickSpotL6Authorized(base),
+        spotL6Authorized: pickSpotL6Authorized(base),
+        NextL5LossWillAuthorizeL6: pickRowField(base, 'NextL5LossWillAuthorizeL6', 'nextL5LossWillAuthorizeL6'),
+        nextL5LossWillAuthorizeL6: pickRowField(base, 'nextL5LossWillAuthorizeL6', 'NextL5LossWillAuthorizeL6')
     };
 }
 
@@ -171,13 +214,86 @@ const telemetryData = computed(() => {
     return merged;
 });
 
+function buildLocalCollaudoPreviewRows() {
+    const preview = [
+        {
+            computer: 'PC1',
+            martingala: 5,
+            spotCycleId: 1,
+            spotPb: 11,
+            spotL5Played: 3,
+            spotL5: 1,
+            spotL6Granted: 0,
+            spotAuth: false,
+            nextL5: true,
+            shoeHand: 7
+        },
+        {
+            computer: 'PC2',
+            martingala: 3,
+            spotCycleId: 1,
+            spotPb: 4,
+            spotL5Played: 0,
+            spotL5: 0,
+            spotL6Granted: 0,
+            spotAuth: false,
+            nextL5: false,
+            shoeHand: 12
+        },
+        {
+            computer: 'PC3',
+            martingala: 5,
+            spotCycleId: 1,
+            spotPb: 78,
+            spotL5Played: 6,
+            spotL5: 2,
+            spotL6Granted: 1,
+            spotAuth: true,
+            nextL5: false,
+            shoeHand: 22
+        }
+    ];
+    return preview.map((item) =>
+        normalizeSecurityFilterBotRow(item.computer, {
+            Martingala: item.martingala,
+            SecurityRiskScore: 0,
+            SpotCycleId: item.spotCycleId,
+            SpotPbHandsPlayed: item.spotPb,
+            SpotL5PlayedCount: item.spotL5Played,
+            SpotL5LossCount: item.spotL5,
+            SpotL6GrantedCount: item.spotL6Granted,
+            SpotL6Authorized: item.spotAuth,
+            NextL5LossWillAuthorizeL6: item.nextL5,
+            LastShoeHand: item.shoeHand,
+            PlayerStreakCount: 0
+        })
+    );
+}
+
+const hasLiveSecurityFilterBots = computed(() => {
+    const byBot = telemetryData.value?.SecurityFilterByBot ?? telemetryData.value?.securityFilterByBot;
+    return !!byBot && typeof byBot === 'object' && Object.keys(byBot).length > 0;
+});
+
+const showLocalCollaudoPreview = computed(() => import.meta.env.DEV && !hasLiveSecurityFilterBots.value);
+
+const showLegacySpotMetricsGlobal = computed(() => {
+    const legacy =
+        telemetryData.value?.SpotLegacyGlobalEnabled ??
+        telemetryData.value?.spotLegacyGlobalEnabled;
+    return legacy === true;
+});
+
 const securityFilterRows = computed(() => {
     const byBot = telemetryData.value?.SecurityFilterByBot ?? telemetryData.value?.securityFilterByBot;
-    if (!byBot || typeof byBot !== 'object') return [];
+    const liveRows =
+        byBot && typeof byBot === 'object'
+            ? Object.entries(byBot).map(([computer, row]) => normalizeSecurityFilterBotRow(computer, row))
+            : [];
 
-    return Object.entries(byBot)
-        .map(([computer, row]) => normalizeSecurityFilterBotRow(computer, row))
-        .sort((a, b) => {
+    const sourceRows = liveRows.length > 0 ? liveRows : showLocalCollaudoPreview.value ? buildLocalCollaudoPreviewRows() : [];
+
+    return sourceRows.sort((a, b) => {
             const riskDelta = getRiskRank(b) - getRiskRank(a);
             if (riskDelta !== 0) return riskDelta;
 
@@ -191,15 +307,78 @@ const securityFilterRows = computed(() => {
         });
 });
 
+const spotResetBotRows = computed(() =>
+    [...securityFilterRows.value].sort((a, b) => getBotName(a).localeCompare(getBotName(b)))
+);
+
+function getSpotCyclePbHandsLimit() {
+    const t = telemetryData.value?.SpotCyclePbHandsLimit ?? telemetryData.value?.spotCyclePbHandsLimit;
+    if (typeof t === 'number' && t >= 1) return t;
+    if (spotCyclePbHands.value >= 1) return spotCyclePbHands.value;
+    return 600;
+}
+
+const spotOpsSummary = computed(() => {
+    const rows = spotResetBotRows.value;
+    const l6Threshold = getSpotL6Threshold();
+    return {
+        perBotOnly: isSpotL6PerBotEnabled(),
+        legacyL5Frozen: (telemetryData.value?.SpotL5Loss ?? telemetryData.value?.spotL5Loss ?? 0) === 0,
+        l6ThresholdLabel:
+            typeof l6Threshold === 'number' && l6Threshold >= 1
+                ? `${l6Threshold} L5 perse per bot`
+                : '—',
+        botsTracked: rows.length,
+        botsL6Authorized: rows.filter((row) => isSpotL6Authorized(row)).length
+    };
+});
+
+function getSpotHandCount(row) {
+    const spotPb = pickRowField(row, 'SpotPbHandsPlayed', 'spotPbHandsPlayed');
+    if (typeof spotPb === 'number') return spotPb;
+    const v = pickRowField(row, 'PBHandsPlayed', 'pbHandsPlayed');
+    return typeof v === 'number' ? v : 0;
+}
+
+function getSpotCycleId(row) {
+    const id = pickRowField(row, 'SpotCycleId', 'spotCycleId');
+    return typeof id === 'number' && id >= 1 ? id : 1;
+}
+
+function formatSpotPbCycle(row) {
+    const limit = getSpotCyclePbHandsLimit();
+    const pb = getSpotHandCount(row);
+    return `${pb}/${limit >= 1 ? limit : '—'}`;
+}
+
+function getSpotShoeHand(row) {
+    const v = pickRowField(row, 'LastShoeHand', 'lastShoeHand');
+    return typeof v === 'number' ? v : 0;
+}
+
+function getSpotMartingala(row) {
+    const v = pickRowField(row, 'Martingala', 'martingala');
+    return typeof v === 'number' ? v : null;
+}
+
 const securityFilterOperational = computed(() => isSecurityFilterEnabled());
 
 const securityFilterSetup = computed(() => ({
     enabled: securityFilterOperational.value,
-    minScore: telemetryData.value?.SecurityFilterMinScore ?? 3,
+    minScore:
+        securityFilterMinScore.value ??
+        telemetryData.value?.SecurityFilterMinScore ??
+        3,
     minStreak: telemetryData.value?.SecurityFilterMinStreak ?? 5,
     maxShoeHand: telemetryData.value?.SecurityFilterMaxShoeHand ?? 20,
-    maxAvgSeconds: telemetryData.value?.SecurityFilterMaxAvgSeconds ?? 25.85,
-    veryFastSeconds: telemetryData.value?.SecurityFilterVeryFastSeconds ?? 23.1,
+    maxAvgSeconds:
+        securityFilterMaxAvg.value ??
+        telemetryData.value?.SecurityFilterMaxAvgSeconds ??
+        25.85,
+    veryFastSeconds:
+        securityFilterVeryFast.value ??
+        telemetryData.value?.SecurityFilterVeryFastSeconds ??
+        23.1,
     deltaWindow: telemetryData.value?.SecurityFilterDeltaWindow ?? 8,
     playerP1P5Threshold: resolvePlayerP1P5Threshold(
         telemetryData.value?.SecurityFilterPlayerP1P5ThresholdSeconds
@@ -390,8 +569,281 @@ function isPlayerRace8Ac3Enabled() {
     return resolveTelemetryFlag('PlayerPaceFilterEnabled', 'playerPaceFilterEnabled') === true;
 }
 
+function isSpotL6PerBotEnabled() {
+    if (spotL6PerBotEnabled.value === true || spotL6PerBotEnabled.value === false) return spotL6PerBotEnabled.value;
+    const t = resolveTelemetryFlag('SpotL6PerBotEnabled', 'spotL6PerBotEnabled');
+    if (t !== null) return t;
+    return telemetryData.value?.SpotPerBotOnlyEnabled !== false;
+}
+
+async function loadSpotL6PerBot() {
+    try {
+        const state = await DashboardService.getSpotL6PerBot();
+        spotL6PerBotEnabled.value = state?.enabled === true;
+    } catch {
+        const t = resolveTelemetryFlag('SpotL6PerBotEnabled', 'spotL6PerBotEnabled');
+        if (t !== null) spotL6PerBotEnabled.value = t;
+    }
+}
+
+async function loadSecurityFilter() {
+    try {
+        const state = await DashboardService.getSecurityFilter();
+        securityFilterModuleEnabled.value = state?.enabled === true;
+        const maxAvg = Number(state?.maxAvgSeconds);
+        const veryFast = Number(state?.veryFastSeconds);
+        const minScore = Number(state?.minScore);
+        if (Number.isFinite(maxAvg)) {
+            securityFilterMaxAvg.value = maxAvg;
+            securityFilterMaxAvgDraft.value = maxAvg;
+        }
+        if (Number.isFinite(veryFast)) {
+            securityFilterVeryFast.value = veryFast;
+            securityFilterVeryFastDraft.value = veryFast;
+        }
+        if (Number.isFinite(minScore)) {
+            securityFilterMinScore.value = minScore;
+            securityFilterMinScoreDraft.value = minScore;
+        }
+    } catch {
+        const enabled = resolveSecurityFilterEnabledFromTelemetry();
+        if (enabled !== null) securityFilterModuleEnabled.value = enabled;
+        const t = telemetryData.value;
+        if (t) {
+            const maxAvg = Number(t.SecurityFilterMaxAvgSeconds ?? t.securityFilterMaxAvgSeconds);
+            const veryFast = Number(t.SecurityFilterVeryFastSeconds ?? t.securityFilterVeryFastSeconds);
+            const minScore = Number(t.SecurityFilterMinScore ?? t.securityFilterMinScore);
+            if (Number.isFinite(maxAvg)) {
+                securityFilterMaxAvgDraft.value = maxAvg;
+                if (securityFilterMaxAvg.value === null) securityFilterMaxAvg.value = maxAvg;
+            }
+            if (Number.isFinite(veryFast)) {
+                securityFilterVeryFastDraft.value = veryFast;
+                if (securityFilterVeryFast.value === null) securityFilterVeryFast.value = veryFast;
+            }
+            if (Number.isFinite(minScore)) {
+                securityFilterMinScoreDraft.value = minScore;
+                if (securityFilterMinScore.value === null) securityFilterMinScore.value = minScore;
+            }
+        }
+    }
+}
+
+async function setSecurityFilterModule(enabled) {
+    securityFilterLoading.value = true;
+    try {
+        const state = await DashboardService.setSecurityFilterEnabled(enabled);
+        securityFilterModuleEnabled.value = state?.enabled === true;
+        securityFilterStatus.value = enabled ? 'Security Filter attivo' : 'Security Filter spento';
+    } catch {
+        securityFilterStatus.value = 'Errore Security Filter';
+    } finally {
+        securityFilterLoading.value = false;
+    }
+}
+
+async function saveSecurityFilterParameters() {
+    const maxAvg = Number(securityFilterMaxAvgDraft.value);
+    const veryFast = Number(securityFilterVeryFastDraft.value);
+    const minScore = Number(securityFilterMinScoreDraft.value);
+    securityFilterLoading.value = true;
+    try {
+        const saved = await DashboardService.saveSecurityFilterParameters({
+            maxAvgSeconds: maxAvg,
+            veryFastSeconds: veryFast,
+            minScore
+        });
+        securityFilterMaxAvg.value = Number(saved.maxAvgSeconds);
+        securityFilterVeryFast.value = Number(saved.veryFastSeconds);
+        securityFilterMinScore.value = Number(saved.minScore);
+        securityFilterMaxAvgDraft.value = securityFilterMaxAvg.value;
+        securityFilterVeryFastDraft.value = securityFilterVeryFast.value;
+        securityFilterMinScoreDraft.value = securityFilterMinScore.value;
+        securityFilterStatus.value = 'Parametri Security Filter salvati';
+    } catch (err) {
+        const msg = err?.response?.data?.message ?? 'Parametri non validi';
+        securityFilterStatus.value = msg;
+    } finally {
+        securityFilterLoading.value = false;
+    }
+}
+
+async function setSpotL6PerBot(enabled) {
+    spotL6PerBotLoading.value = true;
+    try {
+        const state = await DashboardService.setSpotL6PerBot(enabled);
+        spotL6PerBotEnabled.value = state?.enabled === true;
+        spotL6PerBotStatus.value = enabled ? 'SPOT L6 per bot attivo' : 'SPOT L6 per bot spento';
+    } catch {
+        spotL6PerBotStatus.value = 'Errore SPOT L6 per bot';
+    } finally {
+        spotL6PerBotLoading.value = false;
+    }
+}
+
 function anyPlayerRaceCommandEnabled() {
     return isPlayerRace5FilterEnabled() || isPlayerRace5Ac3Enabled() || isPlayerRace8FilterEnabled() || isPlayerRace8Ac3Enabled();
+}
+
+function isSpotThresholdConfigured() {
+    const t =
+        telemetryData.value?.SpotL6ThresholdL5 ??
+        telemetryData.value?.spotL6ThresholdL5 ??
+        telemetryData.value?.SpotResetThresholdL5 ??
+        telemetryData.value?.spotResetThresholdL5;
+    if (typeof t === 'number' && t >= 1) return true;
+    return spotResetThreshold.value >= 1;
+}
+
+function getSpotL6Threshold() {
+    if (!isSpotThresholdConfigured()) return '—';
+    const t =
+        telemetryData.value?.SpotL6ThresholdL5 ??
+        telemetryData.value?.spotL6ThresholdL5 ??
+        telemetryData.value?.SpotResetThresholdL5 ??
+        telemetryData.value?.spotResetThresholdL5;
+    if (typeof t === 'number' && t >= 1) return t;
+    if (spotResetThreshold.value >= 1) return spotResetThreshold.value;
+    return 2;
+}
+
+function getSpotResetThreshold() {
+    return getSpotL6Threshold();
+}
+
+function getSpotL5PlayedCount(row) {
+    const count = pickRowField(row, 'SpotL5PlayedCount', 'spotL5PlayedCount');
+    return typeof count === 'number' ? count : 0;
+}
+
+function getSpotL5LossCount(row) {
+    const count = pickRowField(row, 'SpotL5LossCount', 'spotL5LossCount');
+    return typeof count === 'number' ? count : 0;
+}
+
+function getSpotL6GrantedCount(row) {
+    const count = pickRowField(row, 'SpotL6GrantedCount', 'spotL6GrantedCount');
+    return typeof count === 'number' ? count : 0;
+}
+
+function getNextL5LossPreviewLabel(row) {
+    if (!isSpotThresholdConfigured()) return '—';
+    if (isSpotL6Authorized(row)) return 'NON SERVE: L6 GIÀ AUTORIZZATO';
+    const nextFlag = pickRowField(row, 'NextL5LossWillAuthorizeL6', 'nextL5LossWillAuthorizeL6');
+    if (nextFlag === true) return 'AUTORIZZA L6';
+    const threshold = getSpotL6Threshold();
+    const losses = getSpotL5LossCount(row);
+    if (typeof threshold === 'number' && losses === threshold - 1) return 'AUTORIZZA L6';
+    return 'NON autorizza L6';
+}
+
+function isSpotL6Authorized(row) {
+    if (!isSpotThresholdConfigured()) return false;
+    return pickSpotL6Authorized(row) === true;
+}
+
+function isSpotResetAuthorized(row) {
+    return isSpotL6Authorized(row);
+}
+
+function getSpotL6StatusLabel(row) {
+    if (!isSpotThresholdConfigured()) return 'SOGLIA NON CONFIGURATA';
+    return isSpotL6Authorized(row) ? 'L6 AUTORIZZATO' : 'L6 NON AUTORIZZATO';
+}
+
+function getSpotResetStatusLabel(row) {
+    return getSpotL6StatusLabel(row);
+}
+
+function getSpotResetBlockClass(row) {
+    if (!isSpotThresholdConfigured()) {
+        return 'border-surface-200 bg-surface-50/60 dark:border-surface-700 dark:bg-surface-900/40';
+    }
+    if (isSpotL6Authorized(row)) {
+        return 'border-emerald-300 bg-emerald-50 ring-1 ring-emerald-300/80 dark:border-emerald-700 dark:bg-emerald-950/35 dark:ring-emerald-800';
+    }
+    return 'border-surface-200 bg-surface-50/80 dark:border-surface-700 dark:bg-surface-900/30';
+}
+
+function getSpotResetStatusClass(row) {
+    if (!isSpotThresholdConfigured()) return 'text-muted-color';
+    if (isSpotL6Authorized(row)) return 'text-emerald-700 dark:text-emerald-300';
+    return 'text-muted-color';
+}
+
+function getSpotResetBadgeClass(row) {
+    if (!isSpotThresholdConfigured()) return 'border-surface-300 text-muted-color';
+    if (isSpotL6Authorized(row)) return 'border-emerald-400 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200';
+    return 'border-surface-300 text-muted-color dark:border-surface-600';
+}
+
+async function loadSpotResetThreshold() {
+    try {
+        const state = await DashboardService.getSpotResetThreshold();
+        const t = Number(state?.threshold);
+        if (t >= 1) {
+            spotResetThreshold.value = t;
+            spotResetThresholdDraft.value = t;
+        }
+    } catch {
+        const t =
+            telemetryData.value?.SpotL6ThresholdL5 ??
+            telemetryData.value?.spotL6ThresholdL5 ??
+            telemetryData.value?.SpotResetThresholdL5 ??
+            telemetryData.value?.spotResetThresholdL5;
+        if (typeof t === 'number' && t >= 1) {
+            spotResetThreshold.value = t;
+            spotResetThresholdDraft.value = t;
+        }
+    }
+    try {
+        const cycle = await DashboardService.getSpotCyclePbHands();
+        const h = Number(cycle?.hands);
+        if (h >= 1) {
+            spotCyclePbHands.value = h;
+            spotCyclePbHandsDraft.value = h;
+        }
+    } catch {
+        const h = telemetryData.value?.SpotCyclePbHandsLimit ?? telemetryData.value?.spotCyclePbHandsLimit;
+        if (typeof h === 'number' && h >= 1) {
+            spotCyclePbHands.value = h;
+            spotCyclePbHandsDraft.value = h;
+        }
+    }
+}
+
+async function saveSpotL6ThresholdOnly() {
+    const l5Value = Number(spotResetThresholdDraft.value);
+    spotL6PerBotLoading.value = true;
+    try {
+        const state = await DashboardService.setSpotResetThreshold(l5Value);
+        const t = Number(state?.threshold);
+        spotResetThreshold.value = t;
+        spotResetThresholdDraft.value = t;
+        spotL6PerBotStatus.value = `Soglia L6 salvata: ${t}`;
+    } catch (err) {
+        const msg = err?.response?.data?.message ?? err?.response?.data?.errors?.[0] ?? 'Soglia non valida (1–99)';
+        spotL6PerBotStatus.value = msg;
+    } finally {
+        spotL6PerBotLoading.value = false;
+    }
+}
+
+async function saveSpotCyclePbHandsOnly() {
+    const cycleValue = Number(spotCyclePbHandsDraft.value);
+    spotResetThresholdLoading.value = true;
+    try {
+        const cycleState = await DashboardService.setSpotCyclePbHands(cycleValue);
+        const h = Number(cycleState?.hands);
+        spotCyclePbHands.value = h;
+        spotCyclePbHandsDraft.value = h;
+        spotResetThresholdStatus.value = `Ciclo SPOT PB salvato: ${h} mani (reset alla mano ${h + 1})`;
+    } catch (err) {
+        const msg = err?.response?.data?.message ?? 'Ciclo PB non valido (1–99999)';
+        spotResetThresholdStatus.value = msg;
+    } finally {
+        spotResetThresholdLoading.value = false;
+    }
 }
 
 async function loadPlayerRace5Filter() {
@@ -487,6 +939,9 @@ async function setPlayerRace8Ac3(enabled) {
 }
 
 onMounted(() => {
+    loadSecurityFilter();
+    loadSpotResetThreshold();
+    loadSpotL6PerBot();
     loadPlayerRace5Filter();
     loadPlayerRace5Ac3();
     loadPlayerRace8Filter();
@@ -498,6 +953,10 @@ watch(
     () => {
         const r5f = resolveTelemetryFlag('PlayerRace5FilterEnabled', 'playerRace5FilterEnabled');
         if (r5f !== null && playerRace5FilterEnabled.value === null) playerRace5FilterEnabled.value = r5f;
+        const sl6 = resolveTelemetryFlag('SpotL6PerBotEnabled', 'spotL6PerBotEnabled');
+        if (sl6 !== null && spotL6PerBotEnabled.value === null) spotL6PerBotEnabled.value = sl6;
+        const sf = resolveSecurityFilterEnabledFromTelemetry();
+        if (sf !== null && securityFilterModuleEnabled.value === null) securityFilterModuleEnabled.value = sf;
         const r5a = resolveTelemetryFlag('PlayerRace5Ac3Enabled', 'playerRace5Ac3Enabled');
         if (r5a !== null && playerRace5Ac3Enabled.value === null) playerRace5Ac3Enabled.value = r5a;
         const r8f = resolveTelemetryFlag('PlayerRace8FilterEnabled', 'playerRace8FilterEnabled');
@@ -729,6 +1188,9 @@ function resolveSecurityFilterEnabledFromTelemetry() {
 }
 
 function isSecurityFilterEnabled() {
+    if (securityFilterModuleEnabled.value === true || securityFilterModuleEnabled.value === false) {
+        return securityFilterModuleEnabled.value;
+    }
     return resolveSecurityFilterEnabledFromTelemetry() === true;
 }
 
@@ -1052,9 +1514,11 @@ function selectSecurityFilterBot(row) {
         </div>
     </div>
 
-    <!-- ================= SPOT METRICS ================= -->
+    <!-- ================= SPOT METRICS LEGACY (solo se globale attivo) ================= -->
+    <template v-if="showLegacySpotMetricsGlobal">
     <div class="col-span-12 mt-6">
-        <h3 class="text-xl font-semibold mb-4">Spot Metrics</h3>
+        <h3 class="text-xl font-semibold mb-4">SPOT LEGACY GLOBALE</h3>
+        <p class="text-sm text-muted-color mb-2">Contatori globali legacy — non usare con SPOT L6 per bot attivo.</p>
     </div>
 
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
@@ -1085,13 +1549,15 @@ function selectSecurityFilterBot(row) {
     </div>
 
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
-        <div class="card">
-            <span class="block text-muted-color font-medium mb-4">Spot L5 Loss</span>
+        <div class="card opacity-60">
+            <span class="block text-muted-color font-medium mb-4">Spot L5 Loss (legacy globale)</span>
             <div class="text-surface-900 dark:text-surface-0 font-medium text-xl">
-                {{ telemetryData?.SpotL5Loss }}
+                {{ telemetryData?.SpotL5Loss ?? 0 }}
             </div>
+            <div class="text-xs text-muted-color mt-2">Disattivato — usare SPOT L6 per bot in Control Room</div>
         </div>
     </div>
+    </template>
 
     <!-- ================= INDICATORS & PAUSE ================= -->
     <div class="col-span-12 mt-6">
@@ -1133,12 +1599,7 @@ function selectSecurityFilterBot(row) {
 
     <!-- ================= SECURITY FILTER ================= -->
     <div class="col-span-12 mt-6">
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-4">
-            <h3 class="text-xl font-semibold m-0">Security Filter (sperimentale)</h3>
-            <span class="text-sm" :class="securityFilterOperational ? 'text-green-500' : 'text-red-500'">
-                {{ securityFilterOperational ? 'Attivo da Config' : 'Disattivato da Config' }}
-            </span>
-        </div>
+        <h3 class="text-xl font-semibold m-0 mb-4">Security Filter</h3>
     </div>
 
     <div class="col-span-12 lg:col-span-6 xl:col-span-3">
@@ -1162,85 +1623,148 @@ function selectSecurityFilterBot(row) {
         </div>
     </div>
 
+    <!-- ================= SPOT L6 PER BOT (operativo) ================= -->
     <div class="col-span-12">
-        <div class="card">
-            <div class="flex flex-col gap-1 mb-4">
-                <span class="block text-muted-color font-medium">Setup Security Filter</span>
-                <span class="text-sm text-muted-color">Condizioni correnti usate per comporre lo score per singolo bot.</span>
-            </div>
-            <div class="grid grid-cols-12 gap-3 text-sm mb-4">
-                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-100 p-3 dark:bg-surface-900">
-                    <div class="text-muted-color mb-1">Security Filter (runtime Decisore)</div>
-                    <div class="font-semibold" :class="securityFilterSetup.enabled ? 'text-green-600 dark:text-green-400' : 'text-red-500'">
-                        {{ securityFilterSetup.enabled ? 'ON' : 'OFF' }}
+        <div class="card border-2 border-cyan-300/80 dark:border-cyan-800">
+            <div class="rounded-xl border border-cyan-200 bg-gradient-to-br from-cyan-50/90 to-surface-0 p-5 dark:border-cyan-900 dark:from-cyan-950/30 dark:to-surface-900">
+                <div class="mb-4">
+                    <h3 class="m-0 text-xl font-bold uppercase tracking-wide text-cyan-900 dark:text-cyan-100">SPOT L6 PER BOT</h3>
+                </div>
+
+                <div class="mb-4 rounded-lg border border-cyan-200/80 bg-white/70 p-4 dark:border-cyan-900/60 dark:bg-surface-950/40">
+                    <div class="text-xs font-bold uppercase tracking-wide text-muted-color mb-2">Ciclo SPOT</div>
+                    <p class="text-sm leading-relaxed text-surface-800 dark:text-surface-100">
+                        Ogni bot ha il proprio ciclo SPOT PB (es. 598/600).
+                        Alla mano
+                        <strong>{{ getSpotCyclePbHandsLimit() }}</strong>
+                        vedi
+                        <strong>{{ getSpotCyclePbHandsLimit() }}/{{ getSpotCyclePbHandsLimit() }}</strong>.
+                        Alla mano successiva (
+                        <strong>{{ getSpotCyclePbHandsLimit() + 1 }}</strong>
+                        ): nuovo Spot ciclo ID, contatore PB a
+                        <strong>0</strong>
+                        e azzeramento L5/L6 solo per quel bot.
+                    </p>
+                    <div class="mt-3 flex flex-wrap items-center gap-2 text-base font-semibold text-surface-900 dark:text-surface-0">
+                        <span>Mani PB per ciclo:</span>
+                        <input
+                            v-model.number="spotCyclePbHandsDraft"
+                            type="number"
+                            min="1"
+                            max="99999"
+                            class="w-20 rounded-lg border border-cyan-400 bg-white px-2 py-1 text-center text-xl font-bold dark:border-cyan-700 dark:bg-surface-900"
+                        />
+                    </div>
+
+                    <p class="mt-3 text-xs font-semibold text-muted-color">
+                        ATTIVA/SPEGNI e soglia L6: pannello coordinato sopra con Filtro 5/8 e AC3.
+                        I bot non si sommano tra loro.
+                    </p>
+                    <div class="mt-3 flex flex-wrap items-center gap-3">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-cyan-700 px-5 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-cyan-800 disabled:opacity-60"
+                            :disabled="spotResetThresholdLoading"
+                            @click="saveSpotCyclePbHandsOnly"
+                        >
+                            Salva ciclo PB
+                        </button>
+                        <span v-if="spotResetThresholdStatus" class="text-xs text-primary">{{ spotResetThresholdStatus }}</span>
                     </div>
                 </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Max Avg Seconds</div>
-                    <div class="font-semibold">{{ Number(securityFilterSetup.maxAvgSeconds).toFixed(2) }}s</div>
+
+                <div class="mb-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
+                    <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                        <div class="text-[10px] uppercase text-muted-color">Modalità</div>
+                        <div class="text-sm font-bold" :class="isSpotL6PerBotEnabled() ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-500'">
+                            {{ isSpotL6PerBotEnabled() ? 'SPOT PER BOT ON' : 'SPOT PER BOT OFF' }}
+                        </div>
+                    </div>
+                    <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                        <div class="text-[10px] uppercase text-muted-color">Soglia L6</div>
+                        <div class="text-sm font-bold tabular-nums">{{ spotOpsSummary.l6ThresholdLabel }}</div>
+                    </div>
+                    <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                        <div class="text-[10px] uppercase text-muted-color">Bot tracciati</div>
+                        <div class="text-lg font-bold">{{ spotOpsSummary.botsTracked }}</div>
+                    </div>
+                    <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                        <div class="text-[10px] uppercase text-muted-color">L5/L6 globale legacy</div>
+                        <div class="text-sm font-bold text-emerald-600 dark:text-emerald-400">SPENTO</div>
+                    </div>
                 </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Very Fast Seconds</div>
-                    <div class="font-semibold">{{ Number(securityFilterSetup.veryFastSeconds).toFixed(2) }}s</div>
+
+                <div
+                    v-if="showLocalCollaudoPreview"
+                    class="mb-3 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+                >
+                    Anteprima collaudo locale — dati esempio PC1–PC4 finché Decisore non scrive telemetry in DB.
                 </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Min Score</div>
-                    <div class="font-semibold">{{ securityFilterSetup.minScore }}</div>
+
+                <div v-if="spotResetBotRows.length === 0" class="rounded-lg border border-dashed border-cyan-300 px-4 py-6 text-center text-muted-color">
+                    Nessun bot in telemetry. Avvia Decisore e attendi feed per vedere Spot mano / L5 / stato per PC.
                 </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Delta Window</div>
-                    <div class="font-semibold">{{ securityFilterSetup.deltaWindow }}</div>
-                </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Max Shoe Hand</div>
-                    <div class="font-semibold">{{ securityFilterSetup.maxShoeHand }}</div>
-                </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Min Streak</div>
-                    <div class="font-semibold">{{ securityFilterSetup.minStreak }}</div>
-                </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">PLAYER P1→P5 soglia UI</div>
-                    <div class="font-semibold">{{ Number(securityFilterSetup.playerP1P5Threshold).toFixed(0) }}s</div>
-                </div>
-                <div class="col-span-6 md:col-span-3 xl:col-span-2 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Prevented L6 (tot.)</div>
-                    <div class="font-semibold">{{ securityFilterSetup.preventedL6 }}</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 rounded-xl border border-surface-200 p-3 dark:border-surface-700" v-if="securityFilterLastEvent">
-                    <div class="text-muted-color mb-1">Ultimo evento filtro (per bot)</div>
-                    <div class="font-semibold">{{ securityFilterLastEvent.bot }} — {{ securityFilterLastEvent.reason }}</div>
-                    <div class="text-xs text-muted-color mt-1" v-if="securityFilterLastEvent.ts">{{ securityFilterLastEvent.ts }}</div>
-                </div>
-            </div>
-            <div class="grid grid-cols-12 gap-3 text-sm">
-                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Soglia attivazione</div>
-                    <div class="font-semibold">Score minimo {{ securityFilterSetup.minScore }}/4</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Finestra avg mano</div>
-                    <div class="font-semibold">Ultimi {{ securityFilterSetup.deltaWindow }} delta mano</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-4 rounded-xl bg-surface-50 p-3 dark:bg-surface-800">
-                    <div class="text-muted-color mb-1">Media</div>
-                    <div class="font-semibold">Trimmata quando ci sono almeno 3 campioni</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
-                    <div class="font-semibold">+1 streak</div>
-                    <div class="text-muted-color">se streak &gt;= {{ securityFilterSetup.minStreak }}</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
-                    <div class="font-semibold">+1 avg veloce</div>
-                    <div class="text-muted-color">se avg mano &lt; {{ Number(securityFilterSetup.maxAvgSeconds).toFixed(1) }}s</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
-                    <div class="font-semibold">+1 inizio shoe</div>
-                    <div class="text-muted-color">se mano shoe &lt;= {{ securityFilterSetup.maxShoeHand }}</div>
-                </div>
-                <div class="col-span-12 md:col-span-6 xl:col-span-3 rounded-xl border border-surface-200 p-3 dark:border-surface-700">
-                    <div class="font-semibold">+1 very fast</div>
-                    <div class="text-muted-color">se avg mano &lt; {{ Number(securityFilterSetup.veryFastSeconds).toFixed(1) }}s</div>
+
+                <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    <div
+                        v-for="row in spotResetBotRows"
+                        :key="`spot-${getBotName(row)}`"
+                        class="rounded-xl border p-4"
+                        :class="getSpotResetBlockClass(row)"
+                    >
+                        <div class="mb-2 text-lg font-bold text-surface-900 dark:text-surface-0">{{ getBotName(row) }}</div>
+                        <div class="space-y-1.5 text-sm">
+                            <div class="flex justify-between gap-2">
+                                <span class="text-muted-color">Spot ciclo ID</span>
+                                <span class="font-bold tabular-nums">{{ getSpotCycleId(row) }}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-muted-color">Ciclo SPOT PB</span>
+                                <span class="font-bold tabular-nums">{{ formatSpotPbCycle(row) }}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-muted-color">Mano shoe</span>
+                                <span class="font-bold tabular-nums">{{ getSpotShoeHand(row) }}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-muted-color">Livello</span>
+                                <span class="font-bold">L{{ getSpotMartingala(row) ?? '—' }}</span>
+                            </div>
+                            <div class="flex justify-between gap-2 border-t border-surface-200 pt-2 dark:border-surface-700">
+                                <span class="text-muted-color">L5 giocate ciclo</span>
+                                <span class="font-bold tabular-nums">{{ getSpotL5PlayedCount(row) }}</span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="font-semibold text-surface-900 dark:text-surface-0">L5 perse ciclo</span>
+                                <span class="text-base font-bold tabular-nums">
+                                    {{ getSpotL5LossCount(row) }}/{{ isSpotThresholdConfigured() ? getSpotL6Threshold() : '—' }}
+                                </span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="text-muted-color">L6 concessi ciclo</span>
+                                <span class="font-bold tabular-nums">{{ getSpotL6GrantedCount(row) }}</span>
+                            </div>
+                            <div class="flex flex-col gap-1 border-t border-surface-200 pt-2 dark:border-surface-700">
+                                <span class="font-semibold text-muted-color">Prossima L5 persa</span>
+                                <span
+                                    class="text-xs font-bold leading-snug"
+                                    :class="
+                                        getNextL5LossPreviewLabel(row).includes('AUTORIZZA L6') && !getNextL5LossPreviewLabel(row).includes('NON')
+                                            ? 'text-emerald-700 dark:text-emerald-300'
+                                            : 'text-surface-800 dark:text-surface-100'
+                                    "
+                                >
+                                    {{ getNextL5LossPreviewLabel(row) }}
+                                </span>
+                            </div>
+                            <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+                                <span class="font-semibold text-muted-color">Stato</span>
+                                <span class="rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wide" :class="getSpotResetBadgeClass(row)">
+                                    {{ getSpotResetStatusLabel(row) }}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1248,7 +1772,81 @@ function selectSecurityFilterBot(row) {
 
     <div class="col-span-12">
         <div class="card">
-            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div class="mb-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+                <div class="rounded-xl border border-slate-300 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-950/30">
+                    <div class="text-lg font-bold">Security Filter</div>
+                    <div class="mt-1 text-sm text-muted-color">
+                        Protezione runtime del Decisore basata su score e velocità.
+                    </div>
+                    <div class="mt-2 text-sm font-semibold" :class="isSecurityFilterEnabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isSecurityFilterEnabled() ? 'ATTIVO' : 'SPENTO' }}
+                    </div>
+                    <div v-if="securityFilterStatus" class="mt-1 text-xs text-primary">{{ securityFilterStatus }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            :disabled="securityFilterLoading || isSecurityFilterEnabled()"
+                            @click="setSecurityFilterModule(true)"
+                        >
+                            ATTIVA
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                            :disabled="securityFilterLoading || !isSecurityFilterEnabled()"
+                            @click="setSecurityFilterModule(false)"
+                        >
+                            SPEGNI
+                        </button>
+                    </div>
+                    <div class="mt-4 text-sm font-semibold text-muted-color">Configurazione:</div>
+                    <div class="mt-2 space-y-2 text-sm">
+                        <label class="flex flex-wrap items-center gap-2 font-semibold">
+                            <span>Max Avg Seconds</span>
+                            <input
+                                v-model.number="securityFilterMaxAvgDraft"
+                                type="number"
+                                min="0.01"
+                                max="120"
+                                step="0.01"
+                                class="w-20 rounded-lg border border-slate-400 bg-white px-2 py-1 text-center font-bold dark:border-slate-600 dark:bg-surface-900"
+                            />
+                        </label>
+                        <label class="flex flex-wrap items-center gap-2 font-semibold">
+                            <span>Very Fast Seconds</span>
+                            <input
+                                v-model.number="securityFilterVeryFastDraft"
+                                type="number"
+                                min="0.01"
+                                max="120"
+                                step="0.01"
+                                class="w-20 rounded-lg border border-slate-400 bg-white px-2 py-1 text-center font-bold dark:border-slate-600 dark:bg-surface-900"
+                            />
+                        </label>
+                        <label class="flex flex-wrap items-center gap-2 font-semibold">
+                            <span>Min Score</span>
+                            <input
+                                v-model.number="securityFilterMinScoreDraft"
+                                type="number"
+                                min="1"
+                                max="4"
+                                step="1"
+                                class="w-14 rounded-lg border border-slate-400 bg-white px-2 py-1 text-center font-bold dark:border-slate-600 dark:bg-surface-900"
+                            />
+                        </label>
+                    </div>
+                    <div class="mt-3">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-slate-800 disabled:opacity-60"
+                            :disabled="securityFilterLoading"
+                            @click="saveSecurityFilterParameters"
+                        >
+                            SALVA
+                        </button>
+                    </div>
+                </div>
                 <div class="rounded-xl border border-amber-200 bg-amber-50/40 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                     <div class="text-lg font-bold">Filtro 5</div>
                     <div class="mt-1 text-sm text-muted-color">Avviso Player Race a 5 PLAYER consecutivi.</div>
@@ -1295,6 +1893,54 @@ function selectSecurityFilterBot(row) {
                     <div class="mt-3 flex flex-wrap gap-2">
                         <button type="button" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60" :disabled="playerRace8Ac3Loading || isPlayerRace8Ac3Enabled()" @click="setPlayerRace8Ac3(true)">ATTIVA</button>
                         <button type="button" class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60" :disabled="playerRace8Ac3Loading || !isPlayerRace8Ac3Enabled()" @click="setPlayerRace8Ac3(false)">SPEGNI</button>
+                    </div>
+                </div>
+                <div class="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4 dark:border-cyan-900 dark:bg-cyan-950/20">
+                    <div class="text-lg font-bold">SPOT L6 per bot</div>
+                    <div class="mt-1 text-sm text-muted-color">
+                        Concede L6 al singolo bot dopo N L5 perse nel suo ciclo SPOT.
+                    </div>
+                    <div class="mt-2 text-sm font-semibold" :class="isSpotL6PerBotEnabled() ? 'text-green-600' : 'text-red-500'">
+                        {{ isSpotL6PerBotEnabled() ? 'ATTIVO' : 'SPENTO' }}
+                    </div>
+                    <div v-if="spotL6PerBotStatus" class="mt-1 text-xs text-primary">{{ spotL6PerBotStatus }}</div>
+                    <div class="mt-3 flex flex-wrap gap-2">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60"
+                            :disabled="spotL6PerBotLoading || isSpotL6PerBotEnabled()"
+                            @click="setSpotL6PerBot(true)"
+                        >
+                            ATTIVA
+                        </button>
+                        <button
+                            type="button"
+                            class="rounded-lg bg-red-600 px-3 py-2 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60"
+                            :disabled="spotL6PerBotLoading || !isSpotL6PerBotEnabled()"
+                            @click="setSpotL6PerBot(false)"
+                        >
+                            SPEGNI
+                        </button>
+                    </div>
+                    <div class="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold">
+                        <span>Soglia L6 per bot:</span>
+                        <input
+                            v-model.number="spotResetThresholdDraft"
+                            type="number"
+                            min="1"
+                            max="99"
+                            class="w-14 rounded-lg border border-cyan-400 bg-white px-2 py-1 text-center font-bold dark:border-cyan-700 dark:bg-surface-900"
+                        />
+                    </div>
+                    <div class="mt-2">
+                        <button
+                            type="button"
+                            class="rounded-lg bg-cyan-700 px-3 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-cyan-800 disabled:opacity-60"
+                            :disabled="spotL6PerBotLoading"
+                            @click="saveSpotL6ThresholdOnly"
+                        >
+                            Salva soglia
+                        </button>
                     </div>
                 </div>
             </div>

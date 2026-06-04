@@ -46,9 +46,17 @@ namespace Decisore.Services
                         ? int.Parse(l6AuthLoss, CultureInfo.InvariantCulture)
                         : _engine.L6_AUTH_LOSS;
                     
-                    _engine.L6_AUTH_PB_RESET_COUNTER = cfg.TryGetValue("L6_AUTH_PB_RESET_COUNTER", out var l6AuthPBResetCounter)
-                        ? int.Parse(l6AuthPBResetCounter, CultureInfo.InvariantCulture)
-                        : _engine.L6_AUTH_PB_RESET_COUNTER;
+                    if (cfg.TryGetValue("SPOT_CYCLE_PB_HANDS", out var spotCyclePbHands))
+                        _engine.L6_AUTH_PB_RESET_COUNTER = int.Parse(spotCyclePbHands, CultureInfo.InvariantCulture);
+                    else if (cfg.TryGetValue("L6_AUTH_PB_RESET_COUNTER", out var l6AuthPBResetCounter))
+                        _engine.L6_AUTH_PB_RESET_COUNTER = int.Parse(l6AuthPBResetCounter, CultureInfo.InvariantCulture);
+
+                    _engine.SPOT_RESET_THRESHOLD_L5 = cfg.TryGetValue("SPOT_RESET_THRESHOLD_L5", out var spotResetThresholdL5)
+                        ? int.Parse(spotResetThresholdL5, CultureInfo.InvariantCulture)
+                        : _engine.SPOT_RESET_THRESHOLD_L5;
+
+                    if (cfg.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6PerBot))
+                        _engine.SPOT_L6_PER_BOT_ENABLED = ParseEnabledFlag(spotL6PerBot);
                     
                     _engine.PAUSE_SCALPING_WIN_BUCKET = cfg.TryGetValue("PAUSE_SCALPING_WIN_BUCKET", out var pauseScalpingWinBucket)
                         ? double.Parse(pauseScalpingWinBucket, CultureInfo.InvariantCulture)

@@ -260,6 +260,18 @@ public class DashboardService : IDashboardService
                     result.SpotAuthL6Counter = salc.GetInt32();
                 if (root.TryGetProperty("SpotL5Loss", out var sl5l))
                     result.SpotL5Loss = sl5l.GetInt32();
+                if (root.TryGetProperty("SpotL6ThresholdL5", out var srt6))
+                    result.SpotL6ThresholdL5 = srt6.GetInt32();
+                else if (root.TryGetProperty("SpotResetThresholdL5", out var srt))
+                    result.SpotL6ThresholdL5 = srt.GetInt32();
+                if (root.TryGetProperty("SpotCyclePbHandsLimit", out var scpl))
+                    result.SpotCyclePbHandsLimit = scpl.GetInt32();
+                if (root.TryGetProperty("SpotPerBotOnlyEnabled", out var spbo))
+                    result.SpotPerBotOnlyEnabled = spbo.GetBoolean();
+                if (root.TryGetProperty("SpotL6PerBotEnabled", out var sl6))
+                    result.SpotL6PerBotEnabled = sl6.GetBoolean();
+                if (root.TryGetProperty("SpotLegacyGlobalEnabled", out var slg))
+                    result.SpotLegacyGlobalEnabled = slg.GetBoolean();
                 if (root.TryGetProperty("SecurityFilterEnabled", out var sfe))
                     result.SecurityFilterEnabled = sfe.GetBoolean();
                 if (root.TryGetProperty("SecurityFilterMinScore", out var sfms))
@@ -364,7 +376,11 @@ public class DashboardService : IDashboardService
             "SECURITY_FILTER_MAX_SHOE_HAND",
             "SECURITY_FILTER_MAX_AVG_SECONDS",
             "SECURITY_FILTER_VERY_FAST_SECONDS",
-            "SECURITY_FILTER_DELTA_WINDOW"
+            "SECURITY_FILTER_DELTA_WINDOW",
+            "SPOT_RESET_THRESHOLD_L5",
+            "SPOT_CYCLE_PB_HANDS",
+            "SPOT_L6_PER_BOT_ENABLED",
+            "L6_AUTH_PB_RESET_COUNTER"
         };
 
         var configs = await _context.Configurations
@@ -422,6 +438,23 @@ public class DashboardService : IDashboardService
         if (configs.TryGetValue("SECURITY_FILTER_DELTA_WINDOW", out var deltaWindow) &&
             int.TryParse(deltaWindow, NumberStyles.Integer, CultureInfo.InvariantCulture, out var dw))
             result.SecurityFilterDeltaWindow = dw;
+
+        if (configs.TryGetValue("SPOT_RESET_THRESHOLD_L5", out var spotThreshold) &&
+            int.TryParse(spotThreshold, NumberStyles.Integer, CultureInfo.InvariantCulture, out var st) &&
+            st >= 1)
+            result.SpotL6ThresholdL5 = st;
+
+        if (configs.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6Enabled))
+            result.SpotL6PerBotEnabled = ParseEnabledFlag(spotL6Enabled);
+
+        if (configs.TryGetValue("SPOT_CYCLE_PB_HANDS", out var spotCyclePb) &&
+            int.TryParse(spotCyclePb, NumberStyles.Integer, CultureInfo.InvariantCulture, out var scp) &&
+            scp >= 1)
+            result.SpotCyclePbHandsLimit = scp;
+        else if (configs.TryGetValue("L6_AUTH_PB_RESET_COUNTER", out var legacyCyclePb) &&
+            int.TryParse(legacyCyclePb, NumberStyles.Integer, CultureInfo.InvariantCulture, out var lcp) &&
+            lcp >= 1)
+            result.SpotCyclePbHandsLimit = lcp;
     }
 
     private static bool ParseEnabledFlag(string? value)

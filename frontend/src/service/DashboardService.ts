@@ -88,4 +88,63 @@ export const DashboardService = {
         const response = await apiClient.put('/api/player-race-8/ac3', { enabled });
         return unwrap<{ enabled: boolean }>(response);
     },
+
+    async getSpotResetThreshold(): Promise<{ threshold: number }> {
+        const response = await apiClient.get('/api/spot-reset/threshold');
+        return unwrap<{ threshold: number }>(response);
+    },
+
+    async setSpotResetThreshold(threshold: number): Promise<{ threshold: number }> {
+        const response = await apiClient.put('/api/spot-reset/threshold', { threshold });
+        return unwrap<{ threshold: number }>(response);
+    },
+
+    async getSpotCyclePbHands(): Promise<{ hands: number }> {
+        const response = await apiClient.get('/api/spot-reset/cycle-pb-hands');
+        return unwrap<{ hands: number }>(response);
+    },
+
+    async setSpotCyclePbHands(hands: number): Promise<{ hands: number }> {
+        const response = await apiClient.put('/api/spot-reset/cycle-pb-hands', { hands });
+        return unwrap<{ hands: number }>(response);
+    },
+
+    async getSpotL6PerBot(): Promise<{ enabled: boolean }> {
+        const response = await apiClient.get('/api/spot-l6-per-bot');
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async setSpotL6PerBot(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/spot-l6-per-bot', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async getSecurityFilter(): Promise<{
+        enabled: boolean;
+        maxAvgSeconds: number;
+        veryFastSeconds: number;
+        minScore: number;
+    }> {
+        const response = await apiClient.get('/api/security-filter');
+        return unwrap<{
+            enabled: boolean;
+            maxAvgSeconds: number;
+            veryFastSeconds: number;
+            minScore: number;
+        }>(response);
+    },
+
+    async setSecurityFilterEnabled(enabled: boolean): Promise<{ enabled: boolean }> {
+        const response = await apiClient.put('/api/security-filter/enabled', { enabled });
+        return unwrap<{ enabled: boolean }>(response);
+    },
+
+    async saveSecurityFilterParameters(params: {
+        maxAvgSeconds: number;
+        veryFastSeconds: number;
+        minScore: number;
+    }): Promise<{ maxAvgSeconds: number; veryFastSeconds: number; minScore: number }> {
+        const response = await apiClient.put('/api/security-filter/parameters', params);
+        return unwrap<{ maxAvgSeconds: number; veryFastSeconds: number; minScore: number }>(response);
+    },
 };
