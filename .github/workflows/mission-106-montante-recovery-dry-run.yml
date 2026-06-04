@@ -1,0 +1,70 @@
+name: DASH2A Mission 106 Montante Recovery Dry-Run
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type MISSION_106_DRY_RUN to run readonly dry-run SQL"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  dry-run:
+    name: Read-only mission 106 recovery dry-run
+    if: ${{ github.event.inputs.confirm == 'MISSION_106_DRY_RUN' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Guard read-only scope
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'MISSION_106_DRY_RUN') {
+            throw 'Manual confirmation input is invalid.'
+          }
+          Write-Host 'READ ONLY: 01-dry-run-mission-106-montante-recovery.sql — no writes.'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run dry-run SQL on runtime SQL 1434
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          if ([string]::IsNullOrWhiteSpace($connString)) {
+            throw 'DefaultConnection missing from shared production config.'
+          }
+
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+
+          Write-Host "SQL_CONFIG_SERVER=$($parts['Server'])"
+          Write-Host "SQL_CONFIG_DB=$($parts['Database'])"
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+
+          $sqlFile = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/mission-106-montante-recovery/01-dry-run-mission-106-montante-recovery.sql'
+          if (-not (Test-Path -LiteralPath $sqlFile)) {
+            throw "SQL script not found: $sqlFile"
+          }
+
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] -i $sqlFile -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed with exit code $LASTEXITCODE" }
