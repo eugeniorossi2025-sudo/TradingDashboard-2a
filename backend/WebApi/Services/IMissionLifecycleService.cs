@@ -9,6 +9,7 @@ public interface IMissionLifecycleService
     Task<MissionLifecycleResult> FinalizeCurrentAsync(string reason, CancellationToken cancellationToken = default);
     Task<MissionLifecycleResult?> ObserveLiveStateAsync(CancellationToken cancellationToken = default);
     Task RecordResetBoundaryAsync(CancellationToken cancellationToken = default);
+    Task<MissionResetBoundaryState> GetResetBoundaryStateAsync(CancellationToken cancellationToken = default);
     Task<int> SendMissionEmailAsync(int sessionId, string eventType, CancellationToken cancellationToken = default);
     Task<MissionOpenSessionsSnapshot> GetOpenSessionsSnapshotAsync(CancellationToken cancellationToken = default);
     Task<MissionAccountingHealth> GetAccountingHealthAsync(CancellationToken cancellationToken = default);
@@ -35,6 +36,13 @@ public sealed class MissionOpenSessionsCheck
 {
     public int Count { get; set; }
     public IReadOnlyList<int> SessionIds { get; set; } = Array.Empty<int>();
+}
+
+public sealed class MissionResetBoundaryState
+{
+    public string? MissionSuppressStartUntilReset { get; set; }
+    public bool MissionStartSuppressed { get; set; }
+    public DateTime? MissionLastResetAtUtc { get; set; }
 }
 
 public sealed class MissionRecoveryResult

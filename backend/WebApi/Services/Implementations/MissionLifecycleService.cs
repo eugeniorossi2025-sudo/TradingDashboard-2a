@@ -228,6 +228,22 @@ public class MissionLifecycleService : IMissionLifecycleService
         await SetConfigurationValueAsync(MissionSuppressStartUntilResetKey, "0", "Mission start is suppressed after AC1 close until the next dashboard reset.", cancellationToken);
     }
 
+    public async Task<MissionResetBoundaryState> GetResetBoundaryStateAsync(CancellationToken cancellationToken = default)
+    {
+        var suppressValue = await _context.Configurations
+            .AsNoTracking()
+            .Where(row => row.Key == MissionSuppressStartUntilResetKey)
+            .Select(row => row.Value)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return new MissionResetBoundaryState
+        {
+            MissionSuppressStartUntilReset = suppressValue,
+            MissionStartSuppressed = await IsMissionStartSuppressedAsync(cancellationToken),
+            MissionLastResetAtUtc = await GetLastResetBoundaryAsync(cancellationToken)
+        };
+    }
+
     public async Task<MissionLifecycleResult> StartCurrentAsync(CancellationToken cancellationToken = default)
     {
         await EnsureMissionReportSchemaAsync(cancellationToken);

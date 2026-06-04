@@ -266,11 +266,12 @@ const confirmResetDashboard = async () => {
         showResetDialog.value = false;
     } catch (error) {
         console.error('❌ Error during dashboard reset:', error);
+        const apiMessage = error?.response?.data?.message;
         toast.add({
             severity: 'error',
             summary: 'Errore',
-            detail: 'Reset dashboard fallito',
-            life: 3000
+            detail: apiMessage || 'Reset dashboard fallito',
+            life: 5000
         });
     } finally {
         resetLoading.value = false;
