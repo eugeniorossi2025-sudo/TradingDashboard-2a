@@ -1,0 +1,198 @@
+name: DASH2A Unified DB Readonly Verify
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type DB_UNIFIED_VERIFY to compare runtime SQL targets"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  webapi-backend:
+    name: WebApi IIS + localhost API + SQL proof
+    if: ${{ github.event.inputs.confirm == 'DB_UNIFIED_VERIFY' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 15
+
+    steps:
+      - name: WebApi runtime config + SQL + API cross-check
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Import-Module WebAdministration
+
+          function Parse-Conn([string]$cs) {
+            $p = @{}
+            $cs -split ';' | ForEach-Object {
+              $kv = $_ -split '=', 2
+              if ($kv.Count -eq 2) { $p[$kv[0].Trim()] = $kv[1].Trim() }
+            }
+            $server = $p['Server']
+            $port = if ($server -match ',(\d+)$') { $Matches[1] } else { 'default' }
+            $hostOnly = ($server -split ',')[0]
+            [pscustomobject]@{
+              ServerHost = $hostOnly
+              Port = $port
+              Database = $p['Database']
+              User = $p['User Id']
+              ServerRaw = $server
+            }
+          }
+
+          function Sql-Proof([string]$label, [string]$connString) {
+            $parsed = Parse-Conn $connString
+            $cn = New-Object System.Data.SqlClient.SqlConnection($connString)
+            $cn.Open()
+            $cmd = $cn.CreateCommand()
+            $cmd.CommandText = @"
+          SELECT
+            DB_NAME() AS DbName,
+            @@SERVERNAME AS ServerName,
+            (SELECT COUNT(*) FROM dbo.MissionSessions WHERE Id = 105) AS Has105,
+            (SELECT COUNT(*) FROM dbo.MissionSessions WHERE Id = 106) AS Has106,
+            (SELECT TOP 1 TotalMargin FROM dbo.MissionSessions WHERE Id = 105) AS M105Margin,
+            (SELECT TOP 1 FinalizationReason FROM dbo.MissionSessions WHERE Id = 105) AS M105Reason,
+            (SELECT Value FROM dbo.Configurations WHERE [K] = 'MISSION_SUPPRESS_START_UNTIL_RESET') AS Suppress,
+            (SELECT COUNT(*) FROM dbo.Margini WHERE Data >= '2026-06-04T14:25:10' AND Data <= '2026-06-04T18:32:29') AS MarginiOrphanCount,
+            (SELECT TOP 1 CONCAT(CAST(ID AS varchar(20)), '|', CONVERT(varchar(30), Data, 121), '|', CAST(Margine AS varchar(20)))
+             FROM dbo.Margini WHERE Data < '2026-06-04T14:25:10' ORDER BY Data DESC) AS LastMarginBefore1425,
+            (SELECT TOP 1 CONCAT(CAST(ID AS varchar(20)), '|', CONVERT(varchar(30), Data, 121), '|', CAST(Margine AS varchar(20)))
+             FROM dbo.Margini WHERE Data > '2026-06-04T14:25:10' ORDER BY Data ASC) AS FirstMarginAfter1425
+          "@
+            $r = $cmd.ExecuteReader()
+            $r.Read() | Out-Null
+            $proof = [ordered]@{
+              Label = $label
+              Host = $parsed.ServerHost
+              Port = $parsed.Port
+              Database = $parsed.Database
+              User = $parsed.User
+              DbName = $r['DbName']
+              Has105 = $r['Has105']
+              Has106 = $r['Has106']
+              M105Margin = $r['M105Margin']
+              M105Reason = $r['M105Reason']
+              Suppress = $r['Suppress']
+              MarginiOrphan = $r['MarginiOrphanCount']
+              LastMarginBefore1425 = $r['LastMarginBefore1425']
+              FirstMarginAfter1425 = $r['FirstMarginAfter1425']
+            }
+            $r.Close(); $cn.Close()
+            return $proof
+          }
+
+          $site = Get-Website -Name 'demoapp'
+          $physicalPath = [Environment]::ExpandEnvironmentVariables($site.PhysicalPath)
+          $sharedPath = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          $releasePath = Join-Path $physicalPath 'appsettings.Production.json'
+
+          $envVal = (Get-WebConfigurationProperty -Filter "system.applicationHost/applicationPools/add[@name='demoapp']/environmentVariables/add[@name='ASPNETCORE_ENVIRONMENT']" -Name 'value' -ErrorAction SilentlyContinue).Value
+
+          Write-Host "COMPONENT=WebApi-PROD"
+          Write-Host "FILE_SHARED=$sharedPath"
+          Write-Host "FILE_RELEASE=$releasePath"
+          Write-Host "IIS_PHYSICAL_PATH=$physicalPath"
+          Write-Host "ASPNETCORE_ENVIRONMENT=$envVal"
+
+          Add-Type -AssemblyName System.Data
+          $sharedCs = (Get-Content -LiteralPath $sharedPath -Raw | ConvertFrom-Json).ConnectionStrings.DefaultConnection
+          $releaseCs = (Get-Content -LiteralPath $releasePath -Raw | ConvertFrom-Json).ConnectionStrings.DefaultConnection
+          Write-Host "SHARED_RELEASE_CS_MATCH=$($sharedCs -eq $releaseCs)"
+
+          $p1 = Sql-Proof 'WebApi-shared' $sharedCs
+          $p2 = Sql-Proof 'WebApi-release' $releaseCs
+
+          Write-Host "=== SQL_PROOF_TABLE ==="
+          foreach ($p in @($p1, $p2)) {
+            Write-Host ("ROW|{0}|{1}|{2}|{3}|{4}|105={5}|106={6}|margin={7}|reason={8}|suppress={9}|orphanMargini={10}|lastBefore={11}|firstAfter={12}" -f $p.Label,$p.Host,$p.Port,$p.Database,$p.User,$p.Has105,$p.Has106,$p.M105Margin,$p.M105Reason,$p.Suppress,$p.MarginiOrphan,$p.LastMarginBefore1425,$p.FirstMarginAfter1425)
+          }
+
+          Write-Host "=== API_LOCALHOST (same IIS process) ==="
+          $login = Invoke-RestMethod -Uri 'http://127.0.0.1/api/Auth/login' -Method Post -ContentType 'application/json' -Body '{"username":"admin","password":"Admin@123456"}'
+          $token = $login.token
+          $h = @{ Authorization = "Bearer $token" }
+          $idx = Invoke-RestMethod -Uri 'http://127.0.0.1/api/mission/reports/index?runtimeMode=Production&sessionId=105&limit=5' -Headers $h
+          $cur = Invoke-RestMethod -Uri 'http://127.0.0.1/api/mission/current' -Headers $h
+          $marg = Invoke-RestMethod -Uri 'http://127.0.0.1/api/dashboard/margini-chart?limit=5' -Headers $h
+          $item = $idx.data.items[0]
+          Write-Host "API_INDEX_105_SESSION=$($item.sessionId) MARGIN=$($item.totalMarginEuro) END=$($item.endUtc)"
+          Write-Host "API_CURRENT_OPEN=$($cur.data.hasOpenMission) CURRENT_MARGIN=$($cur.data.currentMargin)"
+          if ($marg.data.Count -gt 0) {
+            $last = $marg.data[-1]
+            Write-Host "API_MARGINI_LAST=$($last.dateTime) VALUE=$($last.margine)"
+          }
+
+  decisore:
+    name: Decisore appsettings + SQL proof
+    if: ${{ github.event.inputs.confirm == 'DB_UNIFIED_VERIFY' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-DECISORE]
+    timeout-minutes: 10
+
+    steps:
+      - name: Decisore runtime config + SQL proof
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Add-Type -AssemblyName System.Data
+
+          function Parse-Conn([string]$cs) {
+            $p = @{}
+            $cs -split ';' | ForEach-Object {
+              $kv = $_ -split '=', 2
+              if ($kv.Count -eq 2) { $p[$kv[0].Trim()] = $kv[1].Trim() }
+            }
+            $server = $p['Server']
+            $port = if ($server -match ',(\d+)$') { $Matches[1] } else { 'default' }
+            $hostOnly = ($server -split ',')[0]
+            [pscustomobject]@{ ServerHost = $hostOnly; Port = $port; Database = $p['Database']; User = $p['User Id'] }
+          }
+
+          $path = 'C:\Decisore\appsettings.json'
+          Write-Host "COMPONENT=Decisore-PROD"
+          Write-Host "FILE=$path"
+          $cfg = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+          $cs = $cfg.ConnectionStrings.DefaultConnection
+          $parsed = Parse-Conn $cs
+          Write-Host "SERVER_RAW=$($parsed.ServerHost),$($parsed.Port)"
+          Write-Host "DATABASE=$($parsed.Database)"
+          Write-Host "USER=$($parsed.User)"
+
+          $cn = New-Object System.Data.SqlClient.SqlConnection($cs)
+          $cn.Open()
+          $cmd = $cn.CreateCommand()
+          $cmd.CommandText = @"
+          SELECT DB_NAME(), @@SERVERNAME,
+            (SELECT COUNT(*) FROM dbo.MissionSessions WHERE Id = 105),
+            (SELECT COUNT(*) FROM dbo.MissionSessions WHERE Id = 106),
+            (SELECT TOP 1 TotalMargin FROM dbo.MissionSessions WHERE Id = 105),
+            (SELECT TOP 1 FinalizationReason FROM dbo.MissionSessions WHERE Id = 105),
+            (SELECT Value FROM dbo.Configurations WHERE [K] = 'MISSION_SUPPRESS_START_UNTIL_RESET')
+          "@
+          $r = $cmd.ExecuteReader(); $r.Read() | Out-Null
+          Write-Host "=== SQL_PROOF_TABLE ==="
+          Write-Host ("ROW|Decisore-appsettings|{0}|{1}|{2}|{3}|105={4}|106={5}|margin={6}|reason={7}|suppress={8}" -f $parsed.ServerHost,$parsed.Port,$parsed.Database,$parsed.User,$r[1],$r[2],$r[3],$r[4],$r[5])
+          $r.Close(); $cn.Close()
+
+  sql-runner-ref:
+    name: Orphan SQL workflow connection ref
+    if: ${{ github.event.inputs.confirm == 'DB_UNIFIED_VERIFY' }}
+    runs-on: [self-hosted, Windows, DASH2A, DASH2A-BACKEND]
+    timeout-minutes: 5
+    needs: []
+
+    steps:
+      - name: Same connection as orphan-window-accounting-proof
+        shell: powershell
+        run: |
+          $cfg = Get-Content 'C:\inetpub\wwwroot\shared\appsettings.Production.json' -Raw | ConvertFrom-Json
+          $cs = $cfg.ConnectionStrings.DefaultConnection
+          $p = @{}; $cs -split ';' | ForEach-Object { $kv = $_ -split '=', 2; if ($kv.Count -eq 2) { $p[$kv[0].Trim()] = $kv[1].Trim() } }
+          $server = $p['Server']
+          $port = if ($server -match ',(\d+)$') { $Matches[1] } else { 'default' }
+          Write-Host "COMPONENT=SQL-runner-orphan-proof"
+          Write-Host "FILE=C:\inetpub\wwwroot\shared\appsettings.Production.json"
+          Write-Host "ROW|orphan-window-accounting-proof|$($server -split ',')[0]|$port|$($p['Database'])|$($p['User Id'])|source=shared-production-json"
