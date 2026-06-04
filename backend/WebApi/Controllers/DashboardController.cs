@@ -283,6 +283,8 @@ public class DashboardTelemetry
     public int SpotL5Loss { get; set; }
     public bool SecurityFilterEnabled { get; set; } = true;
     public bool PlayerPaceFilterEnabled { get; set; } = true;
+    public int TotalPlayerPaceAC3Activated { get; set; }
+    public int ActivePlayerPaceRiskBots { get; set; }
     public int SecurityFilterMinScore { get; set; } = 3;
     public int SecurityFilterMinStreak { get; set; } = 5;
     public int SecurityFilterMaxShoeHand { get; set; } = 20;
@@ -365,6 +367,8 @@ public class SecurityFilterBotTelemetryDto
     public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
     public int SecurityRiskScore { get; set; }
     public bool SecurityFilterActive { get; set; }
+    public bool PlayerPaceRiskActive { get; set; }
+    public bool PlayerPaceTriggeredAC3 { get; set; }
     public bool PauseBot { get; set; }
     public string PauseScope { get; set; } = "NONE";
     public string PauseComputer { get; set; } = "";

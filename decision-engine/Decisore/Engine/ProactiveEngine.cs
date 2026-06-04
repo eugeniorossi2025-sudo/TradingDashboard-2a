@@ -79,7 +79,7 @@ namespace Decisore.Engine
         public double SECURITY_FILTER_VERY_FAST_SECONDS  = 23.1;
         public int    SECURITY_FILTER_DELTA_WINDOW       = 8;
         public int    SECURITY_FILTER_MIN_SCORE          = 3;
-        /// <summary>UI-only: PLAYER streak P1→P5 threshold seconds (30d audit median 8+ vs 5-7).</summary>
+        public bool   PLAYER_PACE_FILTER_ENABLED = true;
         public double SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS = 107;
 
         // Avg hand pace — rolling window of valid scalping deltas only
@@ -110,6 +110,8 @@ namespace Decisore.Engine
 
         private int totalSecurityFilterActivated = 0;
         private int totalSecurityFilterPreventedL6 = 0;
+        private int totalPlayerPaceAC3Activated = 0;
+        private readonly Dictionary<string, bool> _prevPlayerPaceAC3Active = new(StringComparer.OrdinalIgnoreCase);
 
         private int spotID = 0;
         
@@ -170,8 +172,11 @@ namespace Decisore.Engine
             telemetry.SecurityFilterVeryFastSeconds  = SECURITY_FILTER_VERY_FAST_SECONDS;
             telemetry.SecurityFilterDeltaWindow      = SECURITY_FILTER_DELTA_WINDOW;
             telemetry.SecurityFilterPlayerP1P5ThresholdSeconds = SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS;
+            telemetry.PlayerPaceFilterEnabled        = PLAYER_PACE_FILTER_ENABLED;
             telemetry.TotalSecurityFilterActivated   = totalSecurityFilterActivated;
             telemetry.TotalSecurityFilterPreventedL6 = totalSecurityFilterPreventedL6;
+            telemetry.TotalPlayerPaceAC3Activated      = totalPlayerPaceAC3Activated;
+            telemetry.ActivePlayerPaceRiskBots       = _securityFilterByBot.Values.Count(x => x.PlayerPaceRiskActive);
             telemetry.LastAvgHandSeconds =
                 _handDeltasWindow.Values.Where(q => q.Count > 0)
                     .Select(ComputeTrimmedAverage)
@@ -241,6 +246,8 @@ namespace Decisore.Engine
                     PlayerStreakIntervalSeconds = x.Value.PlayerStreakIntervalSeconds,
                     SecurityRiskScore = x.Value.SecurityRiskScore,
                     SecurityFilterActive = x.Value.SecurityFilterActive,
+                    PlayerPaceRiskActive = x.Value.PlayerPaceRiskActive,
+                    PlayerPaceTriggeredAC3 = x.Value.PlayerPaceTriggeredAC3,
                     PauseBot = x.Value.PauseBot,
                     PauseScope = x.Value.PauseScope,
                     PauseComputer = x.Value.PauseComputer,
@@ -684,20 +691,40 @@ namespace Decisore.Engine
                 botSecurity.LastL6AuthorizationShoeHand = handIndexMazzo;
                 botSecurity.LastL6AuthorizationAvgHandSeconds = avgHandSeconds;
             }
+            bool playerPaceRiskActive = EvaluatePlayerPaceRisk(botSecurity);
+            bool playerPaceTriggeredAC3 = playerPaceRiskActive;
+
+            bool prevPlayerPaceAc3 = _prevPlayerPaceAC3Active.GetValueOrDefault(computer, false);
+            if (playerPaceTriggeredAC3 && !prevPlayerPaceAc3)
+                totalPlayerPaceAC3Activated++;
+            _prevPlayerPaceAC3Active[computer] = playerPaceTriggeredAC3;
+
             botSecurity.CurrentStreak = currentStreak;
             botSecurity.SecurityRiskScore = securityScore;
             botSecurity.SecurityFilterActive = securityFilterActive;
-            botSecurity.PauseBot = securityFilterActive;
-            botSecurity.PauseScope = securityFilterActive ? "BOT" : "NONE";
-            botSecurity.PauseComputer = securityFilterActive ? computer : "";
+            botSecurity.PlayerPaceRiskActive = playerPaceRiskActive;
+            botSecurity.PlayerPaceTriggeredAC3 = playerPaceTriggeredAC3;
+            botSecurity.PauseBot = securityFilterActive || playerPaceTriggeredAC3;
+            botSecurity.PauseScope = securityFilterActive || playerPaceTriggeredAC3 ? "BOT" : "NONE";
+            botSecurity.PauseComputer = securityFilterActive || playerPaceTriggeredAC3 ? computer : "";
             botSecurity.LastShoeHand = handIndexMazzo;
             botSecurity.Martingala = martingalaCounter;
             botSecurity.HasL6Credit = _globalAuthL6Counter > 0;
-            botSecurity.LastReason = securityFilterActive
-                ? $"SECURITY FILTER [score {securityScore}/4]"
-                : !SECURITY_FILTER_ENABLED
+            if (playerPaceTriggeredAC3)
+            {
+                botSecurity.LastReason =
+                    $"PLAYER PACE [P1→P5 {botSecurity.PlayerStreakP1ToP5TotalSeconds:0.0}s ≤ {SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS:0.0}s]";
+            }
+            else if (securityFilterActive)
+            {
+                botSecurity.LastReason = $"SECURITY FILTER [score {securityScore}/4]";
+            }
+            else
+            {
+                botSecurity.LastReason = !SECURITY_FILTER_ENABLED
                     ? $"disabled [score {securityScore}/4]"
-                : $"score {securityScore}/4";
+                    : $"score {securityScore}/4";
+            }
             botSecurity.LastUpdatedUtc = nowUtc;
             var validSampleCount = _handDeltasWindow.TryGetValue(computer, out var samplesWindow) ? samplesWindow.Count : 0;
             botSecurity.ValidSamples = validSampleCount;
@@ -710,6 +737,11 @@ namespace Decisore.Engine
             advice.SecurityFilterPauseBot  = securityFilterActive || securityFilterPreventedL6ThisCall;
             advice.SecurityFilterPauseScope = (securityFilterActive || securityFilterPreventedL6ThisCall) ? "BOT" : "NONE";
             advice.SecurityFilterPauseComputer = (securityFilterActive || securityFilterPreventedL6ThisCall) ? computer : "";
+            advice.PlayerPaceRiskActive      = playerPaceRiskActive;
+            advice.PlayerPaceTriggeredAC3    = playerPaceTriggeredAC3;
+            advice.PlayerPacePauseBot        = playerPaceTriggeredAC3;
+            advice.PlayerPacePauseScope      = playerPaceTriggeredAC3 ? "BOT" : "NONE";
+            advice.PlayerPacePauseComputer   = playerPaceTriggeredAC3 ? computer : "";
             advice.AvgHandSeconds          = avgHandSeconds;
             advice.LastHandDeltaSeconds    = lastHandDeltaSeconds;
             advice.MinHandDeltaSeconds     = botSecurity.MinHandDeltaSeconds;
@@ -718,6 +750,8 @@ namespace Decisore.Engine
 
             if (securityFilterActive)
                 advice.Reason = $"SECURITY FILTER [score {securityScore}/4]: streak {currentStreak} | avg {avgHandSeconds:0.0}s | hand {handIndexMazzo}";
+            else if (playerPaceTriggeredAC3)
+                advice.Reason = botSecurity.LastReason;
 
             #endregion
 
@@ -900,6 +934,23 @@ namespace Decisore.Engine
             stato.Equals("sculping", StringComparison.OrdinalIgnoreCase) ||
             stato.Equals("scalping", StringComparison.OrdinalIgnoreCase);
 
+        bool EvaluatePlayerPaceRisk(SecurityFilterBotTelemetry botSecurity)
+        {
+            if (!PLAYER_PACE_FILTER_ENABLED)
+                return false;
+
+            if (!string.Equals(botSecurity.CurrentStreakOutcome, "P", StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            if (botSecurity.PlayerStreakCount < SECURITY_FILTER_MIN_STREAK)
+                return false;
+
+            if (botSecurity.PlayerStreakP1ToP5TotalSeconds <= 0)
+                return false;
+
+            return botSecurity.PlayerStreakP1ToP5TotalSeconds <= SECURITY_FILTER_PLAYER_P1P5_THRESHOLD_SECONDS;
+        }
+
         void UpdatePlayerStreakPace(string computer, char esito, DateTime nowUtc, SecurityFilterBotTelemetry botSecurity)
         {
             if (!_playerStreakTimestampsByComputer.TryGetValue(computer, out var timestamps))
@@ -985,6 +1036,9 @@ namespace Decisore.Engine
                 actionCode = 1;
 
             else if (advice.SecurityFilterActive)
+                actionCode = 3;
+
+            else if (advice.PlayerPaceTriggeredAC3)
                 actionCode = 3;
 
             else if (advice.GlobalPauseScalping &&

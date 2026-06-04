@@ -10,6 +10,10 @@ Write-Host "== C# config/streak smoke ==" -ForegroundColor Cyan
 dotnet run --project (Join-Path $root "tools\player-pace-config-smoke\PlayerPaceConfigSmoke.csproj") -v q
 if ($LASTEXITCODE -ne 0) { throw "C# smoke failed" }
 
+Write-Host "== C# operational AC3 smoke ==" -ForegroundColor Cyan
+dotnet run --project (Join-Path $root "tools\player-pace-operational-smoke\PlayerPaceOperationalSmoke.csproj") -v q
+if ($LASTEXITCODE -ne 0) { throw "Operational smoke failed" }
+
 Write-Host "== JS threshold smoke ==" -ForegroundColor Cyan
 node (Join-Path $root "tools\player-pace-config-smoke\threshold-ui-smoke.mjs")
 if ($LASTEXITCODE -ne 0) { throw "JS smoke failed" }

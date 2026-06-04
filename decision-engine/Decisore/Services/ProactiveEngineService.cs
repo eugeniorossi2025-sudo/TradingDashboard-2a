@@ -94,6 +94,10 @@ namespace Decisore.Services
                         ? ParseEnabledFlag(sfEnabled)
                         : _engine.SECURITY_FILTER_ENABLED;
 
+                    _engine.PLAYER_PACE_FILTER_ENABLED = cfg.TryGetValue("PLAYER_PACE_FILTER_ENABLED", out var ppEnabled)
+                        ? ParseEnabledFlag(ppEnabled)
+                        : _engine.PLAYER_PACE_FILTER_ENABLED;
+
                     _engine.SECURITY_FILTER_MAX_SHOE_HAND = cfg.TryGetValue("SECURITY_FILTER_MAX_SHOE_HAND", out var sfMaxHand)
                         ? int.Parse(sfMaxHand, CultureInfo.InvariantCulture)
                         : _engine.SECURITY_FILTER_MAX_SHOE_HAND;

@@ -290,6 +290,12 @@ public class DashboardService : IDashboardService
                     result.LastAvgHandSeconds = (decimal)lah.GetDouble();
                 if (root.TryGetProperty("ActiveSecurityFilterBots", out var asfb))
                     result.ActiveSecurityFilterBots = asfb.GetInt32();
+                if (root.TryGetProperty("PlayerPaceFilterEnabled", out var ppfe))
+                    result.PlayerPaceFilterEnabled = ppfe.GetBoolean();
+                if (root.TryGetProperty("TotalPlayerPaceAC3Activated", out var tppa))
+                    result.TotalPlayerPaceAC3Activated = tppa.GetInt32();
+                if (root.TryGetProperty("ActivePlayerPaceRiskBots", out var aprb))
+                    result.ActivePlayerPaceRiskBots = aprb.GetInt32();
                 if (root.TryGetProperty("SecurityFilterByBot", out var sfbb) && sfbb.ValueKind == JsonValueKind.Object)
                 {
                     result.SecurityFilterByBot = JsonSerializer.Deserialize<Dictionary<string, SecurityFilterBotTelemetryDto>>(sfbb.GetRawText())

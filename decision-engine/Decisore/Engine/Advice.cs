@@ -33,4 +33,11 @@ public class Advice
     public double MinHandDeltaSeconds     { get; set; }
     public double MaxHandDeltaSeconds     { get; set; }
     public int    CurrentStreak           { get; set; }
+
+    // Player Pace — filtro operativo separato dal Security Filter
+    public bool   PlayerPaceRiskActive      { get; set; }
+    public bool   PlayerPaceTriggeredAC3    { get; set; }
+    public bool   PlayerPacePauseBot        { get; set; }
+    public string PlayerPacePauseScope      { get; set; } = "NONE";
+    public string PlayerPacePauseComputer   { get; set; } = "";
 }

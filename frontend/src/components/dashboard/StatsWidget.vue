@@ -50,6 +50,8 @@ function mergeTelemetryFromApi(api) {
         TotalPauseScalpingEWMAActivated: api.totalPauseScalpingEWMAActivated,
         SecurityFilterEnabled: api.securityFilterEnabled,
         PlayerPaceFilterEnabled: api.playerPaceFilterEnabled,
+        TotalPlayerPaceAC3Activated: api.totalPlayerPaceAC3Activated,
+        ActivePlayerPaceRiskBots: api.activePlayerPaceRiskBots,
         SecurityFilterMinScore: api.securityFilterMinScore,
         SecurityFilterMinStreak: api.securityFilterMinStreak,
         SecurityFilterMaxShoeHand: api.securityFilterMaxShoeHand,
@@ -89,7 +91,11 @@ function normalizeSecurityFilterBotRow(computer, row) {
         PlayerStreakIntervalSeconds: pickRowField(base, 'PlayerStreakIntervalSeconds', 'playerStreakIntervalSeconds'),
         playerStreakIntervalSeconds: pickRowField(base, 'playerStreakIntervalSeconds', 'PlayerStreakIntervalSeconds'),
         CurrentStreakOutcome: pickRowField(base, 'CurrentStreakOutcome', 'currentStreakOutcome'),
-        currentStreakOutcome: pickRowField(base, 'currentStreakOutcome', 'CurrentStreakOutcome')
+        currentStreakOutcome: pickRowField(base, 'currentStreakOutcome', 'CurrentStreakOutcome'),
+        PlayerPaceRiskActive: pickRowField(base, 'PlayerPaceRiskActive', 'playerPaceRiskActive'),
+        playerPaceRiskActive: pickRowField(base, 'playerPaceRiskActive', 'PlayerPaceRiskActive'),
+        PlayerPaceTriggeredAC3: pickRowField(base, 'PlayerPaceTriggeredAC3', 'playerPaceTriggeredAC3'),
+        playerPaceTriggeredAC3: pickRowField(base, 'playerPaceTriggeredAC3', 'PlayerPaceTriggeredAC3')
     };
 }
 
@@ -356,7 +362,9 @@ async function loadPlayerPaceFilter() {
 async function togglePlayerPaceFilter() {
     const enabling = !isPlayerPaceEnabled();
     const confirmed = window.confirm(
-        enabling ? 'Confermi attivazione Player Pace?' : 'Confermi disattivazione Player Pace?'
+        enabling
+            ? 'Confermi attivazione Player Pace operativo? In caso di anomalia genererà AC3.'
+            : 'Confermi disattivazione Player Pace? Non genererà AC3.'
     );
     if (!confirmed) return;
 
@@ -365,7 +373,7 @@ async function togglePlayerPaceFilter() {
     try {
         const state = await DashboardService.setPlayerPaceFilter(enabling);
         playerPaceFilterEnabled.value = state?.enabled === true;
-        playerPaceStatusMessage.value = enabling ? 'Player Pace attivato' : 'Player Pace disattivato';
+        playerPaceStatusMessage.value = enabling ? 'Player Pace attivato (operativo AC3)' : 'Player Pace disattivato';
     } catch {
         playerPaceStatusMessage.value = 'Errore aggiornamento Player Pace';
     } finally {
@@ -395,6 +403,13 @@ function isPlayerStreakRisk(row) {
     if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) return false;
     if (metrics.total <= 0) return false;
     return metrics.total <= metrics.threshold;
+}
+
+function isPlayerPaceAc3Triggered(row) {
+    if (!isPlayerPaceEnabled()) return false;
+    const triggered = pickRowField(row, 'PlayerPaceTriggeredAC3', 'playerPaceTriggeredAC3');
+    if (triggered === true) return true;
+    return isPlayerStreakRisk(row);
 }
 
 function hasPlayerPaceTelemetry(row) {
@@ -467,6 +482,9 @@ function getPlayerPaceVisual(row) {
     } else if (metrics.count < getNumber(securityFilterSetup.value.minStreak)) {
         status = 'partial';
         statusLabel = `In corso ${metrics.count}/${securityFilterSetup.value.minStreak}`;
+    } else if (isPlayerPaceAc3Triggered(row)) {
+        status = 'risk';
+        statusLabel = 'RISCHIO PLAYER — AC3';
     } else if (isPlayerStreakRisk(row)) {
         status = 'risk';
         statusLabel = 'RISCHIO PLAYER';
@@ -646,19 +664,21 @@ function formatLastTwoDeltas(row) {
 function getSummaryPill(row) {
     if (!isSecurityFilterEnabled()) {
         if (!isPlayerPaceEnabled()) return 'FILTRO OFF';
+        if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
         if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
         return 'NORMALE';
     }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row)) return 'COMPRESSIONE L5';
-    if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
+    if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
+    if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
     return 'NORMALE';
 }
 
 function getSummaryPillClass(row) {
     const label = getSummaryPill(row);
     if (label === 'PAUSA ATTIVA' || label === 'COMPRESSIONE L5') return 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 animate-pulse';
-    if (label === 'RISCHIO PLAYER') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
+    if (label === 'RISCHIO PLAYER — AC3' || label === 'RISCHIO PLAYER') return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300';
     return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300';
 }
 
@@ -677,10 +697,13 @@ function getScoreDotClass(row, point) {
 
 function getRiskRank(row) {
     if (!isSecurityFilterEnabled()) {
-        return isPlayerPaceEnabled() && isPlayerStreakRisk(row) ? 1 : 0;
+        if (isPlayerPaceAc3Triggered(row)) return 2;
+        if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 1;
+        return 0;
     }
     const score = Number(row?.SecurityRiskScore ?? 0);
     if (row?.PauseBot || row?.SecurityFilterActive || isRapidTriggerActive(row) || score >= 3) return 2;
+    if (isPlayerPaceAc3Triggered(row)) return 2;
     if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 1;
     return 0;
 }
@@ -688,11 +711,13 @@ function getRiskRank(row) {
 function getRiskLabel(row) {
     if (!isSecurityFilterEnabled()) {
         if (!isPlayerPaceEnabled()) return 'DISATTIVATO';
+        if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
         if (isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
         return 'NORMALE';
     }
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA ATTIVA';
     if (isRapidTriggerActive(row) || Number(row?.SecurityRiskScore ?? 0) >= 3) return 'RISCHIO';
+    if (isPlayerPaceAc3Triggered(row)) return 'RISCHIO PLAYER — AC3';
     if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) return 'RISCHIO PLAYER';
     return 'NORMALE';
 }
@@ -701,6 +726,7 @@ function getRiskStripReason(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'pausa';
     if (isRapidTriggerActive(row)) return 'trigger L5';
     if (Number(row?.SecurityRiskScore ?? 0) >= 3) return `score ${row.SecurityRiskScore}/4`;
+    if (isPlayerPaceAc3Triggered(row)) return 'PLAYER PACE AC3';
     if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
         const metrics = getPlayerStreakMetrics(row);
         return `PLAYER P1→P5 ${metrics.total.toFixed(0)}s ≤ ${metrics.threshold.toFixed(0)}s`;
@@ -741,6 +767,7 @@ function getScoreBlockClass(row, point) {
 function getTriggerLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
     if (isRapidTriggerActive(row)) return 'TRIGGER ON';
+    if (isPlayerPaceAc3Triggered(row)) return 'AC3';
     if (isPlayerPaceEnabled() && isPlayerStreakRisk(row)) {
         const metrics = getPlayerStreakMetrics(row);
         return `P1→P5 ${metrics.total.toFixed(0)}s`;
@@ -1082,10 +1109,12 @@ function selectSecurityFilterBot(row) {
         <div class="card">
             <div class="mb-4 flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50/50 p-4 dark:border-blue-900 dark:bg-blue-950/20 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <div class="text-lg font-bold text-surface-900 dark:text-surface-0">PLAYER PACE</div>
+                    <div class="text-lg font-bold text-surface-900 dark:text-surface-0">
+                        {{ isPlayerPaceEnabled() ? 'PLAYER PACE ATTIVO' : 'PLAYER PACE DISATTIVATO' }}
+                    </div>
                     <div class="mt-1 text-sm text-muted-color">
-                        Config <code class="text-xs">PLAYER_PACE_FILTER_ENABLED={{ isPlayerPaceEnabled() ? '1' : '0' }}</code> — separato da
-                        <code class="text-xs">SECURITY_FILTER_ENABLED</code>.
+                        Config <code class="text-xs">PLAYER_PACE_FILTER_ENABLED={{ isPlayerPaceEnabled() ? '1' : '0' }}</code> — anomalia P1→P5 ≤ soglia →
+                        <strong>AC3</strong>. Separato da <code class="text-xs">SECURITY_FILTER_ENABLED</code>.
                     </div>
                     <div v-if="playerPaceStatusMessage" class="mt-2 text-sm font-semibold text-primary">{{ playerPaceStatusMessage }}</div>
                 </div>

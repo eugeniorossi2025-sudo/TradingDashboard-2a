@@ -292,7 +292,7 @@ public static class DbInitializer
             new Configuration
             {
                 Key = "PLAYER_PACE_FILTER_ENABLED",
-                Description = "Player Pace filter UI: 1 attivo (sequenza P1-P5 e RISCHIO PLAYER), 0 spento.",
+                Description = "Player Pace filter operativo: 1 attivo (anomalia P1-P5 genera AC3), 0 spento.",
                 Value = "1",
                 Pos = 907
             }
