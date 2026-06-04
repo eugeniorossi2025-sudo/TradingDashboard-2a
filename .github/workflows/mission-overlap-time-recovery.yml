@@ -1,0 +1,58 @@
+name: DASH2A Mission Overlap Time Recovery
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type OVERLAP_TIME_RECOVERY_APPLY to run 01-04 on prod DB"
+        required: true
+        type: string
+      dry_run_only:
+        description: "true = run 01 dry-run only"
+        required: true
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mission-overlap-time-recovery
+  cancel-in-progress: true
+
+jobs:
+  recover:
+    name: Overlap time recovery 101-104
+    if: ${{ github.event.inputs.confirm == 'OVERLAP_TIME_RECOVERY_APPLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 15
+
+    steps:
+      - name: Guard scope
+        shell: powershell
+        run: |
+          if ('${{ github.event.inputs.confirm }}' -ne 'OVERLAP_TIME_RECOVERY_APPLY') {
+            throw 'Invalid confirmation token.'
+          }
+          Write-Host 'SCOPE: MissionSessions 101-104 EndTime/FinalizationReason only'
+          Write-Host 'FORBIDDEN: DELETE, samples UPDATE, margin/hands changes, session 105'
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run controlled recovery
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/mission-overlap-time-recovery/run-overlap-time-recovery-controlled.ps1'
+          if ('${{ github.event.inputs.dry_run_only }}' -eq 'true') {
+            & $script -DryRunOnly
+          } else {
+            & $script
+          }
