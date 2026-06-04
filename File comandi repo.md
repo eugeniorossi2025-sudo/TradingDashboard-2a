@@ -8,7 +8,21 @@ Regole fisse:
 - Non usare `firebase use`.
 - Non toccare Dashboard 1.
 - Se un audit trova riferimenti Dashboard 1, backend rimossi, endpoint vecchi o fallback sporchi, fermarsi.
-- Il frontend pubblico corretto e `https://eugenio-dashboard-2a.web.app/auth/login?redirect=/pages/user`.
+- Il frontend pubblico corretto è `https://eugenio-dashboard-2a.web.app/` (progetto Firebase `eugenio-dashboard-2a`).
+- Login: `https://eugenio-dashboard-2a.web.app/auth/login`
+- Root Owner (console nascosta, non in menu): `https://eugenio-dashboard-2a.web.app/admin/root-owner`
+- **Non usare** `https://eugenio-dashboard-2.web.app/` — dominio senza `a` finale → Firebase Site Not Found (non è DASH2A live).
+
+## Root Owner (console proprietario)
+
+Documentazione: `ops/dash2a-readiness/ROOT-OWNER.md`
+
+```text
+Login:      https://eugenio-dashboard-2a.web.app/auth/login
+Root Owner: https://eugenio-dashboard-2a.web.app/admin/root-owner
+```
+
+Account bootstrap PROD: UserId **13** (`IsRootOwner=1`). Dopo bootstrap SQL: re-login per JWT `isRootOwner=true`.
 
 ## Restart APP
 

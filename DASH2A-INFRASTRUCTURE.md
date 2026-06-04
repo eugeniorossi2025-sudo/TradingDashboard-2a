@@ -165,13 +165,17 @@ Se il remote mostra `TradingDashboard-iis`, `PCTEST45\TradingDashboard`, Dashboa
 | Hosting | Firebase — progetto **`eugenio-dashboard-2a`** |
 | Site ID | `eugenio-dashboard-2a` |
 | URL produzione | `https://eugenio-dashboard-2a.web.app/` — *validato HTTP 200* |
+| Login UI | `https://eugenio-dashboard-2a.web.app/auth/login` |
+| Root Owner (nascosta) | `https://eugenio-dashboard-2a.web.app/admin/root-owner` — solo `IsRootOwner=1`, non in menu |
 | Account Firebase | `ak47129898@gmail.com` |
 | API target (prod) | `https://vps-b0942869.vps.ovh.net` (`VITE_API_BASE_URL` in CI — **obbligatorio HTTPS** da Firebase) |
 | API target (locale) | `http://localhost:5299` (`frontend/.env.example`) |
-| Deploy ufficiale | GitHub Actions → `firebase-hosting-merge.yml` (`workflow_dispatch`, nome workflow: `Firebase Hosting Live`) |
+| Deploy ufficiale | GitHub Actions → `firebase-hosting-merge.yml` (root repo, `workflow_dispatch`, nome workflow: `Firebase Hosting Live`) |
 | Config repo | `frontend/.firebaserc` → default `eugenio-dashboard-2a` |
 
-> **Attenzione:** il project ID Firebase corretto è **`eugenio-dashboard-2a`**, non `eugenio-dashboard-2` (vecchio riferimento errato nel repo, corretto commit `bd6c322`).
+> **Attenzione — dominio errato:** `https://eugenio-dashboard-2.web.app/` (senza `a` finale) **non** è DASH2A live: Firebase risponde **Site Not Found** (HTTP 404). Usare sempre **`eugenio-dashboard-2a.web.app`**.
+>
+> **Project ID:** `eugenio-dashboard-2a` (non `eugenio-dashboard-2`). Deploy CI root: `.github/workflows/firebase-hosting-merge.yml`.
 
 ---
 

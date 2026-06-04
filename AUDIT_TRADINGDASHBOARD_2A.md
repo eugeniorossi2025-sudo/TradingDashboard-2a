@@ -141,6 +141,8 @@ JWT HS256 da `POST /api/Auth/login`. Admin seed da `Admin:*` in config. Hub `[Al
 - Vue 3.4 + PrimeVue 4 + Vite 5
 - `VITE_API_BASE_URL` default: `http://localhost:5299`
 - Prod Firebase: `https://eugenio-dashboard-2a.web.app` → API `https://vps-b0942869.vps.ovh.net`
+- Login: `https://eugenio-dashboard-2a.web.app/auth/login`
+- Root Owner: `https://eugenio-dashboard-2a.web.app/admin/root-owner` (non `eugenio-dashboard-2.web.app` — Site Not Found)
 
 ### 5.2 API usate (funzionanti)
 
