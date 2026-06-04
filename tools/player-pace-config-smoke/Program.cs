@@ -44,7 +44,11 @@ Assert(sfT?.PlayerStreakCount == 1, "T does not increment PLAYER streak");
 
 // P2
 engine.FeedAndDecide("PC1", 1, 3, 0, 'P', 'B', 1, 1, "Sculping", 0);
-Assert(engine.getSecurityFilterBot("PC1")?.PlayerStreakCount == 2, "second P increments to 2");
+var sf2 = engine.getSecurityFilterBot("PC1");
+Assert(sf2?.PlayerStreakCount == 2, "second P increments to 2");
+Assert((sf2?.PlayerStreakIntervalSeconds?.Length ?? 0) == 1, "count 2 => one P1-P2 interval");
+Assert((sf2?.PlayerStreakIntervalSeconds?[0] ?? 0) > 0, "P1-P2 interval seconds > 0");
+Assert(sf2?.PlayerStreakP1ToP5TotalSeconds == 0, "total P1-P5 only when 5 timestamps");
 
 // B resets
 engine.FeedAndDecide("PC1", 1, 4, 0, 'B', 'B', 1, 1, "Sculping", 0);

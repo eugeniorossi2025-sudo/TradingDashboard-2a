@@ -362,14 +362,13 @@ function getPlayerPaceVisual(row) {
 
     const deltas = [1, 2, 3, 4].map((n) => {
         const idx = n - 1;
-        const hasNextStep = active && metrics.count >= n + 1;
-        const waitingForNext = active && metrics.count === n;
-        const seconds = hasNextStep && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
+        const intervalReady = active && metrics.count >= n + 1;
+        const seconds = intervalReady && metrics.intervals[idx] > 0 ? metrics.intervals[idx] : null;
         return {
             label: `P${n}→P${n + 1}`,
             seconds,
-            visible: active && metrics.count >= n,
-            pending: waitingForNext || (hasNextStep && !(metrics.intervals[idx] > 0))
+            visible: intervalReady,
+            pending: intervalReady && seconds == null
         };
     });
 

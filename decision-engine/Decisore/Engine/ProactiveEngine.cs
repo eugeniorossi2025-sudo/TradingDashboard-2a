@@ -927,16 +927,26 @@ namespace Decisore.Engine
             botSecurity.CurrentStreakOutcome = streakOutcome == '\0' ? "" : streakOutcome.ToString();
             botSecurity.PlayerStreakCount = playerCount;
 
-            if (timestamps.Count >= 5)
+            int tsCount = timestamps.Count;
+            if (tsCount >= 2)
             {
-                var intervals = new double[4];
-                for (int i = 1; i < 5; i++)
+                var intervals = new double[tsCount - 1];
+                for (int i = 1; i < tsCount; i++)
                     intervals[i - 1] = (timestamps[i] - timestamps[i - 1]).TotalSeconds;
 
-                double total = (timestamps[4] - timestamps[0]).TotalSeconds;
-                botSecurity.PlayerStreakP1ToP5TotalSeconds = total;
-                botSecurity.PlayerStreakMeanIntervalSeconds = total / 4.0;
                 botSecurity.PlayerStreakIntervalSeconds = intervals;
+
+                if (tsCount >= 5)
+                {
+                    double total = (timestamps[4] - timestamps[0]).TotalSeconds;
+                    botSecurity.PlayerStreakP1ToP5TotalSeconds = total;
+                    botSecurity.PlayerStreakMeanIntervalSeconds = total / 4.0;
+                }
+                else
+                {
+                    botSecurity.PlayerStreakP1ToP5TotalSeconds = 0;
+                    botSecurity.PlayerStreakMeanIntervalSeconds = 0;
+                }
             }
             else
             {
