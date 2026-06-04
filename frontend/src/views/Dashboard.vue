@@ -159,16 +159,29 @@ const refreshMissionState = async () => {
     }
 };
 
-const refreshProfitChart = async () => {
-    if (!missionState.value?.hasOpenMission) {
-        marginiChartData.value = [];
-        return;
-    }
+function chartPointTime(point) {
+    const raw = point?.dateTime ?? point?.timestamp;
+    const ts = parseServerUtcDate(raw)?.getTime();
+    return Number.isFinite(ts) ? ts : 0;
+}
 
+const refreshProfitChart = async () => {
     try {
-        marginiChartData.value = await DashboardService.getMarginiChart();
+        const fromApi = (await DashboardService.getMarginiChart()) ?? [];
+        const apiPoints = Array.isArray(fromApi) ? fromApi : [];
+        const localPoints = Array.isArray(marginiChartData.value) ? marginiChartData.value : [];
+
+        if (!apiPoints.length) {
+            if (!localPoints.length) marginiChartData.value = [];
+            return;
+        }
+
+        const apiLastTs = chartPointTime(apiPoints[apiPoints.length - 1]);
+        const liveTail = localPoints.filter((point) => chartPointTime(point) > apiLastTs);
+        marginiChartData.value = liveTail.length ? [...apiPoints, ...liveTail] : apiPoints;
     } catch (error) {
         console.error('❌ Error loading profits chart:', error);
+        if (!marginiChartData.value?.length) marginiChartData.value = [];
     }
 };
 
@@ -388,7 +401,7 @@ const onDashboardUpdate = (jsonPayload) => {
     }
 
     appendLiveProfitPoint(jsonPayload);
-    Promise.all([refreshTelemetry(), refreshMissionState()]).catch((error) => {
+    Promise.all([refreshTelemetry(), refreshMissionState(), refreshProfitChart()]).catch((error) => {
         console.error('❌ Error refreshing dashboard live data:', error);
     });
 };
