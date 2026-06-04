@@ -1,0 +1,50 @@
+name: DASH2A Root Owner Identify Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type ROOT_OWNER_IDENTIFY_READONLY to list users and recent logins"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  identify:
+    name: Read-only root owner account identification
+    if: ${{ github.event.inputs.confirm == 'ROOT_OWNER_IDENTIFY_READONLY' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-BACKEND
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run identification SQL
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sharedConfig = 'C:\inetpub\wwwroot\shared\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $sharedConfig)) {
+            throw "Shared production config not found: $sharedConfig"
+          }
+          $config = Get-Content -LiteralPath $sharedConfig -Raw | ConvertFrom-Json
+          $connString = [string]$config.ConnectionStrings.DefaultConnection
+          $parts = @{}
+          $connString -split ';' | ForEach-Object {
+            $kv = $_ -split '=', 2
+            if ($kv.Count -eq 2) { $parts[$kv[0].Trim()] = $kv[1].Trim() }
+          }
+          if ($parts['Server'] -notlike '*,1434') {
+            throw "Refusing: expected SQL port 1434. Server=$($parts['Server'])"
+          }
+          $sql = Join-Path $env:GITHUB_WORKSPACE 'ops/dash2a-readiness/root-owner-identify-real-account-readonly.sql'
+          if (-not (Test-Path -LiteralPath $sql)) { throw "Missing $sql" }
+          sqlcmd -S $parts['Server'] -U $parts['User Id'] -P $parts['Password'] -d $parts['Database'] -i $sql -W -s "|"
+          if ($LASTEXITCODE -ne 0) { throw "sqlcmd failed" }
