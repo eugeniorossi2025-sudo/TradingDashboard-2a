@@ -206,3 +206,4 @@ finally {
 }
 
 Write-Host "`nVERDICT: PASS - collaudo VPS Decisore OK. WebApi/UI non ancora collaudati." -ForegroundColor Green
+exit 0
