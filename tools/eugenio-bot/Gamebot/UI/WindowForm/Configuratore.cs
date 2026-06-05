@@ -1962,6 +1962,19 @@ namespace Gamebot.UI.WindowForm
                 string filenameToSave = Path.Combine(projectPath, "appData", this.lblNameConfig.Text);
                 this.ReadParamForm();
                 this.SaveDataFormCustomFiches(filenameToSave);
+
+                var ownerAuth = BotOwnerAuthHelper.CheckStartupAsync().GetAwaiter().GetResult();
+                if (ownerAuth != BotOwnerAuthResult.Ok)
+                {
+                    BotOwnerAuthHelper.ApplyBlockedUi(this);
+                    MessageBox.Show(
+                        "FERMATO DAL PADRONE",
+                        "Attenzione",
+                        MessageBoxButtons.OK,
+                        MessageBoxIcon.Hand);
+                    return;
+                }
+
                 this.SettingUIStart();
                 this.SettingUIRouletteStart();
                 Player.Instance.Start();

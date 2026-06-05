@@ -312,6 +312,7 @@
     <Compile Include="Configuration\TelegramConfig.cs" />
     <Compile Include="Helpers\Calcs.cs" />
     <Compile Include="Helpers\Check.cs" />
+    <Compile Include="Helpers\BotOwnerAuthHelper.cs" />
     <Compile Include="Helpers\DashboardApiHelper.cs" />
     <Compile Include="Helpers\Double2DecimalConverter.cs" />
     <Compile Include="Helpers\Log.cs" />
