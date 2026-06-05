@@ -413,6 +413,8 @@ namespace Decisore.Engine
                 _securityFilterByBot[computer] = botSecurity;
             }
 
+            int prevMartingalaForL6 = _lastMartingalaByComputer.GetValueOrDefault(computer);
+
             ApplySpotL6PerBot(computer, martingalaCounter, botSecurity, l5PlayedThisCall: false, l5LostThisCall: false);
 
             // — shoe change: reset avg window (mazzo/deck counter decreased) —
@@ -614,7 +616,29 @@ namespace Decisore.Engine
                     }
                 }
 
-                advice.Reason = "Autorizzazione [L6 - L8] concessa";
+                if (prevMartingalaForL6 == 5 && SPOT_L6_PER_BOT_ENABLED)
+                {
+                    ApplySpotL6TransitionGate(
+                        advice,
+                        botSecurity,
+                        securityFilterActive,
+                        rapidL5TriggerActive,
+                        isHotZone,
+                        ref securityFilterPreventedL6ThisCall);
+                }
+                else
+                {
+                    advice.Reason = "Autorizzazione [L6 - L8] concessa";
+                }
+            }
+
+            if (prevMartingalaForL6 == 5 && martingalaCounter >= 6)
+            {
+                TryConsumeSpotL6Authorization(
+                    computer,
+                    botSecurity,
+                    advice,
+                    ref l6AuthorizedThisCall);
             }
 
             advice.GlobalAuthL6Counter = _globalAuthL6Counter;
@@ -1125,6 +1149,70 @@ namespace Decisore.Engine
                 ResetSpotCycleForBot(computer, bot);
         }
 
+        bool IsSpotL6AuthorizationMatured(string computer)
+        {
+            if (!SPOT_L6_PER_BOT_ENABLED || !IsSpotL6ThresholdConfigured())
+                return false;
+
+            return _spotL5LossByComputer.GetValueOrDefault(computer) >= SPOT_RESET_THRESHOLD_L5;
+        }
+
+        void ApplySpotL6TransitionGate(
+            Advice advice,
+            SecurityFilterBotTelemetry botSecurity,
+            bool securityFilterActive,
+            bool rapidL5TriggerActive,
+            bool isHotZone,
+            ref bool securityFilterPreventedL6ThisCall)
+        {
+            if (!IsSpotL6AuthorizationMatured(botSecurity.Computer))
+            {
+                advice.StopL6 = true;
+                advice.Reason = !SPOT_L6_PER_BOT_ENABLED
+                    ? "L6 Bloccato (SPOT L6 per bot spento)"
+                    : IsSpotL6ThresholdConfigured()
+                        ? $"L6 Bloccato (autorizzazione SPOT non maturata [{botSecurity.SpotL5LossCount}/{SPOT_RESET_THRESHOLD_L5}])"
+                        : "L6 Bloccato (soglia L6 per bot non configurata)";
+                return;
+            }
+
+            if (securityFilterActive || rapidL5TriggerActive)
+            {
+                advice.StopL6 = true;
+                securityFilterPreventedL6ThisCall = true;
+                advice.Reason = rapidL5TriggerActive
+                    ? "L6 Bloccato (Trigger rapido L5)"
+                    : "L6 Bloccato (Security Filter)";
+                return;
+            }
+
+            if (isHotZone)
+            {
+                advice.StopL6 = true;
+                advice.Reason = "L6 Bloccato (Hot Zone)";
+                return;
+            }
+
+            advice.StopL6 = false;
+            advice.Reason =
+                $"L6 AUTORIZZATO [{botSecurity.SpotL5LossCount}/{SPOT_RESET_THRESHOLD_L5} L5 persi nel ciclo SPOT]";
+        }
+
+        void TryConsumeSpotL6Authorization(
+            string computer,
+            SecurityFilterBotTelemetry botSecurity,
+            Advice advice,
+            ref bool l6AuthorizedThisCall)
+        {
+            if (!SPOT_L6_PER_BOT_ENABLED || advice.StopL6 || !IsSpotL6AuthorizationMatured(computer))
+                return;
+
+            _spotL6GrantedByComputer[computer] = _spotL6GrantedByComputer.GetValueOrDefault(computer) + 1;
+            _spotL5LossByComputer[computer] = 0;
+            l6AuthorizedThisCall = true;
+            SyncSpotL6BotFields(computer, botSecurity);
+        }
+
         void SyncSpotL6BotFields(string computer, SecurityFilterBotTelemetry bot)
         {
             EnsureSpotCycleIdInitialized(computer);
@@ -1134,9 +1222,10 @@ namespace Decisore.Engine
             bot.SpotL5LossCount = _spotL5LossByComputer.GetValueOrDefault(computer);
             bot.SpotL6GrantedCount = _spotL6GrantedByComputer.GetValueOrDefault(computer);
             bot.SpotPbHandsPlayed = _spotPbHandsByComputer.GetValueOrDefault(computer);
-            bot.SpotL6Authorized = threshold >= 1 && bot.SpotL5LossCount >= threshold;
+            var matured = threshold >= 1 && bot.SpotL5LossCount >= threshold;
+            bot.SpotL6Authorized = matured;
             bot.NextL5LossWillAuthorizeL6 =
-                threshold >= 1 && !bot.SpotL6Authorized && bot.SpotL5LossCount == threshold - 1;
+                threshold >= 1 && !matured && bot.SpotL5LossCount == threshold - 1;
         }
 
         void ApplySpotL6PerBot(
@@ -1154,11 +1243,6 @@ namespace Decisore.Engine
                 return;
             }
 
-            var prevM = _lastMartingalaByComputer.GetValueOrDefault(computer);
-
-            if (prevM > 1 && martingalaCounter == 1)
-                ResetSpotL6CountersForBot(computer, botSecurity);
-
             if (l5PlayedThisCall)
                 _spotL5PlayedByComputer[computer] = _spotL5PlayedByComputer.GetValueOrDefault(computer) + 1;
 
@@ -1166,13 +1250,6 @@ namespace Decisore.Engine
                 _spotL5LossByComputer[computer] = _spotL5LossByComputer.GetValueOrDefault(computer) + 1;
 
             SyncSpotL6BotFields(computer, botSecurity);
-
-            if (prevM == 5 && martingalaCounter >= 6 && botSecurity.SpotL6Authorized)
-            {
-                _spotL6GrantedByComputer[computer] = _spotL6GrantedByComputer.GetValueOrDefault(computer) + 1;
-                // Consumo autorizzazione: una sola L6 per maturazione 2/2; serve di nuovo N L5 perse.
-                _spotL5LossByComputer[computer] = 0;
-            }
 
             _lastMartingalaByComputer[computer] = martingalaCounter;
             SyncSpotL6BotFields(computer, botSecurity);

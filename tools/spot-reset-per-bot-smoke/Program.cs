@@ -20,7 +20,12 @@ static Advice PbHand(ProactiveEngine engine, string pc, int hand, int martingala
 static Advice NewCycle(ProactiveEngine engine, string pc, int hand)
     => engine.FeedAndDecide(pc, 1, hand, 0, 'B', 'B', 1, 1, "Sculping", 0);
 
-var engine = new ProactiveEngine { SPOT_RESET_THRESHOLD_L5 = 2, L6_AUTH_PB_RESET_COUNTER = 600 };
+var engine = new ProactiveEngine
+{
+    SPOT_RESET_THRESHOLD_L5 = 2,
+    L6_AUTH_PB_RESET_COUNTER = 600,
+    SECURITY_FILTER_ENABLED = false
+};
 
 L5Loss(engine, "PC1", 1);
 Assert(engine.getSecurityFilterBot("PC1")?.SpotL5PlayedCount == 1, "PC1 L5 giocata contata");
@@ -39,8 +44,10 @@ Assert(engine.getSecurityFilterBot("PC2")?.SpotL6Authorized == false, "PC2 resta
 Assert(a1.SpotL6Authorized, "PC1 advice L6 authorized");
 
 NewCycle(engine, "PC1", 20);
-Assert(engine.getSecurityFilterBot("PC1")?.SpotL5LossCount == 0, "reset martingala PC1 solo PC1 L5");
-Assert(engine.getSecurityFilterBot("PC2")?.SpotL5LossCount == 1, "PC2 invariato dopo reset martingala PC1");
+Assert(engine.getSecurityFilterBot("PC1")?.SpotL5LossCount == 2, "L1 senza L6: L5 perse PC1 invariate");
+Assert(engine.getSecurityFilterBot("PC1")?.SpotL6Authorized == true, "L1 senza L6: autorizzazione PC1 resta");
+Assert(engine.getSecurityFilterBot("PC1")?.SpotL6GrantedCount == 0, "L1 senza L6: grant PC1 non consumato");
+Assert(engine.getSecurityFilterBot("PC2")?.SpotL5LossCount == 1, "PC2 invariato dopo L1 PC1");
 Assert(engine.getTelemetry().SpotL5Loss == 0, "L5 globale legacy congelato");
 Assert(engine.getTelemetry().SpotPBHandsPlayed == 0, "nessun contatore PB globale SPOT");
 
@@ -83,7 +90,12 @@ L5Loss(leg, "PC1", 9001);
 Assert(leg.getTelemetry().SpotL5Loss == 0, "SpotL5Loss globale congelato");
 
 // Consumo L6: grant su 5->6, auth resta fino reset ciclo
-var eGrant = new ProactiveEngine { SPOT_RESET_THRESHOLD_L5 = 2, L6_AUTH_PB_RESET_COUNTER = 600 };
+var eGrant = new ProactiveEngine
+{
+    SPOT_RESET_THRESHOLD_L5 = 2,
+    L6_AUTH_PB_RESET_COUNTER = 600,
+    SECURITY_FILTER_ENABLED = false
+};
 L5Loss(eGrant, "PC1", 9002);
 L5Loss(eGrant, "PC1", 9003);
 Assert(eGrant.getSecurityFilterBot("PC1")?.SpotL6GrantedCount == 0, "prima L6 grant=0");
@@ -145,7 +157,12 @@ static void DumpL6(string label, ProactiveEngine eng, string pc)
     Console.WriteLine($"  Prossima L5 persa: {b?.NextL5LossWillAuthorizeL6}");
 }
 
-var cons = new ProactiveEngine { SPOT_RESET_THRESHOLD_L5 = 2, L6_AUTH_PB_RESET_COUNTER = 600 };
+var cons = new ProactiveEngine
+{
+    SPOT_RESET_THRESHOLD_L5 = 2,
+    L6_AUTH_PB_RESET_COUNTER = 600,
+    SECURITY_FILTER_ENABLED = false
+};
 L5Loss(cons, "PC1", 100, 5);
 DumpL6("Dopo 1a L5 persa", cons, "PC1");
 L5Loss(cons, "PC1", 101, 5);
@@ -222,8 +239,31 @@ L5Loss(hzL6, "HZ4", 1);
 L5Loss(hzL6, "HZ4", 2);
 var hzSix = hzL6.FeedAndDecide("HZ4", 1, 10, 0, 'B', 'B', 10, 6, "Sculping", 0);
 Assert(hzSix.HotZone, "hot4: L6 in HZ flag true");
-Assert(!hzSix.StopL6, "hot4: mart>=6 non imposta StopL6 da HZ");
-Assert(hzSix.Reason == "Autorizzazione [L6 - L8] concessa", "hot4: reason L6+ invariato");
+Assert(hzSix.StopL6, "hot4: transizione 5->6 in HZ => StopL6");
+Assert(hzSix.Reason == "L6 Bloccato (Hot Zone)", "hot4: reason Hot Zone su transizione");
+Assert(hzL6.getSecurityFilterBot("HZ4")?.SpotL6GrantedCount == 0, "hot4: L6 bloccata => grant invariato");
+Assert(hzL6.getSecurityFilterBot("HZ4")?.SpotL6Authorized == true, "hot4: autorizzazione maturata resta");
+Assert(hzL6.getSecurityFilterBot("HZ4")?.SpotL5LossCount == 2, "hot4: L5 perse non consumate");
+
+// Fase 0: consumo solo dopo gate finale
+var gate = new ProactiveEngine { SPOT_RESET_THRESHOLD_L5 = 2, L6_AUTH_PB_RESET_COUNTER = 600 };
+L5Loss(gate, "G1", 1);
+L5Loss(gate, "G1", 2);
+var gBlocked = gate.FeedAndDecide("G1", 1, 10, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(gBlocked.StopL6, "gate HZ: StopL6 su 5->6 in HZ");
+Assert(gate.getSecurityFilterBot("G1")?.SpotL6GrantedCount == 0, "gate HZ: grant non consumato");
+var gOpen = new ProactiveEngine
+{
+    SPOT_RESET_THRESHOLD_L5 = 2,
+    HOT_ZONES = new (int from, int to)[] { (0, 5) },
+    SECURITY_FILTER_ENABLED = false
+};
+L5Loss(gOpen, "G2", 30);
+L5Loss(gOpen, "G2", 31);
+var gOk = gOpen.FeedAndDecide("G2", 1, 32, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(!gOk.StopL6, "gate ok: 5->6 fuori HZ consuma");
+Assert(gOpen.getSecurityFilterBot("G2")?.SpotL6GrantedCount == 1, "gate ok: grant=1");
+Assert(gOpen.getSecurityFilterBot("G2")?.SpotL6Authorized == false, "gate ok: auth consumata");
 
 if (Environment.ExitCode == 0)
     Console.WriteLine("PASS spot-reset per-bot smoke");
