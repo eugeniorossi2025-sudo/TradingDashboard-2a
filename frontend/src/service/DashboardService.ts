@@ -119,6 +119,16 @@ export const DashboardService = {
         return unwrap<{ enabled: boolean }>(response);
     },
 
+    async getSpotL6Credits(): Promise<{ creditL5Required: number; creditsGenerated: number }> {
+        const response = await apiClient.get('/api/spot-l6-credits');
+        return unwrap<{ creditL5Required: number; creditsGenerated: number }>(response);
+    },
+
+    async setSpotL6Credits(creditL5Required: number, creditsGenerated: number): Promise<{ creditL5Required: number; creditsGenerated: number }> {
+        const response = await apiClient.put('/api/spot-l6-credits', { creditL5Required, creditsGenerated });
+        return unwrap<{ creditL5Required: number; creditsGenerated: number }>(response);
+    },
+
     async getSecurityFilter(): Promise<{
         enabled: boolean;
         maxAvgSeconds: number;

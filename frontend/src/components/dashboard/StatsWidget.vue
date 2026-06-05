@@ -38,8 +38,10 @@ const playerRace8FilterStatus = ref('');
 const playerRace8Ac3Enabled = ref(null);
 const playerRace8Ac3Loading = ref(false);
 const playerRace8Ac3Status = ref('');
-const spotResetThreshold = ref(2);
-const spotResetThresholdDraft = ref(2);
+const spotL6CreditL5Required = ref(2);
+const spotL6CreditL5RequiredDraft = ref(2);
+const spotL6CreditsGenerated = ref(1);
+const spotL6CreditsGeneratedDraft = ref(1);
 const spotCyclePbHands = ref(600);
 const spotCyclePbHandsDraft = ref(600);
 const spotResetThresholdLoading = ref(false);
@@ -78,6 +80,8 @@ function mergeTelemetryFromApi(api) {
         SpotL5Loss: api.spotL5Loss,
         SpotL6ThresholdL5: api.spotL6ThresholdL5 ?? api.spotResetThresholdL5,
         SpotResetThresholdL5: api.spotL6ThresholdL5 ?? api.spotResetThresholdL5,
+        SpotL6CreditL5Required: api.spotL6CreditL5Required ?? api.spotL6ThresholdL5 ?? api.spotResetThresholdL5,
+        SpotL6CreditsGenerated: api.spotL6CreditsGenerated,
         SpotCyclePbHandsLimit: api.spotCyclePbHandsLimit,
         SpotPerBotOnlyEnabled: api.spotPerBotOnlyEnabled,
         SpotL6PerBotEnabled: api.spotL6PerBotEnabled,
@@ -168,6 +172,8 @@ function normalizeSecurityFilterBotRow(computer, row) {
         spotL5LossCount: pickRowField(base, 'spotL5LossCount', 'SpotL5LossCount'),
         SpotL6GrantedCount: pickRowField(base, 'SpotL6GrantedCount', 'spotL6GrantedCount'),
         spotL6GrantedCount: pickRowField(base, 'spotL6GrantedCount', 'SpotL6GrantedCount'),
+        SpotL6CreditBalance: pickRowField(base, 'SpotL6CreditBalance', 'spotL6CreditBalance'),
+        spotL6CreditBalance: pickRowField(base, 'spotL6CreditBalance', 'SpotL6CreditBalance'),
         SpotL6Authorized: pickSpotL6Authorized(base),
         spotL6Authorized: pickSpotL6Authorized(base),
         NextL5LossWillAuthorizeL6: pickRowField(base, 'NextL5LossWillAuthorizeL6', 'nextL5LossWillAuthorizeL6'),
@@ -232,6 +238,7 @@ function buildLocalCollaudoPreviewRows() {
             spotL5Played: 3,
             spotL5: 1,
             spotL6Granted: 0,
+            spotL6CreditBalance: 0,
             spotAuth: false,
             nextL5: true,
             shoeHand: 7
@@ -244,6 +251,7 @@ function buildLocalCollaudoPreviewRows() {
             spotL5Played: 0,
             spotL5: 0,
             spotL6Granted: 0,
+            spotL6CreditBalance: 0,
             spotAuth: false,
             nextL5: false,
             shoeHand: 12
@@ -256,6 +264,7 @@ function buildLocalCollaudoPreviewRows() {
             spotL5Played: 6,
             spotL5: 2,
             spotL6Granted: 1,
+            spotL6CreditBalance: 1,
             spotAuth: true,
             nextL5: false,
             shoeHand: 22
@@ -270,6 +279,7 @@ function buildLocalCollaudoPreviewRows() {
             SpotL5PlayedCount: item.spotL5Played,
             SpotL5LossCount: item.spotL5,
             SpotL6GrantedCount: item.spotL6Granted,
+            SpotL6CreditBalance: item.spotL6CreditBalance,
             SpotL6Authorized: item.spotAuth,
             NextL5LossWillAuthorizeL6: item.nextL5,
             LastShoeHand: item.shoeHand,
@@ -328,13 +338,18 @@ function getSpotCyclePbHandsLimit() {
 
 const spotOpsSummary = computed(() => {
     const rows = spotResetBotRows.value;
-    const l6Threshold = getSpotL6Threshold();
+    const l5Required = getSpotL6CreditL5Required();
+    const creditsGenerated = getSpotL6CreditsGenerated();
     return {
         perBotOnly: isSpotL6PerBotEnabled(),
         legacyL5Frozen: (telemetryData.value?.SpotL5Loss ?? telemetryData.value?.spotL5Loss ?? 0) === 0,
-        l6ThresholdLabel:
-            typeof l6Threshold === 'number' && l6Threshold >= 1
-                ? `${l6Threshold} L5 perse per bot`
+        l5RequiredLabel:
+            typeof l5Required === 'number' && l5Required >= 1
+                ? `${l5Required} L5 per credito`
+                : '—',
+        creditsGeneratedLabel:
+            typeof creditsGenerated === 'number' && creditsGenerated >= 1
+                ? `${creditsGenerated} credito/i per milestone`
                 : '—',
         botsTracked: rows.length,
         botsL6Authorized: rows.filter((row) => isSpotL6Authorized(row)).length
@@ -693,30 +708,37 @@ function anyPlayerRaceCommandEnabled() {
     return isPlayerRace5FilterEnabled() || isPlayerRace5Ac3Enabled() || isPlayerRace8FilterEnabled() || isPlayerRace8Ac3Enabled();
 }
 
-function isSpotThresholdConfigured() {
-    const t =
-        telemetryData.value?.SpotL6ThresholdL5 ??
-        telemetryData.value?.spotL6ThresholdL5 ??
-        telemetryData.value?.SpotResetThresholdL5 ??
-        telemetryData.value?.spotResetThresholdL5;
-    if (typeof t === 'number' && t >= 1) return true;
-    return spotResetThreshold.value >= 1;
+function isSpotCreditsConfigured() {
+    const t = getSpotL6CreditL5Required();
+    return typeof t === 'number' && t >= 1;
 }
 
-function getSpotL6Threshold() {
-    if (!isSpotThresholdConfigured()) return '—';
+function getSpotL6CreditL5Required() {
+    if (spotL6CreditL5Required.value >= 1) return spotL6CreditL5Required.value;
     const t =
+        telemetryData.value?.SpotL6CreditL5Required ??
+        telemetryData.value?.spotL6CreditL5Required ??
         telemetryData.value?.SpotL6ThresholdL5 ??
         telemetryData.value?.spotL6ThresholdL5 ??
         telemetryData.value?.SpotResetThresholdL5 ??
         telemetryData.value?.spotResetThresholdL5;
     if (typeof t === 'number' && t >= 1) return t;
-    if (spotResetThreshold.value >= 1) return spotResetThreshold.value;
     return 2;
 }
 
+function getSpotL6CreditsGenerated() {
+    if (spotL6CreditsGenerated.value >= 1) return spotL6CreditsGenerated.value;
+    const t = telemetryData.value?.SpotL6CreditsGenerated ?? telemetryData.value?.spotL6CreditsGenerated;
+    if (typeof t === 'number' && t >= 1) return t;
+    return 1;
+}
+
+function getSpotL6Threshold() {
+    return getSpotL6CreditL5Required();
+}
+
 function getSpotResetThreshold() {
-    return getSpotL6Threshold();
+    return getSpotL6CreditL5Required();
 }
 
 function getSpotL5PlayedCount(row) {
@@ -734,8 +756,13 @@ function getSpotL6GrantedCount(row) {
     return typeof count === 'number' ? count : 0;
 }
 
+function getSpotL6CreditBalance(row) {
+    const balance = pickRowField(row, 'SpotL6CreditBalance', 'spotL6CreditBalance');
+    return typeof balance === 'number' ? balance : 0;
+}
+
 function getNextL5LossPreviewLabel(row) {
-    if (!isSpotThresholdConfigured()) return '—';
+    if (!isSpotCreditsConfigured()) return '—';
     if (isSpotL6Authorized(row)) return 'NON SERVE: L6 GIÀ AUTORIZZATO';
     const nextFlag = pickRowField(row, 'NextL5LossWillAuthorizeL6', 'nextL5LossWillAuthorizeL6');
     if (nextFlag === true) return 'AUTORIZZA L6';
@@ -746,7 +773,7 @@ function getNextL5LossPreviewLabel(row) {
 }
 
 function isSpotL6Authorized(row) {
-    if (!isSpotThresholdConfigured()) return false;
+    if (!isSpotCreditsConfigured()) return false;
     return pickSpotL6Authorized(row) === true;
 }
 
@@ -755,7 +782,7 @@ function isSpotResetAuthorized(row) {
 }
 
 function getSpotL6StatusLabel(row) {
-    if (!isSpotThresholdConfigured()) return 'SOGLIA NON CONFIGURATA';
+    if (!isSpotCreditsConfigured()) return 'CONFIG NON DISPONIBILE';
     return isSpotL6Authorized(row) ? 'L6 AUTORIZZATO' : 'L6 NON AUTORIZZATO';
 }
 
@@ -764,7 +791,7 @@ function getSpotResetStatusLabel(row) {
 }
 
 function getSpotResetBlockClass(row) {
-    if (!isSpotThresholdConfigured()) {
+    if (!isSpotCreditsConfigured()) {
         return 'border-surface-200 bg-surface-50/60 dark:border-surface-700 dark:bg-surface-900/40';
     }
     if (isSpotL6Authorized(row)) {
@@ -774,36 +801,18 @@ function getSpotResetBlockClass(row) {
 }
 
 function getSpotResetStatusClass(row) {
-    if (!isSpotThresholdConfigured()) return 'text-muted-color';
+    if (!isSpotCreditsConfigured()) return 'text-muted-color';
     if (isSpotL6Authorized(row)) return 'text-emerald-700 dark:text-emerald-300';
     return 'text-muted-color';
 }
 
 function getSpotResetBadgeClass(row) {
-    if (!isSpotThresholdConfigured()) return 'border-surface-300 text-muted-color';
+    if (!isSpotCreditsConfigured()) return 'border-surface-300 text-muted-color';
     if (isSpotL6Authorized(row)) return 'border-emerald-400 bg-emerald-100 text-emerald-800 dark:border-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-200';
     return 'border-surface-300 text-muted-color dark:border-surface-600';
 }
 
-async function loadSpotResetThreshold() {
-    try {
-        const state = await DashboardService.getSpotResetThreshold();
-        const t = Number(state?.threshold);
-        if (t >= 1) {
-            spotResetThreshold.value = t;
-            spotResetThresholdDraft.value = t;
-        }
-    } catch {
-        const t =
-            telemetryData.value?.SpotL6ThresholdL5 ??
-            telemetryData.value?.spotL6ThresholdL5 ??
-            telemetryData.value?.SpotResetThresholdL5 ??
-            telemetryData.value?.spotResetThresholdL5;
-        if (typeof t === 'number' && t >= 1) {
-            spotResetThreshold.value = t;
-            spotResetThresholdDraft.value = t;
-        }
-    }
+async function loadSpotCyclePbHands() {
     try {
         const cycle = await DashboardService.getSpotCyclePbHands();
         const h = Number(cycle?.hands);
@@ -820,17 +829,52 @@ async function loadSpotResetThreshold() {
     }
 }
 
-async function saveSpotL6ThresholdOnly() {
-    const l5Value = Number(spotResetThresholdDraft.value);
+async function loadSpotL6Credits() {
+    try {
+        const state = await DashboardService.getSpotL6Credits();
+        const required = Number(state?.creditL5Required);
+        const generated = Number(state?.creditsGenerated);
+        if (required >= 1) {
+            spotL6CreditL5Required.value = required;
+            spotL6CreditL5RequiredDraft.value = required;
+        }
+        if (generated >= 1) {
+            spotL6CreditsGenerated.value = generated;
+            spotL6CreditsGeneratedDraft.value = generated;
+        }
+    } catch {
+        const required =
+            telemetryData.value?.SpotL6CreditL5Required ??
+            telemetryData.value?.spotL6CreditL5Required ??
+            telemetryData.value?.SpotL6ThresholdL5 ??
+            telemetryData.value?.spotL6ThresholdL5;
+        if (typeof required === 'number' && required >= 1) {
+            spotL6CreditL5Required.value = required;
+            spotL6CreditL5RequiredDraft.value = required;
+        }
+        const generated = telemetryData.value?.SpotL6CreditsGenerated ?? telemetryData.value?.spotL6CreditsGenerated;
+        if (typeof generated === 'number' && generated >= 1) {
+            spotL6CreditsGenerated.value = generated;
+            spotL6CreditsGeneratedDraft.value = generated;
+        }
+    }
+}
+
+async function saveSpotL6CreditsOnly() {
+    const required = Number(spotL6CreditL5RequiredDraft.value);
+    const generated = Number(spotL6CreditsGeneratedDraft.value);
     spotL6PerBotLoading.value = true;
     try {
-        const state = await DashboardService.setSpotResetThreshold(l5Value);
-        const t = Number(state?.threshold);
-        spotResetThreshold.value = t;
-        spotResetThresholdDraft.value = t;
-        spotL6PerBotStatus.value = `Soglia L6 salvata: ${t}`;
+        const state = await DashboardService.setSpotL6Credits(required, generated);
+        const req = Number(state?.creditL5Required);
+        const gen = Number(state?.creditsGenerated);
+        spotL6CreditL5Required.value = req;
+        spotL6CreditL5RequiredDraft.value = req;
+        spotL6CreditsGenerated.value = gen;
+        spotL6CreditsGeneratedDraft.value = gen;
+        spotL6PerBotStatus.value = `Crediti L6 salvati: ${req} L5 → ${gen} credito/i`;
     } catch (err) {
-        const msg = err?.response?.data?.message ?? err?.response?.data?.errors?.[0] ?? 'Soglia non valida (1–99)';
+        const msg = err?.response?.data?.message ?? err?.response?.data?.errors?.[0] ?? 'Valori non validi (1–99)';
         spotL6PerBotStatus.value = msg;
     } finally {
         spotL6PerBotLoading.value = false;
@@ -948,7 +992,8 @@ async function setPlayerRace8Ac3(enabled) {
 
 onMounted(() => {
     loadSecurityFilter();
-    loadSpotResetThreshold();
+    loadSpotCyclePbHands();
+    loadSpotL6Credits();
     loadSpotL6PerBot();
     loadPlayerRace5Filter();
     loadPlayerRace5Ac3();
@@ -1823,7 +1868,7 @@ function selectSecurityFilterBot(row) {
                     </div>
                 </div>
 
-                <div class="mb-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-2 xl:grid-cols-4">
+                <div class="mb-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-2 xl:grid-cols-5">
                     <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
                         <div class="text-[10px] uppercase text-muted-color">Modalità</div>
                         <div class="text-sm font-bold" :class="isSpotL6PerBotEnabled() ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-500'">
@@ -1831,8 +1876,12 @@ function selectSecurityFilterBot(row) {
                         </div>
                     </div>
                     <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
-                        <div class="text-[10px] uppercase text-muted-color">Soglia L6</div>
-                        <div class="text-sm font-bold tabular-nums">{{ spotOpsSummary.l6ThresholdLabel }}</div>
+                        <div class="text-[10px] uppercase text-muted-color">L5 per credito</div>
+                        <div class="text-sm font-bold tabular-nums">{{ spotOpsSummary.l5RequiredLabel }}</div>
+                    </div>
+                    <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
+                        <div class="text-[10px] uppercase text-muted-color">Crediti generati</div>
+                        <div class="text-sm font-bold tabular-nums">{{ spotOpsSummary.creditsGeneratedLabel }}</div>
                     </div>
                     <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
                         <div class="text-[10px] uppercase text-muted-color">Bot tracciati</div>
@@ -1887,8 +1936,12 @@ function selectSecurityFilterBot(row) {
                             <div class="flex justify-between gap-2">
                                 <span class="font-semibold text-surface-900 dark:text-surface-0">L5 perse ciclo</span>
                                 <span class="text-base font-bold tabular-nums">
-                                    {{ getSpotL5LossCount(row) }}/{{ isSpotThresholdConfigured() ? getSpotL6Threshold() : '—' }}
+                                    {{ getSpotL5LossCount(row) }}/{{ isSpotCreditsConfigured() ? getSpotL6CreditL5Required() : '—' }}
                                 </span>
+                            </div>
+                            <div class="flex justify-between gap-2">
+                                <span class="font-semibold text-surface-900 dark:text-surface-0">Crediti L6 residui</span>
+                                <span class="text-base font-bold tabular-nums">{{ getSpotL6CreditBalance(row) }}</span>
                             </div>
                             <div class="flex justify-between gap-2">
                                 <span class="text-muted-color">L6 concessi ciclo</span>
@@ -2048,7 +2101,7 @@ function selectSecurityFilterBot(row) {
                 <div class="rounded-xl border border-cyan-200 bg-cyan-50/40 p-4 dark:border-cyan-900 dark:bg-cyan-950/20">
                     <div class="text-lg font-bold">SPOT L6 per bot</div>
                     <div class="mt-1 text-sm text-muted-color">
-                        Concede L6 al singolo bot dopo N L5 perse nel suo ciclo SPOT.
+                        Genera crediti L6 per bot dopo N L5 perse; ogni credito consente un passaggio a L6 nel ciclo SPOT.
                     </div>
                     <div class="mt-2 text-sm font-semibold" :class="isSpotL6PerBotEnabled() ? 'text-green-600' : 'text-red-500'">
                         {{ isSpotL6PerBotEnabled() ? 'ATTIVO' : 'SPENTO' }}
@@ -2072,24 +2125,36 @@ function selectSecurityFilterBot(row) {
                             SPEGNI
                         </button>
                     </div>
-                    <div class="mt-4 flex flex-wrap items-center gap-2 text-sm font-semibold">
-                        <span>Soglia L6 per bot:</span>
-                        <input
-                            v-model.number="spotResetThresholdDraft"
-                            type="number"
-                            min="1"
-                            max="99"
-                            class="w-14 rounded-lg border border-cyan-400 bg-white px-2 py-1 text-center font-bold dark:border-cyan-700 dark:bg-surface-900"
-                        />
+                    <div class="mt-4 space-y-3 text-sm font-semibold">
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="min-w-[12rem]">L5 perse per generare crediti:</span>
+                            <input
+                                v-model.number="spotL6CreditL5RequiredDraft"
+                                type="number"
+                                min="1"
+                                max="99"
+                                class="w-14 rounded-lg border border-cyan-400 bg-white px-2 py-1 text-center font-bold dark:border-cyan-700 dark:bg-surface-900"
+                            />
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="min-w-[12rem]">Crediti L6 generati:</span>
+                            <input
+                                v-model.number="spotL6CreditsGeneratedDraft"
+                                type="number"
+                                min="1"
+                                max="99"
+                                class="w-14 rounded-lg border border-cyan-400 bg-white px-2 py-1 text-center font-bold dark:border-cyan-700 dark:bg-surface-900"
+                            />
+                        </div>
                     </div>
                     <div class="mt-2">
                         <button
                             type="button"
                             class="rounded-lg bg-cyan-700 px-3 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-cyan-800 disabled:opacity-60"
                             :disabled="spotL6PerBotLoading"
-                            @click="saveSpotL6ThresholdOnly"
+                            @click="saveSpotL6CreditsOnly"
                         >
-                            Salva soglia
+                            Salva crediti L6
                         </button>
                     </div>
                 </div>
