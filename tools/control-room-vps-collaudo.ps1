@@ -165,7 +165,8 @@ try {
 
     $logLine = Get-LatestOverrideLog $conn $pc2
     if (-not $logLine -or $logLine -notmatch 'CONTROL_ROOM_OVERRIDE' -or $logLine -notmatch 'overrideAction=0' -or $logLine -notmatch 'consumed=true') {
-        Fail 'CONTINUA ApiLogs' ($logLine ?? 'missing')
+        $logDetail = if ($logLine) { $logLine } else { 'missing' }
+        Fail 'CONTINUA ApiLogs' $logDetail
     }
     Ok 'CONTINUA log' ($logLine.Split("`n") | Where-Object { $_ -match 'CONTROL_ROOM_OVERRIDE' } | Select-Object -First 1)
 
