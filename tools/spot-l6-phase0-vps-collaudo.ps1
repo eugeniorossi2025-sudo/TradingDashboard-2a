@@ -1,4 +1,4 @@
-# Fase 0 — SPOT L6 consumo post-gate (VPS Decisore / IIS Proactive).
+# Fase 0 - SPOT L6 consumo post-gate (VPS Decisore / IIS Proactive).
 # Eseguire DOPO Deploy Safe Decisore con fix 049d184+.
 #
 #   powershell -ExecutionPolicy Bypass -File .\tools\spot-l6-phase0-vps-collaudo.ps1
@@ -66,7 +66,7 @@ $pcIso1 = 'SPOTF0_ISO1'
 $pcIso2 = 'SPOTF0_ISO2'
 $pcCycle = 'SPOTF0_CYCLE'
 
-Write-Host "`n=== Fase 0 — reset engine (collaudo isolato) ===" -ForegroundColor Cyan
+Write-Host "`n=== Fase 0 - reset engine (collaudo isolato) ===" -ForegroundColor Cyan
 try {
     Invoke-WebRequest -Uri "$($env:DECISORE_URL.TrimEnd('/'))/api/proactive/reset" -UseBasicParsing -TimeoutSec 30 | Out-Null
     Ok 'engine reset' 'state cleared for collaudo PCs'
@@ -108,7 +108,7 @@ if ($botHzPost.SpotL5LossCount -ne 2) { Fail 'HZ L5' "got $($botHzPost.SpotL5Los
 if (-not $botHzPost.SpotL6Authorized) { Fail 'HZ auth preserved' 'authorized=false' }
 Ok 'HZ blocked' "grant=0 L5=$($botHzPost.SpotL5LossCount) auth=$($botHzPost.SpotL6Authorized)"
 
-Write-Host "`n=== 3. L1 senza L6 — auth/L5 restano ===" -ForegroundColor Cyan
+Write-Host "`n=== 3. L1 senza L6 - auth/L5 restano ===" -ForegroundColor Cyan
 $h = 7000
 Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
 Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
