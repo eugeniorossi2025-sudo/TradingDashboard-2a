@@ -143,6 +143,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPcCurrentStatusMirrorService, PcCurrentStatusMirrorService>();
         services.AddScoped<IValueService, ValueService>();
         services.AddScoped<ICommandService, CommandService>();
+        services.AddScoped<IControlRoomCommandOverrideService, ControlRoomCommandOverrideService>();
         services.AddScoped<IUserGridConfigurationService, UserGridConfigurationService>();
         services.AddScoped<IUserAccessTracker, UserAccessTracker>();
         services.AddScoped<IRootOwnerGuard, RootOwnerGuard>();

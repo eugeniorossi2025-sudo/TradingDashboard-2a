@@ -79,6 +79,8 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
     /// </summary>
     public DbSet<Margine> Margini { get; set; }
 
+    public DbSet<ControlRoomCommandOverride> ControlRoomCommandOverrides { get; set; }
+
     /// <summary>
     /// Configures the entity model.
     /// </summary>
@@ -306,6 +308,14 @@ public class AppDbContext : IdentityDbContext<User, Role, int>
             entity.HasKey(e => e.Id);
             entity.Property(e => e.MargineValue).HasColumnName("Margine").HasColumnType("decimal(18,0)");
             entity.Property(e => e.Data).HasColumnName("Data");
+        });
+
+        modelBuilder.Entity<ControlRoomCommandOverride>(entity =>
+        {
+            entity.ToTable("ControlRoomCommandOverrides");
+            entity.HasKey(e => e.Pc);
+            entity.Property(e => e.Pc).HasColumnName("PC").HasMaxLength(50);
+            entity.Property(e => e.CommandType).HasMaxLength(32);
         });
 
         // Configure UserGridConfiguration entity
