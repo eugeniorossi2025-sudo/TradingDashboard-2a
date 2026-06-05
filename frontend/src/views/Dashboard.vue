@@ -532,7 +532,11 @@ onUnmounted(async () => {
             <div class="col-span-12">
                 <TableBots :tableData="tableData || []" :decisionMethod="decisionMethod || ''" />
             </div>
-            <StatsWidget :telemetry="latestStatisticData?.telemetry" :telemetry-parsed="latestStatisticData?.telemetryParsed" />
+            <StatsWidget
+                :telemetry="latestStatisticData?.telemetry"
+                :telemetry-parsed="latestStatisticData?.telemetryParsed"
+                :table-rows="tableData || []"
+            />
             <div class="col-span-12">
                 <ProfitsChats :title="'Profits Chart'" :chartData="marginiChartData.length ? marginiChartData : (chartData || [])" />
             </div>

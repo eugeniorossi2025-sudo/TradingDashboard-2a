@@ -11,6 +11,11 @@ const props = defineProps({
     telemetryParsed: {
         type: Object,
         default: null
+    },
+    /** Righe tabella dashboard (PcCurrentStatus) — fonte STATO BOT reale per PC. */
+    tableRows: {
+        type: Array,
+        default: () => []
     }
 });
 
@@ -1063,30 +1068,62 @@ function formatPlayerRaceProgressSummary(row) {
     return filterLines.map((line) => line.label).join(' · ');
 }
 
-function getBotOperativeStateLabel(row) {
+function findDashboardTableRow(row) {
+    const pc = getBotName(row);
+    if (!pc || pc === '-') return null;
+    const normalized = pc.trim().toUpperCase();
+    return (
+        props.tableRows.find((tableRow) => {
+            const key = String(tableRow?.computer ?? tableRow?.Computer ?? '').trim().toUpperCase();
+            return key === normalized;
+        }) ?? null
+    );
+}
+
+function getRealBotStateLabel(row) {
+    const tableRow = findDashboardTableRow(row);
+    const raw = tableRow?.stato ?? tableRow?.Stato;
+    if (raw === undefined || raw === null || String(raw).trim() === '') {
+        return 'non disponibile';
+    }
+    const cleaned = String(raw)
+        .replace(/^Stato Bot:\s*/i, '')
+        .trim();
+    return cleaned || 'non disponibile';
+}
+
+function getRealBotStateClass(row) {
+    const label = getRealBotStateLabel(row);
+    if (label === 'non disponibile') return 'text-muted-color italic';
+    return 'text-surface-900 dark:text-surface-0';
+}
+
+/** Player Race / Security Filter risk — NON stato macchina bot. */
+function getFilterStateLabel(row) {
     const label = getRiskLabel(row);
     const mapped = {
-        'RACE OFF': 'RACE OFF',
-        'PAUSA ATTIVA': 'PAUSA',
-        RISCHIO: 'RISCHIO',
+        'RACE OFF': 'Race Off',
+        'PAUSA ATTIVA': 'Pausa Security Filter',
+        RISCHIO: 'Rischio Security Filter',
         'RISCHIO PLAYER — AC3': 'AC3',
         'AC3 P8': 'AC3',
         'AC3 P5': 'AC3',
-        'Filtro 8': 'FILTRO 8',
-        'Filtro 5': 'FILTRO 5',
-        NORMALE: 'NORMALE'
+        'Filtro 8': 'Filtro 8',
+        'Filtro 5': 'Filtro 5',
+        NORMALE: 'Nessuno'
     };
     return mapped[label] ?? label;
 }
 
-function getBotOperativeStateClass(row) {
-    const state = getBotOperativeStateLabel(row);
-    if (state === 'PAUSA' || state === 'RISCHIO') return 'text-red-600 dark:text-red-300';
-    if (state === 'AC3') return 'text-orange-600 dark:text-orange-300';
-    if (state === 'FILTRO 8') return 'text-blue-700 dark:text-blue-300';
-    if (state === 'FILTRO 5') return 'text-amber-700 dark:text-amber-300';
-    if (state === 'RACE OFF') return 'text-muted-color';
-    return 'text-emerald-700 dark:text-emerald-300';
+function getFilterStateClass(row) {
+    const label = getFilterStateLabel(row);
+    if (label === 'Pausa Security Filter' || label === 'Rischio Security Filter') return 'text-red-600 dark:text-red-300';
+    if (label === 'AC3') return 'text-orange-600 dark:text-orange-300';
+    if (label === 'Filtro 8') return 'text-blue-700 dark:text-blue-300';
+    if (label === 'Filtro 5') return 'text-amber-700 dark:text-amber-300';
+    if (label === 'Race Off') return 'text-muted-color';
+    if (label === 'Nessuno') return 'text-emerald-700 dark:text-emerald-300';
+    return 'text-muted-color';
 }
 
 function operatorCommandLoadingKey(pc, kind) {
@@ -2144,8 +2181,15 @@ function selectSecurityFilterBot(row) {
                                 {{ line.label }}
                             </div>
                         </div>
-                        <div class="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted-color">
-                            STATO BOT: <span :class="getBotOperativeStateClass(row)">{{ getBotOperativeStateLabel(row) }}</span>
+                        <div class="mt-1 space-y-0.5">
+                            <div class="text-[10px] font-bold uppercase tracking-wide text-muted-color">
+                                STATO BOT:
+                                <span :class="getRealBotStateClass(row)">{{ getRealBotStateLabel(row) }}</span>
+                            </div>
+                            <div class="text-[10px] font-bold uppercase tracking-wide text-muted-color">
+                                STATO FILTRI:
+                                <span :class="getFilterStateClass(row)">{{ getFilterStateLabel(row) }}</span>
+                            </div>
                         </div>
                     </div>
 
@@ -2175,11 +2219,14 @@ function selectSecurityFilterBot(row) {
                     </div>
 
                     <div class="mb-4 rounded-xl border border-surface-200 bg-surface-0 p-4 dark:border-surface-700 dark:bg-surface-900">
-                        <div class="mb-2 text-xs font-bold uppercase tracking-wide text-muted-color">Stato bot</div>
+                        <div class="mb-2 text-xs font-bold uppercase tracking-wide text-muted-color">Stato bot e filtri</div>
                         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                             <div>
-                                <div class="text-2xl font-bold" :class="getBotOperativeStateClass(selectedSecurityFilterRow)">
-                                    STATO BOT: {{ getBotOperativeStateLabel(selectedSecurityFilterRow) }}
+                                <div class="text-xl font-bold" :class="getRealBotStateClass(selectedSecurityFilterRow)">
+                                    STATO BOT: {{ getRealBotStateLabel(selectedSecurityFilterRow) }}
+                                </div>
+                                <div class="mt-1 text-lg font-bold" :class="getFilterStateClass(selectedSecurityFilterRow)">
+                                    STATO FILTRI: {{ getFilterStateLabel(selectedSecurityFilterRow) }}
                                 </div>
                                 <div class="mt-1 text-sm text-muted-color">
                                     Martingala L{{ selectedSecurityFilterRow.Martingala ?? '-' }}
