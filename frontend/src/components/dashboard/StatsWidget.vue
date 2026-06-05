@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue';
+import { apiClient } from '@/api/apiClient';
 import { DashboardService } from '@/service/DashboardService';
 
 const props = defineProps({
@@ -50,6 +51,8 @@ const securityFilterMinScore = ref(null);
 const securityFilterMaxAvgDraft = ref(23.5);
 const securityFilterVeryFastDraft = ref(21);
 const securityFilterMinScoreDraft = ref(3);
+const operatorCommandLoadingByBot = ref({});
+const operatorCommandStatus = ref('');
 
 const PLAYER_STEP_PULSE_MS = 1600;
 
@@ -1014,6 +1017,122 @@ function isPlayerPaceAc3Triggered(row) {
     return isPlayerRace5Ac3(row) || isPlayerRace8Ac3(row);
 }
 
+function getPlayerRaceProgressLines(row) {
+    if (!row) return [];
+    const metrics = getPlayerStreakMetrics(row);
+    const active = metrics.count > 0 && metrics.outcome === 'P';
+    const lines = [];
+
+    if (isPlayerRace8Ac3(row)) {
+        lines.push({
+            key: 'ac3-8',
+            label: 'AC3 Filtro 8',
+            class: 'text-sm font-bold text-orange-600 dark:text-orange-300'
+        });
+    } else if (isPlayerRace5Ac3(row)) {
+        lines.push({
+            key: 'ac3-5',
+            label: 'AC3 Filtro 5',
+            class: 'text-sm font-bold text-orange-600 dark:text-orange-300'
+        });
+    }
+
+    if (active) {
+        if (isPlayerRace5FilterEnabled()) {
+            lines.push({
+                key: 'filter-5',
+                label: `Filtro 5: ${metrics.count}/${FILTER_5_MIN_STREAK}`,
+                class: 'text-xs font-semibold text-amber-700 dark:text-amber-300'
+            });
+        }
+        if (isPlayerRace8FilterEnabled()) {
+            lines.push({
+                key: 'filter-8',
+                label: `Filtro 8: ${metrics.count}/${FILTER_8_MIN_STREAK}`,
+                class: 'text-xs font-semibold text-blue-700 dark:text-blue-300'
+            });
+        }
+    }
+
+    return lines;
+}
+
+function formatPlayerRaceProgressSummary(row) {
+    const filterLines = getPlayerRaceProgressLines(row).filter((line) => line.key.startsWith('filter-'));
+    if (!filterLines.length) return '';
+    return filterLines.map((line) => line.label).join(' · ');
+}
+
+function getBotOperativeStateLabel(row) {
+    const label = getRiskLabel(row);
+    const mapped = {
+        'RACE OFF': 'RACE OFF',
+        'PAUSA ATTIVA': 'PAUSA',
+        RISCHIO: 'RISCHIO',
+        'RISCHIO PLAYER — AC3': 'AC3',
+        'AC3 P8': 'AC3',
+        'AC3 P5': 'AC3',
+        'Filtro 8': 'FILTRO 8',
+        'Filtro 5': 'FILTRO 5',
+        NORMALE: 'NORMALE'
+    };
+    return mapped[label] ?? label;
+}
+
+function getBotOperativeStateClass(row) {
+    const state = getBotOperativeStateLabel(row);
+    if (state === 'PAUSA' || state === 'RISCHIO') return 'text-red-600 dark:text-red-300';
+    if (state === 'AC3') return 'text-orange-600 dark:text-orange-300';
+    if (state === 'FILTRO 8') return 'text-blue-700 dark:text-blue-300';
+    if (state === 'FILTRO 5') return 'text-amber-700 dark:text-amber-300';
+    if (state === 'RACE OFF') return 'text-muted-color';
+    return 'text-emerald-700 dark:text-emerald-300';
+}
+
+function operatorCommandLoadingKey(pc, kind) {
+    return `${pc}:${kind}`;
+}
+
+function isOperatorCommandLoading(row, kind) {
+    const pc = getBotName(row);
+    return operatorCommandLoadingByBot.value[operatorCommandLoadingKey(pc, kind)] === true;
+}
+
+async function sendControlRoomCommand(row, endpoint, kind, label) {
+    const pc = getBotName(row);
+    if (!pc || pc === '-') return;
+
+    const loadingKey = operatorCommandLoadingKey(pc, kind);
+    operatorCommandLoadingByBot.value = { ...operatorCommandLoadingByBot.value, [loadingKey]: true };
+    operatorCommandStatus.value = '';
+
+    try {
+        const response = await apiClient.post(endpoint, { pc });
+        const data = response?.data;
+        if (data?.success === false) {
+            throw new Error(data?.message || 'Errore comando');
+        }
+        operatorCommandStatus.value = `Comando ${label} inviato a ${pc}`;
+    } catch (err) {
+        const msg =
+            err?.response?.data?.message ??
+            err?.response?.data?.error ??
+            err?.message ??
+            `Errore invio comando a ${pc}`;
+        operatorCommandStatus.value = msg;
+    } finally {
+        operatorCommandLoadingByBot.value = { ...operatorCommandLoadingByBot.value, [loadingKey]: false };
+    }
+}
+
+function continueBot(row) {
+    return sendControlRoomCommand(row, '/api/control-room/commands/continue', 'continue', 'CONTINUA');
+}
+
+function resetBotMartingale(row) {
+    return sendControlRoomCommand(row, '/api/control-room/commands/reset-martingale', 'reset', 'AZZERA MARTINGALA');
+}
+
 function hasPlayerPaceTelemetry(row) {
     if (!row) return false;
     const candidates = [
@@ -1061,21 +1180,12 @@ function getPlayerPaceVisual(row) {
     } else if (!active) {
         status = 'inactive';
         statusLabel = 'Nessuna streak PLAYER';
-    } else if (isPlayerRace8Ac3(row) || isPlayerRace5Ac3(row)) {
-        status = 'risk';
-        statusLabel = isPlayerRace8Ac3(row) ? 'AC3 Filtro 8' : 'AC3 Filtro 5';
-    } else if (isPlayerRace8Alert(row)) {
-        status = 'partial';
-        statusLabel = `Filtro 8 (${metrics.count} PLAYER)`;
-    } else if (isPlayerRace5Alert(row)) {
-        status = 'partial';
-        statusLabel = `Filtro 5 (${metrics.count} PLAYER)`;
-    } else if (metrics.count > 0) {
-        status = 'partial';
-        statusLabel = `In corso ${metrics.count}/${PLAYER_BLOCK_COUNT}`;
     } else {
-        status = 'normal';
-        statusLabel = 'NORMALE';
+        const progressLines = getPlayerRaceProgressLines(row);
+        status = isPlayerRace8Ac3(row) || isPlayerRace5Ac3(row) ? 'risk' : 'partial';
+        statusLabel = progressLines.length
+            ? progressLines.map((line) => line.label).join(' · ')
+            : `Streak ${metrics.count}/${PLAYER_BLOCK_COUNT}`;
     }
 
     return {
@@ -1372,8 +1482,11 @@ function getTriggerLabel(row) {
     if (row?.PauseBot || row?.SecurityFilterActive) return 'PAUSA';
     if (isRapidTriggerActive(row)) return 'TRIGGER ON';
     if (isPlayerPaceAc3Triggered(row)) return 'AC3';
-    if (anyPlayerRaceCommandEnabled() && getPlayerStreakMetrics(row).count > 0) {
-        return `${getPlayerStreakMetrics(row).count}/${PLAYER_BLOCK_COUNT}`;
+    const progressSummary = formatPlayerRaceProgressSummary(row);
+    if (progressSummary) return progressSummary;
+    const metrics = getPlayerStreakMetrics(row);
+    if (anyPlayerRaceCommandEnabled() && metrics.count > 0) {
+        return `Streak ${metrics.count}/${PLAYER_BLOCK_COUNT}`;
     }
     return 'OFF';
 }
@@ -2022,12 +2135,17 @@ function selectSecurityFilterBot(row) {
                                 {{ step.label }}
                             </span>
                         </div>
-                        <div v-if="isPlayerRace8Ac3(row)" class="mt-1 text-sm font-bold text-orange-600 dark:text-orange-300">AC3 Filtro 8</div>
-                        <div v-else-if="isPlayerRace5Ac3(row)" class="mt-1 text-sm font-bold text-orange-600 dark:text-orange-300">AC3 Filtro 5</div>
-                        <div v-else-if="isPlayerRace8Alert(row)" class="mt-1 text-xs font-semibold text-blue-700 dark:text-blue-300">Filtro 8</div>
-                        <div v-else-if="isPlayerRace5Alert(row)" class="mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300">Filtro 5</div>
-                        <div v-else-if="getPlayerStreakMetrics(row).count > 0" class="mt-1 text-xs text-blue-700 dark:text-blue-300">
-                            {{ getPlayerStreakMetrics(row).count }}/{{ PLAYER_BLOCK_COUNT }} PLAYER
+                        <div v-if="getPlayerRaceProgressLines(row).length" class="mt-1 space-y-0.5">
+                            <div
+                                v-for="line in getPlayerRaceProgressLines(row)"
+                                :key="`${getBotName(row)}-${line.key}`"
+                                :class="line.class"
+                            >
+                                {{ line.label }}
+                            </div>
+                        </div>
+                        <div class="mt-1 text-[10px] font-bold uppercase tracking-wide text-muted-color">
+                            STATO BOT: <span :class="getBotOperativeStateClass(row)">{{ getBotOperativeStateLabel(row) }}</span>
                         </div>
                     </div>
 
@@ -2053,6 +2171,44 @@ function selectSecurityFilterBot(row) {
                             <button type="button" class="rounded-full border border-surface-200 px-3 py-1 text-xs font-semibold text-muted-color hover:bg-surface-100 dark:border-surface-700 dark:hover:bg-surface-800" @click="selectedSecurityFilterBot = null">
                                 Chiudi dettaglio
                             </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 rounded-xl border border-surface-200 bg-surface-0 p-4 dark:border-surface-700 dark:bg-surface-900">
+                        <div class="mb-2 text-xs font-bold uppercase tracking-wide text-muted-color">Stato bot</div>
+                        <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div>
+                                <div class="text-2xl font-bold" :class="getBotOperativeStateClass(selectedSecurityFilterRow)">
+                                    STATO BOT: {{ getBotOperativeStateLabel(selectedSecurityFilterRow) }}
+                                </div>
+                                <div class="mt-1 text-sm text-muted-color">
+                                    Martingala L{{ selectedSecurityFilterRow.Martingala ?? '-' }}
+                                    <span v-if="selectedSecurityFilterRow.LastReason || selectedSecurityFilterRow.lastReason">
+                                        · {{ selectedSecurityFilterRow.LastReason || selectedSecurityFilterRow.lastReason }}
+                                    </span>
+                                </div>
+                            </div>
+                            <div class="flex flex-col items-start gap-2 md:items-end">
+                                <div class="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        class="rounded-lg bg-emerald-700 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-emerald-800 disabled:opacity-60"
+                                        :disabled="isOperatorCommandLoading(selectedSecurityFilterRow, 'continue')"
+                                        @click="continueBot(selectedSecurityFilterRow)"
+                                    >
+                                        CONTINUA
+                                    </button>
+                                    <button
+                                        type="button"
+                                        class="rounded-lg bg-slate-800 px-4 py-2 text-sm font-bold uppercase tracking-wide text-white hover:bg-slate-900 disabled:opacity-60 dark:bg-slate-200 dark:text-slate-900 dark:hover:bg-white"
+                                        :disabled="isOperatorCommandLoading(selectedSecurityFilterRow, 'reset')"
+                                        @click="resetBotMartingale(selectedSecurityFilterRow)"
+                                    >
+                                        AZZERA MARTINGALA
+                                    </button>
+                                </div>
+                                <div v-if="operatorCommandStatus" class="max-w-md text-xs text-primary">{{ operatorCommandStatus }}</div>
+                            </div>
                         </div>
                     </div>
 
@@ -2101,12 +2257,25 @@ function selectSecurityFilterBot(row) {
                                 </div>
                             </div>
 
-                            <div class="mt-4 space-y-1 text-center">
-                                <div class="text-xl font-bold text-blue-700 dark:text-blue-300">
-                                    Streak PLAYER {{ getPlayerPaceVisual(selectedSecurityFilterRow).count }}/{{ PLAYER_BLOCK_COUNT }}
+                            <div class="mt-4 space-y-2 text-center">
+                                <div class="text-sm font-semibold text-muted-color">
+                                    Timeline P1–P8 · streak {{ getPlayerPaceVisual(selectedSecurityFilterRow).count }}/{{ PLAYER_BLOCK_COUNT }}
                                 </div>
-                                <div class="text-xl font-bold" :class="getPlayerPaceStatusClass(selectedSecurityFilterRow)">
-                                    Stato: {{ getPlayerPaceVisual(selectedSecurityFilterRow).statusLabel }}
+                                <div
+                                    v-if="getPlayerRaceProgressLines(selectedSecurityFilterRow).length"
+                                    class="space-y-1"
+                                >
+                                    <div
+                                        v-for="line in getPlayerRaceProgressLines(selectedSecurityFilterRow)"
+                                        :key="`detail-${line.key}`"
+                                        class="text-lg font-bold"
+                                        :class="line.class"
+                                    >
+                                        {{ line.label }}
+                                    </div>
+                                </div>
+                                <div v-else class="text-lg font-bold text-muted-color">
+                                    Nessun filtro PLAYER attivo
                                 </div>
                             </div>
                         </template>
