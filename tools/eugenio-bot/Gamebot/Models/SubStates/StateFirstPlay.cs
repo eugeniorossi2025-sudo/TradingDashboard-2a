@@ -1,5 +1,7 @@
 ﻿using System;
 using Gamebot.Helpers;
+using Gamebot.Models.MouseMove;
+using Gamebot.Models.Objects;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -80,6 +82,7 @@ namespace Gamebot.Models.SubStates
                         DashboardApiHelper.SendDeck();
                     });
                     Log.PrintInfo("************* LETTO PUNTARE ************");
+                    StateFirstPlay.FaiProbeRossaMinima().Wait();
                     StateFirstPlay.state = 1;
                     //_ = Task.Run(async () =>  DashboardApiHelper.Send());
                     Thread.Sleep(750);
@@ -117,9 +120,22 @@ namespace Gamebot.Models.SubStates
             Log.PrintInfo(string.Format("COLORE USCITO: {0} | COLORE CONFIG: {1} | GIOCHERAI PROSSIMA MANO: {2}", Runtime.last_color, Config.start_color, giocheraiProssimaMano));
         }
 
+        private static async Task FaiProbeRossaMinima()
+        {
+            Runtime.chosen_color = Constants.EnumColorBaccarat.RED_BANK;
+            var fiches_array = Calcs
+                .GetBestCustomFichesAvailable(CustomFicheWidgetsContainer.getLowestFicheValueAvailable())
+                .ToArray();
+
+            await Bets.DoTheCustomBet(fiches_array);
+            Log.PrintInfo("FIRST_PLAY | PROBE ROSSA MINIMA");
+        }
+
         private const int STATE_WAIT_INIZIO_TURNO = 0;
 
         private const int STATE_WAIT_RISULTATO = 1;
+
+        public static void RequestExit() => exit = true;
 
         private static bool exit;
 

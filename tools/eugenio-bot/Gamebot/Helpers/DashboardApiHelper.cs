@@ -1,5 +1,6 @@
 using Gamebot.Models;
 using Gamebot.Models.MainState;
+using Gamebot.Models.SubStates;
 using Gamebot.Models.Roulette;
 using Gamebot.Models.UI;
 using System;
@@ -536,6 +537,19 @@ public static void SendDeck()
                     //Runtime.current_state_bot = Constants.EnumStateBot.PAUSE_SCALPING;
                     Runtime.martingala_counter = 0;
                 }
+            }
+
+            // Post-AC2: dopo la logica storica, esci da scalping verso pausa (solo profitto locale).
+            if ((Azione)comando == Azione.AzzeraMartingala)
+            {
+                Runtime.current_state_bot = Constants.EnumStateBot.PAUSE_SCALPING;
+                Runtime.sculping_profit = 0.0;
+                StateSculping.RequestExit();
+                StateFirstPlay.RequestExit();
+                StateSafeWin.RequestExit();
+                StateFineMazzo.RequestExit();
+                StateAttendiNuovoMazzo.RequestExit();
+                StatePauseSculping.RequestExit();
             }
         }
 

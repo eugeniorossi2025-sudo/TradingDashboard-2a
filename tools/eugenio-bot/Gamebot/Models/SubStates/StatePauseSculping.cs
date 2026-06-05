@@ -229,6 +229,8 @@ namespace Gamebot.Models.SubStates
 
         private const int STATE_WAIT_RISULTATO = 1;
 
+        public static void RequestExit() => exit = true;
+
         private static bool exit;
 
         private static int state;

@@ -3,7 +3,7 @@
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > **Prima di qualsiasi attività:** leggere [`ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md`](ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md) ed eseguire la checklist git obbligatoria.
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-06-05** — §13 deploy stack (`8e2efe1`); §14 fonte GameBot verificata per release `relisegiacomo ok 1.0` (`tools/eugenio-bot`). Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
+> **Ultimo aggiornamento: 2026-06-05** — §14 GameBot **1.2 unified** (probe + AC2 + BotOwner) su `tools/eugenio-bot`; runtime collaudo `relisegiacomo ok 1.2-test`. **Documento padre GameBot:** solo questo file §14 — non duplicare altrove. Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
 
 ---
 
@@ -632,6 +632,7 @@ powershell -ExecutionPolicy Bypass -File .\ops\dash2a-readiness\merge-missing-fr
 10. **NON** applicare migration/script SQL sul DB Decisore senza audit read-only e backup/diff delle stored procedure esistenti.
 11. **NON** usare `/api/proactive/reset` come healthcheck neutro: ha side effect.
 12. **NON** committare chiavi VAPID private; la configurazione push vive nel runtime server e si gestisce con `configure-push-vapid.yml`.
+13. **NON** patchare GameBot fuori da `tools/eugenio-bot` né deployare exe senza commit/tag su `TradingDashboard-2a` (vedi §14).
 
 ---
 
@@ -805,32 +806,91 @@ gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/T
 
 ---
 
-## 14. GAMEBOT — RUNTIME / SOURCE TRUTH (release `relisegiacomo ok 1.0`)
+## 14. GAMEBOT — SORGENTE E RELEASE (documento padre)
 
-> **Per patch Gamebot DASH2A (incluso Step 3 Bot Owner Auth):** lavorare solo su **`tools/eugenio-bot`**, non su `tools/eugenio-gamebot/source` né su `Documents\baccarat-bot-main OK`.
+> **Regola assoluta:** patch, build e deploy GameBot DASH2A **solo** su `tools/eugenio-bot`.  
+> **NON** usare: `tools/eugenio-gamebot/source`, `Documents\baccarat-bot-main OK`, `baccarat-bot-main-socket-artifact`, cartelle Desktop `Gamebot_FirstPlay_*`, repo Dashboard 1 / IIS.
 
-Documento dettagliato: [`tools/eugenio-gamebot/README.md`](tools/eugenio-gamebot/README.md)
-
-### GAMEBOT — FONTE VERIFICATA PER RELEASE 1.0
+### 14.1 Sorgente canonico (1.2 unified)
 
 | Voce | Percorso |
 |------|----------|
-| **Runtime ufficiale** | `C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.0` |
-| **Sorgente reale** | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri\tools\eugenio-bot` |
+| **Sorgente unico** | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri\tools\eugenio-bot` |
 | **Solution** | `tools\eugenio-bot\Gamebot.sln` |
-| **Configuratore** | `Gamebot\UI\WindowForm\Configuratore.cs` |
-| **Punto patch Step 3** | `Configuratore.start_all()` — prima di `Player.Instance.Start()` |
-| **Build** | Release \| Any CPU |
-| **Output** | `Gamebot\bin\Release\` |
-| **Copia runtime** | `Gamebot.exe` + `Gamebot.pdb` → `relisegiacomo ok 1.0` |
-| **Hash `Gamebot.exe` runtime** | `D1A8AAF0F6AAF50BAB41FFE19DDE2B19904D0723352CDDA1179D0E520150C273` |
-
-**Nota:** `relisegiacomo ok 1.0` è stata prima duplicata da `relisegiacomo ok`, poi l’exe in `1.0` è stato sostituito (2026-06-03) con il build da `tools\eugenio-bot`.  
-`tools/eugenio-gamebot/source` resta copia storica da `baccarat-bot-main OK` — **non** è la fonte verificata dell’exe runtime 1.0.
+| **Output build** | `tools\eugenio-bot\Gamebot\bin\Release\` |
+| **Build** | `Release` \| `Any CPU` |
 
 ```text
 MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any CPU" /t:Rebuild
 ```
+
+### 14.2 Matrice feature per release
+
+| Pezzo | 1.0 | 1.1 | **1.2 unified** (sorgente attuale) |
+|-------|-----|-----|-------------------------------------|
+| Probe Banker FirstPlay | ❌ | ❌ | ✅ `StateFirstPlay.FaiProbeRossaMinima()` |
+| Probe nuovo mazzo | ❌ | ❌ | ✅ `StateAttendiNuovoMazzo` probe rossa minima |
+| AC2 → PAUSE_SCALPING | ✅ | ❌ | ✅ `DashboardApiHelper` Post-AC2 + `RequestExit()` |
+| BotOwner gate (Step 3) | ❌ | ✅ | ✅ `BotOwnerAuthHelper` + `Configuratore.start_all()` |
+
+**File patch 1.2 unified (9):**
+
+- `Gamebot\Models\SubStates\StateFirstPlay.cs`
+- `Gamebot\Models\SubStates\StateAttendiNuovoMazzo.cs`
+- `Gamebot\Helpers\DashboardApiHelper.cs`
+- `Gamebot\Models\SubStates\StateSculping.cs`, `StateSafeWin.cs`, `StateFineMazzo.cs`, `StatePauseSculping.cs` — `RequestExit()`
+- `Gamebot\Helpers\BotOwnerAuthHelper.cs` + gate in `Configuratore.cs` (già presenti)
+
+**Origine patch (solo riferimento storico, non lavorare lì):**
+
+| Patch | Fonte storica |
+|-------|----------------|
+| Probe FirstPlay / nuovo mazzo | `Documents\baccarat-bot-main OK\baccarat-bot-main` |
+| AC2 Post-AC2 | `baccarat-bot-main-socket-artifact` (2026-06-03) |
+| BotOwner | commit STEP 3 su `tools/eugenio-bot` |
+
+### 14.3 Runtime CRIPTOOK — hash e uso
+
+| Runtime | Uso | Hash `Gamebot.exe` | Note |
+|---------|-----|-------------------|------|
+| `relisegiacomo ok` | Stabile legacy | `DFEF9CDC…` | Non promuovere |
+| **`relisegiacomo ok 1.0`** | **Baseline congelata** | `D1A8AAF0…` | AC2 sì, probe no — **non sovrascrivere** |
+| `relisegiacomo ok 1.1` | Collaudo BotOwner | `7C6399C5…` | BotOwner sì, probe/AC2 no |
+| **`relisegiacomo ok 1.2-test`** | **Collaudo unified** | `57222438…` | Build 2026-06-05 da sorgente §14.1 |
+| `Gamebot_FirstPlay_ProbeUntilPlayer_*_20260320` | Riferimento storico probe | `02DC9D5A…` | Artefatto Desktop — non sorgente |
+
+Hash completi (verifica pre-deploy):
+
+```text
+1.0  D1A8AAF0F6AAF50BAB41FFE19DDE2B19904D0723352CDDA1179D0E520150C273
+1.1  7C6399C55BE04A34CAB499F3CF84E84624ABED6D31B189A486D0FEAA012BA697
+1.2  572224381C363649ADF08680009611111A5EEDCC738FDCD31F2DC0595448E28D
+```
+
+**Deploy runtime:** copiare solo `Gamebot.exe` + `Gamebot.pdb` nella cartella test/prod scelta. Non sostituire `Gamebot.exe.config` se non cambia intenzionalmente.
+
+### 14.4 Blindare il sorgente (obbligatorio)
+
+1. **Commit + tag** su `TradingDashboard-2a` dopo ogni modifica GameBot:
+   ```text
+   git tag gamebot-1.2-unified-2026-06-05
+   ```
+2. **Mai** patch su exe runtime o cartelle Desktop senza commit su `tools/eugenio-bot`.
+3. **Pre-build check** (stringhe attese in `bin\Release\Gamebot.exe`):
+   - `FaiProbeRossaMinima`
+   - `FIRST_PLAY | PROBE ROSSA MINIMA`
+   - `WAITING NEW DECK | PROBE ROSSA MINIMA`
+   - `RequestExit`
+4. **Pre-promozione runtime:** hash build = hash cartella destinazione; `1.0` hash invariato se non promozione esplicita.
+5. **Cursor / sessione:** citare sempre §14 di questo file; non cercare sorgente in chat vecchie o path alternativi.
+6. **Promozione prod:** solo dopo collaudo OK su `1.2-test` → nuova cartella (es. `1.2`) o sostituzione concordata — mai sovrascrivere `1.0` senza decisione esplicita.
+
+### 14.5 Log attesi in collaudo 1.2
+
+- `FIRST_PLAY | PROBE ROSSA MINIMA` — primo `PUNTARE` dopo AVVIA
+- `WAITING NEW DECK | PROBE ROSSA MINIMA` — attesa nuovo mazzo
+- Decisore AC2 → bot in `PAUSE_SCALPING`, `sculping_profit = 0`
+- BotOwner: gate su AVVIA (`/api/bot-owner-auth/check`)
 
 ---
 
@@ -844,3 +904,4 @@ MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any 
 - [ ] `git log --oneline -5`
 - [ ] Decider prod = `51.178.16.37` (non `51.210.181.37`)
 - [ ] Decisore live path = `C:\Decisore`, app pool = `Proactive`, backup root = `C:\DecisoreBackups`
+- [ ] GameBot: sorgente = `tools/eugenio-bot` §14; se build, verificare hash vs tabella §14.3

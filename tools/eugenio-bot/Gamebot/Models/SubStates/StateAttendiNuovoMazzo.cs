@@ -144,49 +144,36 @@ namespace Gamebot.Models.SubStates
         {
             Runtime.puntata = 0;
 
-            Runtime.waiting_deck_counter++;
-            if (Runtime.waiting_deck_counter % 3 == 0)
+            try
             {
-                try
+                Runtime.chosen_color = Constants.EnumColorBaccarat.RED_BANK;
+                var fiches_array = Calcs
+                    .GetBestCustomFichesAvailable(CustomFicheWidgetsContainer.getLowestFicheValueAvailable())
+                    .ToArray();
+                double totale_puntata = 0.0;
+                for (int i = 0; i < fiches_array.Length; i++)
                 {
-                    var fiches_array = Calcs
-                        .GetBestCustomFichesAvailable(CustomFicheWidgetsContainer.getLowestFicheValueAvailable())
-                        .ToArray();
-                    double totale_puntata = 0.0;
-                    for (int i = 0; i < fiches_array.Length; i++)
-                    {
-                        totale_puntata += fiches_array[i];  
-                    }
-                    Runtime.puntata = totale_puntata;
-                    
-                   // _ = Task.Run(async () =>  DashboardApiHelper.Send());
+                    totale_puntata += fiches_array[i];
+                }
+                Runtime.puntata = totale_puntata;
 
-                    await Bets.DoTheCustomBet(fiches_array);
-                IL_00B9:
-                    Log.PrintInfo(string.Format("WAITING NEW DECK | GIOCATA RANDOM | NUMBER_DECK: {0} | WAITING_NEW_DECK COUNTER: {1}", Runtime.number_deck, Runtime.waiting_deck_counter));
-                    Runtime.waiting_deck_counter = 0;
-                    StateAttendiNuovoMazzo.randomBet = true;
-                    return;
-                    TaskAwaiter taskAwaiter2;
-                    TaskAwaiter taskAwaiter = taskAwaiter2;
-                    taskAwaiter2 = default(TaskAwaiter);
-                    taskAwaiter.GetResult();
-                    goto IL_00B9;
-                }
-                catch (Exception ex)
-                {
-                    Log.PrintInfo(ex.Message);
-                }
+                await Bets.DoTheCustomBet(fiches_array);
+                Log.PrintInfo(string.Format("WAITING NEW DECK | PROBE ROSSA MINIMA | NUMBER_DECK: {0}", Runtime.number_deck));
+                Runtime.waiting_deck_counter = 0;
+                StateAttendiNuovoMazzo.randomBet = true;
+                return;
             }
-            else
-            { 
-                //_ = Task.Run(async () =>  DashboardApiHelper.Send());
+            catch (Exception ex)
+            {
+                Log.PrintInfo(ex.Message);
             }
         }
 
         private const int STATE_WAIT_INIZIO_TURNO = 0;
 
         private const int STATE_WAIT_RISULTATO = 1;
+
+        public static void RequestExit() => exit = true;
 
         private static bool exit;
 
