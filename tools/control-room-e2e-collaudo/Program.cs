@@ -5,10 +5,10 @@ using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 
 static void Ok(string name, string? detail = null) =>
-    Console.WriteLine($"OK   {name}{(detail == null ? "" : $" — {detail}")}");
+    Console.WriteLine($"OK   {name}{(detail == null ? "" : $" - {detail}")}");
 static void Fail(string name, string? detail = null)
 {
-    Console.Error.WriteLine($"FAIL {name}{(detail == null ? "" : $" — {detail}")}");
+    Console.Error.WriteLine($"FAIL {name}{(detail == null ? "" : $" - {detail}")}");
     Environment.ExitCode = 1;
 }
 static void Log(string line) => Console.WriteLine($"LOG  {line}");
@@ -172,7 +172,7 @@ using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(60) };
 var qp2 = BuildDecideParams(username, password, pc2);
 if (!await ProbeDecideAsync(http, baseUrl, qp2))
 {
-    Fail("decisore reachable", $"GET {baseUrl}/api/proactive/decide — avvia Decisore locale patchato o imposta DECISORE_URL");
+    Fail("decisore reachable", $"GET {baseUrl}/api/proactive/decide - avvia Decisore patchato o imposta DECISORE_URL");
     return;
 }
 Ok("decisore reachable", baseUrl);

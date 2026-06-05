@@ -1,13 +1,13 @@
-# Collaudo Control Room override — eseguire SOLO dalla VPS Decisore (IP autorizzato su SQL 1434).
-# Prerequisito: patch WebApi + Decisore già deployate su quella VPS / ambiente collegato a 51.83.159.175:1434.
+# Collaudo Control Room override - eseguire SOLO dalla VPS Decisore (IP autorizzato su SQL 1434).
+# Prerequisito: patch Decisore deployata; DB runtime 51.83.159.175:1434.
 #
-# Uso (PowerShell, dalla root repo o copiando lo script):
+# Uso:
 #   .\tools\control-room-vps-collaudo.ps1
 #
 # Env opzionali:
-#   COLLAUDO_CONNECTION_STRING  — default: letto da C:\Decisore\appsettings.json se presente
-#   DECISORE_URL                — default: http://127.0.0.1
-#   DECIDE_USERNAME / DECIDE_PASSWORD — credenziali bot UpS_Users_Api
+#   COLLAUDO_CONNECTION_STRING  - default: C:\Decisore\appsettings.json
+#   DECISORE_URL                - default: http://127.0.0.1
+#   DECIDE_USERNAME / DECIDE_PASSWORD
 
 $ErrorActionPreference = 'Stop'
 
@@ -36,8 +36,8 @@ if ([string]::IsNullOrWhiteSpace($env:COLLAUDO_CONNECTION_STRING)) {
 }
 
 Write-Step 1 'Verifica DB + CONTINUA (AC0 one-shot)'
-Write-Step 2 'Verifica AZZERA (AC2 one-shot) — incluso nello smoke E2E'
-Write-Step 3 'Verifica isolamento PC — incluso nello smoke E2E'
+Write-Step 2 'Verifica AZZERA (AC2 one-shot) incluso nello smoke E2E'
+Write-Step 3 'Verifica isolamento PC incluso nello smoke E2E'
 
 $e2eProject = Join-Path $repoRoot 'tools\control-room-e2e-collaudo\ControlRoomE2eCollaudo.csproj'
 if (-not (Test-Path $e2eProject)) {
@@ -46,12 +46,11 @@ if (-not (Test-Path $e2eProject)) {
 
 dotnet run --project $e2eProject
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "`nVERDICT: FAIL — STOP DEPLOY (collaudo E2E VPS non superato)" -ForegroundColor Red
+    Write-Host "`nVERDICT: FAIL - STOP DEPLOY (collaudo E2E VPS non superato)" -ForegroundColor Red
     exit 1
 }
 
 Write-Step 4 'Verifica non regressione (statica, da repo se presente)'
-$proactive = Join-Path $repoRoot 'decision-engine\Decisore\Engine\ProactiveEngine.cs'
 if (Test-Path (Join-Path $repoRoot '.git')) {
     Push-Location $repoRoot
     try {
@@ -59,15 +58,15 @@ if (Test-Path (Join-Path $repoRoot '.git')) {
         $dirtyMission = git diff --name-only HEAD -- '**/Mission*' '**/Accounting*' '**/MissionReport*'
         if ($dirtyEngine) { Write-Warning "ProactiveEngine.cs modificato nel working tree: $dirtyEngine" }
         else { Write-Host 'OK   ProactiveEngine.cs non modificato (HEAD diff)' -ForegroundColor Green }
-        if ($dirtyMission) { Write-Warning "File missioni/contabilità modificati: $($dirtyMission -join ', ')" }
-        else { Write-Host 'OK   missioni/report/contabilità non modificati (HEAD diff)' -ForegroundColor Green }
+        if ($dirtyMission) { Write-Warning "File missioni/contabilita modificati: $($dirtyMission -join ', ')" }
+        else { Write-Host 'OK   missioni/report/contabilita non modificati (HEAD diff)' -ForegroundColor Green }
     }
     finally {
         Pop-Location
     }
 }
 else {
-    Write-Host 'SKIP git audit (repo non presente su VPS — verificare manualmente checklist 4)' -ForegroundColor Yellow
+    Write-Host 'SKIP git audit (repo non presente su VPS - verificare manualmente checklist 4)' -ForegroundColor Yellow
 }
 
-Write-Host "`nVERDICT: PASS — collaudo VPS completato. Deploy autorizzato solo se anche WebApi endpoint UI verificati." -ForegroundColor Green
+Write-Host "`nVERDICT: PASS - collaudo VPS completato. WebApi/UI ancora da collaudare." -ForegroundColor Green
