@@ -167,6 +167,6 @@ jobs:
           $env:DECISORE_URL = 'http://127.0.0.1'
           & $script
           if ($LASTEXITCODE -ne 0) {
-            throw "Control Room VPS collaudo FAILED — rollback recommended before any WebApi deploy"
+            throw "Control Room VPS collaudo FAILED - rollback recommended before any WebApi deploy"
           }
           Write-Host "CONTROL_ROOM_VPS_COLLAUDO_PASS"
