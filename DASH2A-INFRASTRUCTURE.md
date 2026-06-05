@@ -3,7 +3,7 @@
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > **Prima di qualsiasi attività:** leggere [`ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md`](ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md) ed eseguire la checklist git obbligatoria.
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-06-05** — §13 allineato all'ultimo deploy stack completo (`8e2efe1`, run `27022669207` / `27022671996` / `27022666669`). Commit `63fba5f` incluso come antenato di `8e2efe1`. Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
+> **Ultimo aggiornamento: 2026-06-05** — §13 deploy stack (`8e2efe1`); §14 fonte GameBot verificata per release `relisegiacomo ok 1.0` (`tools/eugenio-bot`). Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
 
 ---
 
@@ -805,7 +805,36 @@ gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/T
 
 ---
 
-## 14. CHECKLIST INIZIO SESSIONE
+## 14. GAMEBOT — RUNTIME / SOURCE TRUTH (release `relisegiacomo ok 1.0`)
+
+> **Per patch Gamebot DASH2A (incluso Step 3 Bot Owner Auth):** lavorare solo su **`tools/eugenio-bot`**, non su `tools/eugenio-gamebot/source` né su `Documents\baccarat-bot-main OK`.
+
+Documento dettagliato: [`tools/eugenio-gamebot/README.md`](tools/eugenio-gamebot/README.md)
+
+### GAMEBOT — FONTE VERIFICATA PER RELEASE 1.0
+
+| Voce | Percorso |
+|------|----------|
+| **Runtime ufficiale** | `C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.0` |
+| **Sorgente reale** | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri\tools\eugenio-bot` |
+| **Solution** | `tools\eugenio-bot\Gamebot.sln` |
+| **Configuratore** | `Gamebot\UI\WindowForm\Configuratore.cs` |
+| **Punto patch Step 3** | `Configuratore.start_all()` — prima di `Player.Instance.Start()` |
+| **Build** | Release \| Any CPU |
+| **Output** | `Gamebot\bin\Release\` |
+| **Copia runtime** | `Gamebot.exe` + `Gamebot.pdb` → `relisegiacomo ok 1.0` |
+| **Hash `Gamebot.exe` runtime** | `D1A8AAF0F6AAF50BAB41FFE19DDE2B19904D0723352CDDA1179D0E520150C273` |
+
+**Nota:** `relisegiacomo ok 1.0` è stata prima duplicata da `relisegiacomo ok`, poi l’exe in `1.0` è stato sostituito (2026-06-03) con il build da `tools\eugenio-bot`.  
+`tools/eugenio-gamebot/source` resta copia storica da `baccarat-bot-main OK` — **non** è la fonte verificata dell’exe runtime 1.0.
+
+```text
+MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any CPU" /t:Rebuild
+```
+
+---
+
+## 15. CHECKLIST INIZIO SESSIONE
 
 - [ ] Runner `dash2a-backend-runner-01` online (GitHub → Actions → Runners)
 - [ ] Runner `dash2a-decisore-runner-01` online se si lavora sul Decisore

@@ -174,9 +174,9 @@ Frontend/Firebase:
 The following files currently contain real or secret-like values and must be cleaned before merge/deploy:
 - `backend/WebApi/appsettings.json`
 - `decision-engine/Decisore/appsettings.json`
-- `tools/eugenio-gamebot/source/Gamebot/app.config`
-- `tools/eugenio-gamebot/release-reference/Gamebot.exe.config`
-- `tools/eugenio-bot/Gamebot/app.config`
+- `tools/eugenio-bot/Gamebot/app.config` — **sorgente Gamebot verificato** (patch/build; vedi `DASH2A-INFRASTRUCTURE.md` §14)
+- `tools/eugenio-gamebot/source/Gamebot/app.config` — copia storica, **non** fonte verificata release `relisegiacomo ok 1.0`
+- `tools/eugenio-gamebot/release-reference/Gamebot.exe.config` — solo riferimento config runtime CRIPTOOK
 - `restart-app-safe.ps1` contains a local smoke-test admin password value.
 
 Cleanup rule:
