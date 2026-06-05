@@ -72,6 +72,13 @@ function Get-BotBool($bot, [string]$name) {
     return $false
 }
 
+# Evita trigger rapido L5 / Security Filter (VERY_FAST_SECONDS ~23s su VPS prod).
+function Wait-HandPace {
+    $sec = 26
+    if ($env:COLLAUDO_HAND_PACE_SECONDS) { $sec = [int]$env:COLLAUDO_HAND_PACE_SECONDS }
+    Start-Sleep -Seconds $sec
+}
+
 if (-not $env:DECISORE_URL) { $env:DECISORE_URL = 'http://127.0.0.1' }
 if (-not $env:DECIDE_USERNAME) { $env:DECIDE_USERNAME = 'eugenio' }
 if (-not $env:DECIDE_PASSWORD) { $env:DECIDE_PASSWORD = '123456' }
@@ -95,8 +102,10 @@ Write-Host "`n=== 1. Grant su 5->6 (StopL6=false) ===" -ForegroundColor Cyan
 $h = 5000
 $a = Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B'
 if ($a -eq 9) { Fail 'L5 loss 1' "decide=$a" }
+Wait-HandPace
 $b = Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B'
 if ($b -eq 9) { Fail 'L5 loss 2' "decide=$b" }
+Wait-HandPace
 $botPre = Get-SpotBot $pcGrant
 if (-not (Get-BotBool $botPre 'SpotL6Authorized')) {
     Fail 'auth matura' "L5=$(Get-BotInt $botPre 'SpotL5LossCount') grant=$(Get-BotInt $botPre 'SpotL6GrantedCount')"
@@ -121,7 +130,9 @@ Ok 'grant consumato' "granted=$(Get-BotInt $botPost 'SpotL6GrantedCount') L5=$(G
 Write-Host "`n=== 2. Hot Zone blocca 5->6 (grant invariato) ===" -ForegroundColor Cyan
 $h = 6000
 Invoke-DecideSpot -Computer $pcHz -Mazzo 1 -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
+Wait-HandPace
 Invoke-DecideSpot -Computer $pcHz -Mazzo 2 -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
+Wait-HandPace
 $botHzPre = Get-SpotBot $pcHz
 if (-not (Get-BotBool $botHzPre 'SpotL6Authorized')) { Fail 'HZ auth' 'not authorized after 2 L5' }
 $dHz = Invoke-DecideSpot -Computer $pcHz -Mazzo 10 -ColpoMartingala 5 -Pbt 'B' -ChosenColor 'B'
@@ -135,7 +146,9 @@ Ok 'HZ blocked' "grant=0 L5=$(Get-BotInt $botHzPost 'SpotL5LossCount') auth=$(Ge
 Write-Host "`n=== 3. L1 senza L6 - auth/L5 restano ===" -ForegroundColor Cyan
 $h = 7000
 Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
+Wait-HandPace
 Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
+Wait-HandPace
 $e = Invoke-DecideSpot -Computer $pcGrant -Mazzo ($h++) -ColpoMartingala 0 -Pbt 'B' -ChosenColor 'B'
 if ($e -eq 9) { Fail 'L1 return' "decide=$e" }
 $botL1 = Get-SpotBot $pcGrant
@@ -146,6 +159,7 @@ Ok 'L1 senza L6' "L5=$(Get-BotInt $botL1 'SpotL5LossCount') auth=$(Get-BotBool $
 
 Write-Host "`n=== 4. Isolamento bot ===" -ForegroundColor Cyan
 Invoke-DecideSpot -Computer $pcIso1 -Mazzo 8001 -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
+Wait-HandPace
 Invoke-DecideSpot -Computer $pcIso2 -Mazzo 9001 -ColpoMartingala 4 -Pbt 'P' -ChosenColor 'B' | Out-Null
 $b1 = Get-SpotBot $pcIso1
 $b2 = Get-SpotBot $pcIso2
