@@ -127,6 +127,14 @@ public class SecurityFilterBotSummary
     public double PlayerStreakP1ToP5TotalSeconds { get; set; }
     public double PlayerStreakMeanIntervalSeconds { get; set; }
     public double[] PlayerStreakIntervalSeconds { get; set; } = Array.Empty<double>();
+    public int SpotPbHandsPlayed { get; set; }
+    public int SpotL5PlayedCount { get; set; }
+    public int SpotL5LossCount { get; set; }
+    public int SpotL6CreditBalance { get; set; }
+    public int SpotL6GrantedCount { get; set; }
+    public bool SpotL6Authorized { get; set; }
+    public bool NextL5LossWillAuthorizeL6 { get; set; }
+    public int SpotCycleId { get; set; } = 1;
 
     public static SecurityFilterBotSummary From(SecurityFilterBotTelemetry source) =>
         new()
@@ -159,6 +167,14 @@ public class SecurityFilterBotSummary
             HasL6Credit = source.HasL6Credit,
             LastReason = source.LastReason,
             L6PlayedCount = source.L6PlayedCount,
-            AuthorizedL8LostCount = source.AuthorizedL8LostCount
+            AuthorizedL8LostCount = source.AuthorizedL8LostCount,
+            SpotPbHandsPlayed = source.SpotPbHandsPlayed,
+            SpotL5PlayedCount = source.SpotL5PlayedCount,
+            SpotL5LossCount = source.SpotL5LossCount,
+            SpotL6CreditBalance = source.SpotL6CreditBalance,
+            SpotL6GrantedCount = source.SpotL6GrantedCount,
+            SpotL6Authorized = source.SpotL6Authorized,
+            NextL5LossWillAuthorizeL6 = source.NextL5LossWillAuthorizeL6,
+            SpotCycleId = source.SpotCycleId
         };
 }
