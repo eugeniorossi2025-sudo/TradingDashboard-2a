@@ -622,7 +622,7 @@ namespace Decisore.Engine
                     }
                 }
 
-                if (prevMartingalaForL6 == 5 && SPOT_L6_PER_BOT_ENABLED)
+                if (prevMartingalaForL6 == 5)
                 {
                     ApplySpotL6TransitionGate(
                         advice,
@@ -1146,9 +1146,6 @@ namespace Decisore.Engine
 
         void IncrementSpotPbHandForBot(string computer, SecurityFilterBotTelemetry bot)
         {
-            if (!SPOT_L6_PER_BOT_ENABLED)
-                return;
-
             EnsureSpotCycleIdInitialized(computer);
             var count = _spotPbHandsByComputer.GetValueOrDefault(computer) + 1;
             _spotPbHandsByComputer[computer] = count;
@@ -1238,7 +1235,7 @@ namespace Decisore.Engine
             bot.SpotL6CreditBalance = _spotL6CreditBalanceByComputer.GetValueOrDefault(computer);
             bot.SpotPbHandsPlayed = _spotPbHandsByComputer.GetValueOrDefault(computer);
             var hasCredits = bot.SpotL6CreditBalance > 0;
-            bot.SpotL6Authorized = hasCredits;
+            bot.SpotL6Authorized = SPOT_L6_PER_BOT_ENABLED && hasCredits;
             bot.NextL5LossWillAuthorizeL6 =
                 required >= 1 && bot.SpotL5LossCount == required - 1;
             bot.HasL6Credit = hasCredits;
@@ -1251,14 +1248,6 @@ namespace Decisore.Engine
             bool l5PlayedThisCall,
             bool l5LostThisCall)
         {
-            if (!SPOT_L6_PER_BOT_ENABLED)
-            {
-                ClearSpotL6FieldsForBot(botSecurity);
-                botSecurity.SpotCycleId = 0;
-                botSecurity.SpotPbHandsPlayed = 0;
-                return;
-            }
-
             if (l5PlayedThisCall)
                 _spotL5PlayedByComputer[computer] = _spotL5PlayedByComputer.GetValueOrDefault(computer) + 1;
 
@@ -1276,7 +1265,7 @@ namespace Decisore.Engine
 
         void TryGenerateSpotL6Credits(string computer)
         {
-            if (!SPOT_L6_PER_BOT_ENABLED || !IsSpotL6CreditConfigValid())
+            if (!IsSpotL6CreditConfigValid())
                 return;
 
             var required = SPOT_L6_CREDIT_L5_REQUIRED;

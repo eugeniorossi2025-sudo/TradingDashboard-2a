@@ -145,6 +145,25 @@ Assert(iso.getSecurityFilterBot("I2")?.SpotL6CreditBalance == 0, "8) I2 non ered
 Assert(!ProactiveEngine.LEGACY_GLOBAL_SPOT_L6_ENABLED, "9) legacy globale OFF");
 Assert(iso.getTelemetry().SpotL5Loss == 0, "9) telemetria legacy congelata");
 
+// 9b) SPOT_L6_PER_BOT OFF: telemetry contatori popolata, gate operativo bloccato
+var off = new ProactiveEngine
+{
+    SPOT_L6_PER_BOT_ENABLED = false,
+    SPOT_L6_CREDIT_L5_REQUIRED = 2,
+    SPOT_L6_CREDITS_GENERATED = 1,
+    SECURITY_FILTER_ENABLED = false
+};
+L5Loss(off, "OFF1", 1);
+L5Loss(off, "OFF1", 2);
+var offBot = off.getSecurityFilterBot("OFF1");
+Assert(offBot?.SpotL5PlayedCount == 2, "9b) OFF: L5 giocate contate");
+Assert(offBot?.SpotL5LossCount == 0, "9b) OFF: L5 residue milestone coerenti");
+Assert(offBot?.SpotL6CreditBalance == 1, "9b) OFF: credito maturato in telemetry");
+Assert(offBot?.SpotL6Authorized == false, "9b) OFF: autorizzazione operativa spenta");
+var offL6 = off.FeedAndDecide("OFF1", 1, 3, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(offL6.StopL6 && offL6.ActionCode == 2, "9b) OFF: gate L6 bloccato");
+Assert(off.getSecurityFilterBot("OFF1")?.SpotL6CreditBalance == 1, "9b) OFF: nessun consumo credito");
+
 // 10) nessun decide=9 in baseline
 var baseAdv = e.FeedAndDecide("BASE", 1, 999, 0, 'B', 'B', 10, 1, "ATTESA", 0);
 Assert(baseAdv.ActionCode != 9, "10) nessun decide=9 baseline");
