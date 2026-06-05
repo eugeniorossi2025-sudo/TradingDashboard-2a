@@ -3,7 +3,7 @@
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > **Prima di qualsiasi attività:** leggere [`ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md`](ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md) ed eseguire la checklist git obbligatoria.
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-05-30** — aggiunto `DASH2A-WORKSPACE-GUARD.md` come guardia operativa anti-contesto errato (repo/clone/branch). DASH2A vive nel repo GitHub `eugeniorossi2025-sudo/TradingDashboard-2a` e nel clone locale `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`.
+> **Ultimo aggiornamento: 2026-06-05** — §13 allineato all'ultimo deploy stack completo (`8e2efe1`, run `27022669207` / `27022671996` / `27022666669`). Commit `63fba5f` incluso come antenato di `8e2efe1`. Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
 
 ---
 
@@ -738,23 +738,44 @@ Test-NetConnection 127.0.0.1 -Port 80
 | SP `upI_Values` mancante su `1434` | **Da creare** — non critica per startup; blocca solo `SaveRequestValue` (fire & forget) |
 | SignalR / push VAPID in locale | Opzionale — `enabled=false` atteso se VAPID non configurato |
 | `MissionSessions` prod vuota vs locale ricca | Locale ha dati demo/import; prod 0 al check — non allineare automaticamente |
-| Allineamento binario live `C:\Decisore` vs codice repo | **OK** dopo deploy `454becd`; verificare di nuovo prima di ogni release |
+| Allineamento binario live `C:\Decisore` vs codice repo | **OK** dopo deploy `8e2efe1` (2026-06-05); verificare di nuovo prima di ogni release |
 
 ---
 
-## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-05-27)
+## 13. DEPLOY PRODUZIONE — STATO TOTALE (2026-06-05)
+
+### Riferimenti repo (produzione)
+
+| Voce | Valore |
+|---|---|
+| Repo GitHub | `eugeniorossi2025-sudo/TradingDashboard-2a` |
+| Clone locale | `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri` |
+| Branch produzione | `main` |
+| Commit deployato (tip) | **`8e2efe1`** — `feat(spot): default OFF, module absent when disabled, fail-safe config` |
+| Commit inclusi | **`63fba5f`** e tutti gli antenati fino a `8e2efe1` (Control Room, Spot L6, Root Owner, auth fix, collaudo, ecc.) |
+| Data deploy stack completo | **2026-06-05** (~15:03 UTC) |
+
+### Ultimo deploy stack completo (2026-06-05)
 
 | Componente | Stato | Branch / run | Dettaglio |
 |---|---|---|---|
-| **Backend WebApi IIS** | **DEPLOY OK** | `main` run `26483836820` | Workflow `DASH2A Backend Deploy Safe`; release `backend-20260527-024817` |
+| **Backend WebApi IIS** | **DEPLOY OK** | `main` run [`27022669207`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27022669207) | Workflow `DASH2A Backend Deploy Safe`; headSha `8e2efe1` |
+| **Frontend Firebase** | **DEPLOY OK** | run [`27022671996`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27022671996) | Workflow `Firebase Hosting Live`; headSha `8e2efe1`; `VITE_API_BASE_URL=https://vps-b0942869.vps.ovh.net` |
+| **Decisore live** | **DEPLOY OK** | run [`27022666669`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27022666669) | Workflow `DASH2A Decisore Deploy Safe`; headSha `8e2efe1`; IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434` |
 | **Backend HTTPS IIS** | **OK** | run `26404743108` | `enable-backend-https.yml` — cert LE su hostname OVH |
-| **Frontend Firebase** | **DEPLOY OK** | run `26483836854` | `VITE_API_BASE_URL=https://vps-b0942869.vps.ovh.net` |
 | **Login UI + /pages/user** | **OK** | smoke 2026-05-25 | Mixed Content risolto (HTTPS end-to-end) |
 | **Frontend live URL** | **OK** | — | `https://eugenio-dashboard-2a.web.app` |
 | **Backend live URL HTTPS** | **OK** | — | `https://vps-b0942869.vps.ovh.net` |
 | **Stack prod allineato** | **OK** | — | Frontend HTTPS → WebApi HTTPS → DB `51.83.159.175,1434` |
-| **Decisore live** | **DEPLOY OK** | run `26483836856` | IIS `default` + app pool `Proactive` → `C:\Decisore`; DB `51.83.159.175,1434`; `Decisore.dll` 2026-05-27 02:47 |
 | **Push mobile admin** | **ATTIVO** | workflow `configure-push-vapid.yml` OK | `/api/push/vapid-public-key` → `enabled=true`; VAPID in runtime server, private key non in repo |
+
+### Deploy precedente (2026-05-27 — storico)
+
+| Componente | Run | Dettaglio |
+|---|---|---|
+| Backend WebApi IIS | `26483836820` | release `backend-20260527-024817` |
+| Frontend Firebase | `26483836854` | — |
+| Decisore live | `26483836856` | `Decisore.dll` 2026-05-27 02:47 |
 
 ### Run fallite (storico sessione — risolte)
 

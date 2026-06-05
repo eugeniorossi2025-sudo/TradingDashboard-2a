@@ -1,5 +1,9 @@
 # Audit TradingDashboard-2a
 
+> **DOCUMENTO STORICO / OBSOLETO**
+>
+> Audit del **2026-05-25**. **Superato** dallo stato reale documentato in [`DASH2A-INFRASTRUCTURE.md`](DASH2A-INFRASTRUCTURE.md) §13 (deploy stack completo **2026-06-05**, commit tip **`8e2efe1`**, run `27022669207` / `27022671996` / `27022666669`). Non usare per decisioni operative correnti.
+
 **Repo operativo:** [eugeniorossi2025-sudo/TradingDashboard-2a](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a)  
 **Branch principale:** `main` (HEAD `124a20e` al momento dell'audit)  
 **Clone locale:** `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`  
