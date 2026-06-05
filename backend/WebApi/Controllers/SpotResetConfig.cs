@@ -20,9 +20,15 @@ public static class SpotResetConfig
 
     public const string PerBotEnabledKey = "SPOT_L6_PER_BOT_ENABLED";
 
+    public const string CreditL5RequiredKey = "SPOT_L6_CREDIT_L5_REQUIRED";
+
+    public const string CreditsGeneratedKey = "SPOT_L6_CREDITS_GENERATED";
+
     public const int DefaultThreshold = 2;
 
     public const int DefaultCyclePbHands = 600;
+
+    public const int DefaultCreditsGenerated = 1;
 
 
 
@@ -167,6 +173,83 @@ public static class SpotResetConfig
         else
         {
             setting.Value = enabled ? "1" : "0";
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    public static async Task<int> GetCreditL5RequiredAsync(AppDbContext context)
+    {
+        var value = await context.Configurations.AsNoTracking()
+            .Where(c => c.Key == CreditL5RequiredKey)
+            .Select(c => c.Value)
+            .FirstOrDefaultAsync();
+
+        if (int.TryParse(value, out var parsed) && parsed >= 1)
+            return parsed;
+
+        return await GetThresholdAsync(context);
+    }
+
+    public static async Task<int> GetCreditsGeneratedAsync(AppDbContext context)
+    {
+        var value = await context.Configurations.AsNoTracking()
+            .Where(c => c.Key == CreditsGeneratedKey)
+            .Select(c => c.Value)
+            .FirstOrDefaultAsync();
+
+        if (int.TryParse(value, out var parsed) && parsed >= 1)
+            return parsed;
+
+        return DefaultCreditsGenerated;
+    }
+
+    public static async Task<(int CreditL5Required, int CreditsGenerated)> GetCreditsAsync(AppDbContext context)
+    {
+        var required = await GetCreditL5RequiredAsync(context);
+        var generated = await GetCreditsGeneratedAsync(context);
+        return (required, generated);
+    }
+
+    public static async Task SaveCreditsAsync(AppDbContext context, int creditL5Required, int creditsGenerated)
+    {
+        await SaveConfigIntAsync(
+            context,
+            CreditL5RequiredKey,
+            creditL5Required,
+            "SPOT L6 crediti per bot: L5 perse richieste per generare crediti.",
+            917);
+
+        await SaveConfigIntAsync(
+            context,
+            CreditsGeneratedKey,
+            creditsGenerated,
+            "SPOT L6 crediti per bot: crediti generati per ogni milestone L5.",
+            918);
+    }
+
+    static async Task SaveConfigIntAsync(
+        AppDbContext context,
+        string key,
+        int value,
+        string description,
+        int pos)
+    {
+        var setting = await context.Configurations.FirstOrDefaultAsync(c => c.Key == key);
+        if (setting == null)
+        {
+            setting = new Configuration
+            {
+                Key = key,
+                Description = description,
+                Pos = pos,
+                Value = value.ToString()
+            };
+            context.Configurations.Add(setting);
+        }
+        else
+        {
+            setting.Value = value.ToString();
         }
 
         await context.SaveChangesAsync();
