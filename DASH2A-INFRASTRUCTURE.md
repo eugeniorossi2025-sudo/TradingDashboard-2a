@@ -857,6 +857,14 @@ MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any 
 | **`relisegiacomo ok 1.0`** | **Baseline congelata** | `D1A8AAF0…` | AC2 sì, probe no — **non sovrascrivere** |
 | `relisegiacomo ok 1.1` | Collaudo BotOwner | `7C6399C5…` | BotOwner sì, probe/AC2 no |
 | **`relisegiacomo ok 1.2-test`** | **Collaudo unified** | `57222438…` | Build 2026-06-05 da sorgente §14.1 |
+
+**Path assoluto runtime collaudo 1.2-test:**
+
+```text
+C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.2-test\Gamebot.exe
+SHA256: 572224381C363649ADF08680009611111A5EEDCC738FDCD31F2DC0595448E28D
+```
+
 | `Gamebot_FirstPlay_ProbeUntilPlayer_*_20260320` | Riferimento storico probe | `02DC9D5A…` | Artefatto Desktop — non sorgente |
 
 Hash completi (verifica pre-deploy):
