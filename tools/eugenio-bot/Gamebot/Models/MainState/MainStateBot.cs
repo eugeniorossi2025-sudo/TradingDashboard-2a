@@ -242,11 +242,12 @@ namespace Gamebot.Models.MainState
                 case Constants.EnumStateBot.WAITING_NEW_DECK:
                     CheckEnabled();
                     Log.PrintInfo("!!! WAITING_NEW_DECK: ACTION !!!");
-                    if (Runtime.number_deck >= 0 && Runtime.number_deck <= 30)
+                    if (Runtime.number_deck >= Constants.LIMIT_MIN_NEW_DECK
+                        && Runtime.number_deck <= Constants.LIMIT_MAX_NEW_DECK)
                     {
                         UIForm.SendAlert(Constants.EnumAlert.WAITING_TO_START_SCALPING);
                         Runtime.chosen_color = Config.start_color;
-                        Log.PrintInfo($"<!> WAITING_NEW_DECK | COLORE DA GIOCARE: {Runtime.chosen_color} <!>");
+                        Log.PrintInfo($"<!> WAITING_NEW_DECK | MAZZO NUOVO ({Runtime.number_deck}) | COLORE DA GIOCARE: {Runtime.chosen_color} <!>");
                         if (Config.skipPostSculping)
                         {
                             Log.PrintInfo("<!> WAITING_NEW_DECK | RICOMINCIO MAZZO E GIOCATA | VADO IN SCULPING | RIPRENDO A GIOCARE <!>");
@@ -264,6 +265,10 @@ namespace Gamebot.Models.MainState
                     }
                     else
                     {
+                        if (Runtime.number_deck == 0)
+                        {
+                            Log.PrintInfo("<!> WAITING_NEW_DECK | MAZZO 0 | PROBE ROSSA MINIMA (attesa passaggio a mazzo 1+) <!>");
+                        }
                         StateAttendiNuovoMazzo.Act();
                     }
                     break;
