@@ -421,6 +421,15 @@ namespace Decisore.Controllers
                 _log.Log($"\n");
                 
                 int action = advice.ActionCode;
+                int engineAction = action;
+
+                var overrideResult = _db.TryConsumeControlRoomOverride(p.COMPUTER);
+                if (overrideResult != null)
+                {
+                    action = overrideResult.ActionCode;
+                    _log.Log(
+                        $"CONTROL_ROOM_OVERRIDE pc={p.COMPUTER} engineAction={engineAction} overrideAction={action} commandType={overrideResult.CommandType} consumed=true");
+                }
 
                 string description = "Nulla";
                 if (action == 1) description = "Stop PC";

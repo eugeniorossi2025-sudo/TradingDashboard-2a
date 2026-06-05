@@ -153,3 +153,20 @@ jobs:
           }
 
           Write-Host "DECISORE_DEPLOY_OK"
+
+      - name: Collaudo Control Room override (VPS E2E)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $repoRoot = $env:GITHUB_WORKSPACE
+          $script = Join-Path $repoRoot 'tools\control-room-vps-collaudo.ps1'
+          if (-not (Test-Path -LiteralPath $script)) {
+            throw "Missing collaudo script: $script"
+          }
+
+          $env:DECISORE_URL = 'http://127.0.0.1'
+          & $script
+          if ($LASTEXITCODE -ne 0) {
+            throw "Control Room VPS collaudo FAILED — rollback recommended before any WebApi deploy"
+          }
+          Write-Host "CONTROL_ROOM_VPS_COLLAUDO_PASS"

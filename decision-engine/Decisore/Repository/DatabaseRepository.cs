@@ -13,6 +13,12 @@ namespace Decisore.Repository
         public decimal SaldoIniziale { get; set; }
     }
 
+    public sealed class ControlRoomOverrideConsumeResult
+    {
+        public int ActionCode { get; init; }
+        public string CommandType { get; init; } = string.Empty;
+    }
+
     public class DatabaseRepository
     {
         private readonly string _connString;
@@ -572,6 +578,37 @@ namespace Decisore.Repository
                 tran.Rollback();
                 Console.WriteLine($"ERRORE DB: {ex.Message}");
                 throw;
+            }
+        }
+
+        public ControlRoomOverrideConsumeResult? TryConsumeControlRoomOverride(string pc)
+        {
+            if (string.IsNullOrWhiteSpace(pc))
+                return null;
+
+            try
+            {
+                using var conn = new SqlConnection(_connString);
+                conn.Open();
+                using var cmd = new SqlCommand(@"
+DELETE FROM dbo.ControlRoomCommandOverrides
+OUTPUT DELETED.ActionCode, DELETED.CommandType
+WHERE PC = @pc", conn);
+                cmd.Parameters.AddWithValue("@pc", pc.Trim());
+
+                using var reader = cmd.ExecuteReader();
+                if (!reader.Read())
+                    return null;
+
+                return new ControlRoomOverrideConsumeResult
+                {
+                    ActionCode = reader.GetInt32(0),
+                    CommandType = reader.IsDBNull(1) ? string.Empty : reader.GetString(1)
+                };
+            }
+            catch (SqlException ex) when (ex.Number == 208)
+            {
+                return null;
             }
         }
 
