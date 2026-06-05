@@ -143,6 +143,17 @@ public static class SpotResetConfig
         await context.SaveChangesAsync();
     }
 
+    public static bool ParsePerBotEnabledFlag(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return false;
+
+        return value.Trim().Equals("1", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
+            || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static async Task<bool> GetPerBotEnabledAsync(AppDbContext context)
     {
         var value = await context.Configurations.AsNoTracking()
@@ -150,10 +161,7 @@ public static class SpotResetConfig
             .Select(c => c.Value)
             .FirstOrDefaultAsync();
 
-        if (string.IsNullOrWhiteSpace(value))
-            return true;
-
-        return PlayerPaceFilterController.ParseEnabledFlag(value);
+        return ParsePerBotEnabledFlag(value);
     }
 
     public static async Task SavePerBotEnabledAsync(AppDbContext context, bool enabled)

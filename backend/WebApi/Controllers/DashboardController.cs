@@ -283,8 +283,8 @@ public class DashboardTelemetry
     public int SpotL5Loss { get; set; }
     public int SpotL6ThresholdL5 { get; set; } = 2;
     public int SpotCyclePbHandsLimit { get; set; } = 600;
-    public bool SpotPerBotOnlyEnabled { get; set; } = true;
-    public bool SpotL6PerBotEnabled { get; set; } = true;
+    public bool SpotPerBotOnlyEnabled { get; set; } = false;
+    public bool SpotL6PerBotEnabled { get; set; } = false;
     public bool SpotLegacyGlobalEnabled { get; set; }
     public bool SecurityFilterEnabled { get; set; } = true;
     public bool PlayerRace5FilterEnabled { get; set; }

@@ -21,8 +21,8 @@ public class Telemetry
     public int SpotL6CreditsGenerated { get; set; } = 1;
     /// <summary>Mani PB globali nel ciclo SPOT prima del reset (configurabile, es. 600).</summary>
     public int SpotCyclePbHandsLimit { get; set; } = 600;
-    public bool SpotPerBotOnlyEnabled { get; set; } = true;
-    public bool SpotL6PerBotEnabled { get; set; } = true;
+    public bool SpotPerBotOnlyEnabled { get; set; } = false;
+    public bool SpotL6PerBotEnabled { get; set; } = false;
     public bool SpotLegacyGlobalEnabled { get; set; }
 
     public bool GlobalPauseScalping { get; set; } = false;

@@ -56,7 +56,7 @@ namespace Decisore.Engine
         public int SPOT_RESET_THRESHOLD_L5 = 2;
         public int SPOT_L6_CREDIT_L5_REQUIRED = 2;
         public int SPOT_L6_CREDITS_GENERATED = 1;
-        public bool SPOT_L6_PER_BOT_ENABLED = true;
+        public bool SPOT_L6_PER_BOT_ENABLED = false;
         /// <summary>Opzione A: logica SPOT/L6 globale disattivata — solo SPOT per-bot è operativo.</summary>
         public const bool LEGACY_GLOBAL_SPOT_L6_ENABLED = false;
 
@@ -589,14 +589,12 @@ namespace Decisore.Engine
                             advice.Reason =
                                 $"L6 AUTORIZZATO [crediti {botSecurity.SpotL6CreditBalance}]";
                         }
-                        else
+                        else if (SPOT_L6_PER_BOT_ENABLED)
                         {
                             advice.StopL6 = false;
-                            advice.Reason = !SPOT_L6_PER_BOT_ENABLED
-                                ? "L5 perso (SPOT L6 per bot spento)"
-                                : IsSpotL6CreditConfigValid()
-                                    ? $"L5 perso [{botSecurity.SpotL5LossCount}/{SPOT_L6_CREDIT_L5_REQUIRED} verso +{SPOT_L6_CREDITS_GENERATED} credito/i]"
-                                    : "L5 perso (config crediti L6 non valida)";
+                            advice.Reason = IsSpotL6CreditConfigValid()
+                                ? $"L5 perso [{botSecurity.SpotL5LossCount}/{SPOT_L6_CREDIT_L5_REQUIRED} verso +{SPOT_L6_CREDITS_GENERATED} credito/i]"
+                                : "L5 perso (config crediti L6 non valida)";
                         }
                     }
                     else
@@ -624,13 +622,25 @@ namespace Decisore.Engine
 
                 if (prevMartingalaForL6 == 5)
                 {
-                    ApplySpotL6TransitionGate(
-                        advice,
-                        botSecurity,
-                        securityFilterActive,
-                        rapidL5TriggerActive,
-                        isHotZone,
-                        ref securityFilterPreventedL6ThisCall);
+                    if (SPOT_L6_PER_BOT_ENABLED)
+                    {
+                        ApplySpotL6TransitionGate(
+                            advice,
+                            botSecurity,
+                            securityFilterActive,
+                            rapidL5TriggerActive,
+                            isHotZone,
+                            ref securityFilterPreventedL6ThisCall);
+                    }
+                    else
+                    {
+                        ApplySharedL6ProtectionGates(
+                            advice,
+                            securityFilterActive,
+                            rapidL5TriggerActive,
+                            isHotZone,
+                            ref securityFilterPreventedL6ThisCall);
+                    }
                 }
                 else
                 {
@@ -638,7 +648,9 @@ namespace Decisore.Engine
                 }
             }
 
-            if (prevMartingalaForL6 == 5 && martingalaCounter >= 6)
+            if (SPOT_L6_PER_BOT_ENABLED &&
+                prevMartingalaForL6 == 5 &&
+                martingalaCounter >= 6)
             {
                 TryConsumeSpotL6Authorization(
                     computer,
@@ -658,9 +670,15 @@ namespace Decisore.Engine
             advice.SpotL6PerBotEnabled = SPOT_L6_PER_BOT_ENABLED;
             advice.SpotCycleId = botSecurity.SpotCycleId;
             advice.SpotPbHandsPlayed = botSecurity.SpotPbHandsPlayed;
-            advice.SpotL6ThresholdL5 = IsSpotL6CreditConfigValid() ? SPOT_L6_CREDIT_L5_REQUIRED : 0;
-            advice.SpotL6CreditL5Required = IsSpotL6CreditConfigValid() ? SPOT_L6_CREDIT_L5_REQUIRED : 0;
-            advice.SpotL6CreditsGenerated = IsSpotL6CreditConfigValid() ? SPOT_L6_CREDITS_GENERATED : 0;
+            advice.SpotL6ThresholdL5 = SPOT_L6_PER_BOT_ENABLED && IsSpotL6CreditConfigValid()
+                ? SPOT_L6_CREDIT_L5_REQUIRED
+                : 0;
+            advice.SpotL6CreditL5Required = SPOT_L6_PER_BOT_ENABLED && IsSpotL6CreditConfigValid()
+                ? SPOT_L6_CREDIT_L5_REQUIRED
+                : 0;
+            advice.SpotL6CreditsGenerated = SPOT_L6_PER_BOT_ENABLED && IsSpotL6CreditConfigValid()
+                ? SPOT_L6_CREDITS_GENERATED
+                : 0;
             advice.GlobalPBHandsPlayed = _globalPBHandsPlayed;
 
             #endregion
@@ -672,7 +690,8 @@ namespace Decisore.Engine
             if (pbHandPlayedThisCall)
             {
                 botSecurity.PBHandsPlayed++;
-                IncrementSpotPbHandForBot(computer, botSecurity);
+                if (SPOT_L6_PER_BOT_ENABLED)
+                    IncrementSpotPbHandForBot(computer, botSecurity);
             }
 
             if (securityFilterActive && !prevActive)
@@ -827,7 +846,7 @@ namespace Decisore.Engine
             botSecurity.LastShoeHand = handIndexMazzo;
             botSecurity.Martingala = martingalaCounter;
             botSecurity.HasL6Credit = LEGACY_GLOBAL_SPOT_L6_ENABLED && _globalAuthL6Counter > 0;
-            if (botSecurity.SpotL6Authorized)
+            if (SPOT_L6_PER_BOT_ENABLED && botSecurity.SpotL6Authorized)
             {
                 botSecurity.LastReason =
                     $"L6 AUTORIZZATO [crediti {botSecurity.SpotL6CreditBalance}]";
@@ -1166,6 +1185,30 @@ namespace Decisore.Engine
             return _spotL6CreditBalanceByComputer.GetValueOrDefault(computer) > 0;
         }
 
+        void ApplySharedL6ProtectionGates(
+            Advice advice,
+            bool securityFilterActive,
+            bool rapidL5TriggerActive,
+            bool isHotZone,
+            ref bool securityFilterPreventedL6ThisCall)
+        {
+            if (securityFilterActive || rapidL5TriggerActive)
+            {
+                advice.StopL6 = true;
+                securityFilterPreventedL6ThisCall = true;
+                advice.Reason = rapidL5TriggerActive
+                    ? "L6 Bloccato (Trigger rapido L5)"
+                    : "L6 Bloccato (Security Filter)";
+                return;
+            }
+
+            if (isHotZone)
+            {
+                advice.StopL6 = true;
+                advice.Reason = "L6 Bloccato (Hot Zone)";
+            }
+        }
+
         void ApplySpotL6TransitionGate(
             Advice advice,
             SecurityFilterBotTelemetry botSecurity,
@@ -1177,11 +1220,9 @@ namespace Decisore.Engine
             if (!HasSpotL6CreditAvailable(botSecurity.Computer))
             {
                 advice.StopL6 = true;
-                advice.Reason = !SPOT_L6_PER_BOT_ENABLED
-                    ? "L6 Bloccato (SPOT L6 per bot spento)"
-                    : IsSpotL6CreditConfigValid()
-                        ? $"L6 Bloccato (crediti L6 esauriti: {botSecurity.SpotL6CreditBalance})"
-                        : "L6 Bloccato (config crediti L6 non valida)";
+                advice.Reason = IsSpotL6CreditConfigValid()
+                    ? $"L6 Bloccato (crediti L6 esauriti: {botSecurity.SpotL6CreditBalance})"
+                    : "L6 Bloccato (config crediti L6 non valida)";
                 return;
             }
 
@@ -1226,6 +1267,14 @@ namespace Decisore.Engine
 
         void SyncSpotL6BotFields(string computer, SecurityFilterBotTelemetry bot)
         {
+            if (!SPOT_L6_PER_BOT_ENABLED)
+            {
+                ClearSpotL6FieldsForBot(bot);
+                bot.SpotCycleId = 0;
+                bot.SpotPbHandsPlayed = 0;
+                return;
+            }
+
             EnsureSpotCycleIdInitialized(computer);
             var required = IsSpotL6CreditConfigValid() ? SPOT_L6_CREDIT_L5_REQUIRED : 0;
             bot.SpotCycleId = _spotCycleIdByComputer[computer];
@@ -1235,7 +1284,7 @@ namespace Decisore.Engine
             bot.SpotL6CreditBalance = _spotL6CreditBalanceByComputer.GetValueOrDefault(computer);
             bot.SpotPbHandsPlayed = _spotPbHandsByComputer.GetValueOrDefault(computer);
             var hasCredits = bot.SpotL6CreditBalance > 0;
-            bot.SpotL6Authorized = SPOT_L6_PER_BOT_ENABLED && hasCredits;
+            bot.SpotL6Authorized = hasCredits;
             bot.NextL5LossWillAuthorizeL6 =
                 required >= 1 && bot.SpotL5LossCount == required - 1;
             bot.HasL6Credit = hasCredits;
@@ -1248,6 +1297,13 @@ namespace Decisore.Engine
             bool l5PlayedThisCall,
             bool l5LostThisCall)
         {
+            if (!SPOT_L6_PER_BOT_ENABLED)
+            {
+                SyncSpotL6BotFields(computer, botSecurity);
+                _lastMartingalaByComputer[computer] = martingalaCounter;
+                return;
+            }
+
             if (l5PlayedThisCall)
                 _spotL5PlayedByComputer[computer] = _spotL5PlayedByComputer.GetValueOrDefault(computer) + 1;
 
@@ -1265,7 +1321,7 @@ namespace Decisore.Engine
 
         void TryGenerateSpotL6Credits(string computer)
         {
-            if (!IsSpotL6CreditConfigValid())
+            if (!SPOT_L6_PER_BOT_ENABLED || !IsSpotL6CreditConfigValid())
                 return;
 
             var required = SPOT_L6_CREDIT_L5_REQUIRED;

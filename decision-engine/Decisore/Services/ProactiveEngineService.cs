@@ -63,8 +63,9 @@ namespace Decisore.Services
                         ? Math.Max(1, int.Parse(spotL6CreditsGenerated, CultureInfo.InvariantCulture))
                         : _engine.SPOT_L6_CREDITS_GENERATED;
 
-                    if (cfg.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6PerBot))
-                        _engine.SPOT_L6_PER_BOT_ENABLED = ParseEnabledFlag(spotL6PerBot);
+                    _engine.SPOT_L6_PER_BOT_ENABLED = cfg.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6PerBot)
+                        ? ParseSpotL6PerBotEnabledFlag(spotL6PerBot)
+                        : false;
                     
                     _engine.PAUSE_SCALPING_WIN_BUCKET = cfg.TryGetValue("PAUSE_SCALPING_WIN_BUCKET", out var pauseScalpingWinBucket)
                         ? double.Parse(pauseScalpingWinBucket, CultureInfo.InvariantCulture)
@@ -207,6 +208,14 @@ namespace Decisore.Services
                 || value.Trim().Equals("true", StringComparison.OrdinalIgnoreCase)
                 || value.Trim().Equals("yes", StringComparison.OrdinalIgnoreCase)
                 || value.Trim().Equals("on", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool ParseSpotL6PerBotEnabledFlag(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            return ParseEnabledFlag(value);
         }
 
         public void emergencyStop()

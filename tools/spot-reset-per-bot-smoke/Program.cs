@@ -1,4 +1,5 @@
 using Decisore.Engine;
+using Decisore.Services;
 
 static void Assert(bool ok, string name)
 {
@@ -22,11 +23,43 @@ static Advice L1Return(ProactiveEngine engine, string pc, int hand)
 
 var e = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     L6_AUTH_PB_RESET_COUNTER = 5,
     SECURITY_FILTER_ENABLED = false
 };
+
+Assert(!new ProactiveEngine().SPOT_L6_PER_BOT_ENABLED, "0) default engine SPOT OFF");
+Assert(!new ProactiveEngine().getTelemetry().SpotL6PerBotEnabled, "0) default telemetry SPOT OFF");
+
+var svc = new ProactiveEngineService();
+svc.startOrUpdateMission(new Dictionary<string, string>());
+Assert(!svc.getTelemetry().SpotL6PerBotEnabled, "0) service cfg assente => SPOT OFF");
+svc.startOrUpdateMission(new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = "garbage" });
+Assert(!svc.getTelemetry().SpotL6PerBotEnabled, "0) service cfg invalida => SPOT OFF");
+svc.startOrUpdateMission(new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = "1" });
+Assert(svc.getTelemetry().SpotL6PerBotEnabled, "0) service cfg esplicita 1 => SPOT ON");
+
+foreach (var dbValue in new[] { "0", "false", "", "garbage", "off", "2" })
+{
+    var parseSvc = new ProactiveEngineService();
+    var cfg = string.IsNullOrEmpty(dbValue)
+        ? new Dictionary<string, string>()
+        : new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = dbValue };
+    parseSvc.startOrUpdateMission(cfg);
+    Assert(!parseSvc.getTelemetry().SpotL6PerBotEnabled, $"0) DB value '{dbValue}' => SPOT OFF");
+}
+
+var adminOff = new ProactiveEngineService();
+adminOff.startOrUpdateMission(new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = "0" });
+Assert(!adminOff.getTelemetry().SpotL6PerBotEnabled, "0) admin OFF salvato => SPOT OFF");
+var restarted = new ProactiveEngineService();
+restarted.startOrUpdateMission(new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = "0" });
+Assert(!restarted.getTelemetry().SpotL6PerBotEnabled, "0) riavvio Decisore con DB=0 => SPOT OFF");
+adminOff.reset();
+restarted.startOrUpdateMission(new Dictionary<string, string> { ["SPOT_L6_PER_BOT_ENABLED"] = "0" });
+Assert(!restarted.getTelemetry().SpotL6PerBotEnabled, "0) reset Decisore + reload DB=0 => SPOT OFF");
 
 // 1) 2 L5 -> +1 credito
 L5Loss(e, "PC1", 1);
@@ -54,6 +87,7 @@ Assert(b1?.SpotL6CreditBalance == 1, "4) da 2 crediti dopo 1 L6 resta 1");
 // 5) L6 bloccata da HZ -> credito invariato (consumo resta post-gate)
 var hz = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     SECURITY_FILTER_ENABLED = false,
@@ -70,6 +104,7 @@ Assert(hzPre?.SpotL6CreditBalance == hzPost?.SpotL6CreditBalance, "5) HZ: credit
 // 5b) L6 bloccata da SF -> credito invariato
 var sf = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     SECURITY_FILTER_ENABLED = true,
@@ -90,6 +125,7 @@ Assert(sfPre?.SpotL6CreditBalance == sfPost?.SpotL6CreditBalance, "5b) SF: credi
 // 6) ritorno L1 senza L6 -> credito invariato
 var l1 = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     SECURITY_FILTER_ENABLED = false
@@ -105,6 +141,7 @@ Assert(l1Pre?.SpotL6CreditBalance == l1Post?.SpotL6CreditBalance, "6) L1 senza L
 // 7) fine ciclo SPOT reset solo bot corrente (credito/l5/grant azzerati)
 var cyc = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     L6_AUTH_PB_RESET_COUNTER = 3,
@@ -131,6 +168,7 @@ Assert(preB?.SpotL5LossCount == postB?.SpotL5LossCount, "7) reset A non tocca B"
 // 8) PC isolati
 var iso = new ProactiveEngine
 {
+    SPOT_L6_PER_BOT_ENABLED = true,
     SPOT_L6_CREDIT_L5_REQUIRED = 2,
     SPOT_L6_CREDITS_GENERATED = 1,
     SECURITY_FILTER_ENABLED = false
@@ -145,7 +183,22 @@ Assert(iso.getSecurityFilterBot("I2")?.SpotL6CreditBalance == 0, "8) I2 non ered
 Assert(!ProactiveEngine.LEGACY_GLOBAL_SPOT_L6_ENABLED, "9) legacy globale OFF");
 Assert(iso.getTelemetry().SpotL5Loss == 0, "9) telemetria legacy congelata");
 
-// 9b) SPOT_L6_PER_BOT OFF: telemetry contatori popolata, gate operativo bloccato
+// 9b-HZ) SPOT OFF + mano in Hot Zone (hand 4): L5->L6 bloccato da HZ come sempre
+var offHz = new ProactiveEngine
+{
+    SPOT_L6_PER_BOT_ENABLED = false,
+    SECURITY_FILTER_ENABLED = false
+};
+L5Loss(offHz, "OFFHZ", 1);
+L5Loss(offHz, "OFFHZ", 2);
+L5Loss(offHz, "OFFHZ", 3);
+var offHzL6 = offHz.FeedAndDecide("OFFHZ", 1, 4, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(offHzL6.StopL6, $"9b-HZ) OFF+HZ: StopL6=true (got {offHzL6.StopL6}, reason={offHzL6.Reason})");
+Assert(offHzL6.ActionCode == 2, $"9b-HZ) OFF+HZ: ActionCode=2 (got {offHzL6.ActionCode})");
+Assert(offHzL6.Reason == "L6 Bloccato (Hot Zone)", $"9b-HZ) OFF+HZ: Reason Hot Zone (got '{offHzL6.Reason}')");
+
+// 9b) SPOT_L6_PER_BOT OFF: modulo SPOT assente, L5->L6 libero (SF/HZ/legacy assenti nel scenario)
+// Mani 20+ = fuori dalle Hot Zone default (0-15, 55-80); HZ resta attiva e blocca come sempre altrove.
 var off = new ProactiveEngine
 {
     SPOT_L6_PER_BOT_ENABLED = false,
@@ -153,16 +206,22 @@ var off = new ProactiveEngine
     SPOT_L6_CREDITS_GENERATED = 1,
     SECURITY_FILTER_ENABLED = false
 };
-L5Loss(off, "OFF1", 1);
-L5Loss(off, "OFF1", 2);
+const int offHandBase = 20;
+L5Loss(off, "OFF1", offHandBase);
+L5Loss(off, "OFF1", offHandBase + 1);
 var offBot = off.getSecurityFilterBot("OFF1");
-Assert(offBot?.SpotL5PlayedCount == 2, "9b) OFF: L5 giocate contate");
-Assert(offBot?.SpotL5LossCount == 0, "9b) OFF: L5 residue milestone coerenti");
-Assert(offBot?.SpotL6CreditBalance == 1, "9b) OFF: credito maturato in telemetry");
-Assert(offBot?.SpotL6Authorized == false, "9b) OFF: autorizzazione operativa spenta");
-var offL6 = off.FeedAndDecide("OFF1", 1, 3, 0, 'B', 'B', 10, 6, "Sculping", 0);
-Assert(offL6.StopL6 && offL6.ActionCode == 2, "9b) OFF: gate L6 bloccato");
-Assert(off.getSecurityFilterBot("OFF1")?.SpotL6CreditBalance == 1, "9b) OFF: nessun consumo credito");
+Assert(offBot?.SpotL5PlayedCount == 0, "9b) OFF: nessun conteggio SPOT L5");
+Assert(offBot?.SpotL5LossCount == 0, "9b) OFF: nessuna loss SPOT");
+Assert(offBot?.SpotL6CreditBalance == 0, "9b) OFF: nessun credito SPOT");
+Assert(offBot?.SpotL6Authorized == false, "9b) OFF: SpotL6Authorized=false");
+Assert(offBot?.NextL5LossWillAuthorizeL6 == false, "9b) OFF: NextL5LossWillAuthorizeL6=false");
+Assert(!L5Loss(off, "OFF1", offHandBase + 2).Reason.Contains("SPOT", StringComparison.OrdinalIgnoreCase), "9b) OFF: nessuna Reason SPOT su L5");
+var offL6 = off.FeedAndDecide("OFF1", 1, offHandBase + 3, 0, 'B', 'B', 10, 6, "Sculping", 0);
+Assert(!offL6.StopL6, $"9b) OFF: StopL6=false (got {offL6.StopL6}, reason={offL6.Reason})");
+Assert(offL6.ActionCode == 0, $"9b) OFF: L5->L6 ActionCode=0 (got {offL6.ActionCode}, StopL6={offL6.StopL6}, reason={offL6.Reason})");
+Assert(!offL6.Reason.Contains("SPOT", StringComparison.OrdinalIgnoreCase), "9b) OFF: nessuna Reason SPOT su L6");
+Assert(!offL6.Reason.Contains("L6 AUTORIZZATO", StringComparison.OrdinalIgnoreCase), "9b) OFF: nessuna Reason L6 AUTORIZZATO");
+Assert(off.getSecurityFilterBot("OFF1")?.SpotL6CreditBalance == 0, "9b) OFF: crediti restano 0");
 
 // 10) nessun decide=9 in baseline
 var baseAdv = e.FeedAndDecide("BASE", 1, 999, 0, 'B', 'B', 10, 1, "ATTESA", 0);

@@ -356,7 +356,7 @@ public static class DbInitializer
             {
                 Key = "SPOT_L6_PER_BOT_ENABLED",
                 Description = "SPOT L6 per bot: 1 attivo (L6 dopo N L5 perse nel ciclo SPOT del bot), 0 spento.",
-                Value = "1",
+                Value = "0",
                 Pos = 916
             }
         };

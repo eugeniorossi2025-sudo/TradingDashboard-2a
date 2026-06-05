@@ -445,7 +445,7 @@ public class DashboardService : IDashboardService
             result.SpotL6ThresholdL5 = st;
 
         if (configs.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6Enabled))
-            result.SpotL6PerBotEnabled = ParseEnabledFlag(spotL6Enabled);
+            result.SpotL6PerBotEnabled = SpotResetConfig.ParsePerBotEnabledFlag(spotL6Enabled);
 
         if (configs.TryGetValue("SPOT_CYCLE_PB_HANDS", out var spotCyclePb) &&
             int.TryParse(spotCyclePb, NumberStyles.Integer, CultureInfo.InvariantCulture, out var scp) &&

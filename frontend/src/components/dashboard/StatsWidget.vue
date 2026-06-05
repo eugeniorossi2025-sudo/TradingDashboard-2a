@@ -325,9 +325,85 @@ const securityFilterRows = computed(() => {
         });
 });
 
-const spotResetBotRows = computed(() =>
-    [...securityFilterRows.value].sort((a, b) => getBotName(a).localeCompare(getBotName(b)))
-);
+function parseTableRowLastAdvice(tableRow) {
+    if (!tableRow || typeof tableRow !== 'object') return null;
+    const direct = tableRow._lastAdvice;
+    if (direct && typeof direct === 'object' && !Array.isArray(direct)) return direct;
+    const raw = tableRow.last_advice ?? tableRow.lastAdvice;
+    if (raw && typeof raw === 'object' && !Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'string') {
+        try {
+            return JSON.parse(raw);
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
+function tableRowHasSpotAdviceFields(advice) {
+    if (!advice || typeof advice !== 'object') return false;
+    const keys = [
+        'SpotPbHandsPlayed',
+        'spotPbHandsPlayed',
+        'SpotL5PlayedCount',
+        'spotL5PlayedCount',
+        'SpotL5LossCount',
+        'spotL5LossCount',
+        'SpotL6Authorized',
+        'spotL6Authorized',
+        'SpotL6CreditBalance',
+        'spotL6CreditBalance'
+    ];
+    return keys.some((key) => advice[key] !== undefined && advice[key] !== null);
+}
+
+function buildSpotL6FallbackRowFromTable(tableRow) {
+    const computer = String(tableRow?.computer ?? tableRow?.Computer ?? '').trim();
+    if (!computer) return null;
+    const advice = parseTableRowLastAdvice(tableRow);
+    if (!tableRowHasSpotAdviceFields(advice)) return null;
+    return normalizeSecurityFilterBotRow(computer, {
+        Martingala: advice.Martingala ?? advice.martingala,
+        SpotCycleId: advice.SpotCycleId ?? advice.spotCycleId ?? 1,
+        SpotPbHandsPlayed: advice.SpotPbHandsPlayed ?? advice.spotPbHandsPlayed,
+        SpotL5PlayedCount: advice.SpotL5PlayedCount ?? advice.spotL5PlayedCount,
+        SpotL5LossCount: advice.SpotL5LossCount ?? advice.spotL5LossCount,
+        SpotL6GrantedCount: advice.SpotL6GrantedCount ?? advice.spotL6GrantedCount,
+        SpotL6CreditBalance: advice.SpotL6CreditBalance ?? advice.spotL6CreditBalance,
+        SpotL6Authorized: advice.SpotL6Authorized ?? advice.spotL6Authorized,
+        NextL5LossWillAuthorizeL6: advice.NextL5LossWillAuthorizeL6 ?? advice.nextL5LossWillAuthorizeL6
+    });
+}
+
+function buildSpotL6FallbackRowsFromTable() {
+    const rows = [];
+    for (const tableRow of props.tableRows) {
+        const row = buildSpotL6FallbackRowFromTable(tableRow);
+        if (row) rows.push(row);
+    }
+    return rows.sort((a, b) => getBotName(a).localeCompare(getBotName(b)));
+}
+
+const spotL6TableFallbackRows = computed(() => {
+    if (!isSpotL6PerBotEnabled()) return [];
+    if (hasLiveSecurityFilterBots.value) return [];
+    return buildSpotL6FallbackRowsFromTable();
+});
+
+const spotResetBotRows = computed(() => {
+    if (!isSpotL6PerBotEnabled()) return [];
+    if (hasLiveSecurityFilterBots.value) {
+        return [...securityFilterRows.value].sort((a, b) => getBotName(a).localeCompare(getBotName(b)));
+    }
+    if (spotL6TableFallbackRows.value.length > 0) return spotL6TableFallbackRows.value;
+    if (showLocalCollaudoPreview.value) {
+        return buildLocalCollaudoPreviewRows().sort((a, b) => getBotName(a).localeCompare(getBotName(b)));
+    }
+    return [];
+});
+
+const spotL6UsesTableFallback = computed(() => isSpotL6PerBotEnabled() && spotL6TableFallbackRows.value.length > 0);
 
 function getSpotCyclePbHandsLimit() {
     const t = telemetryData.value?.SpotCyclePbHandsLimit ?? telemetryData.value?.spotCyclePbHandsLimit;
@@ -596,7 +672,7 @@ function isSpotL6PerBotEnabled() {
     if (spotL6PerBotEnabled.value === true || spotL6PerBotEnabled.value === false) return spotL6PerBotEnabled.value;
     const t = resolveTelemetryFlag('SpotL6PerBotEnabled', 'spotL6PerBotEnabled');
     if (t !== null) return t;
-    return telemetryData.value?.SpotPerBotOnlyEnabled !== false;
+    return false;
 }
 
 async function loadSpotL6PerBot() {
@@ -1868,7 +1944,7 @@ function selectSecurityFilterBot(row) {
                     </div>
                 </div>
 
-                <div class="mb-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-2 xl:grid-cols-5">
+                <div class="mb-4 grid grid-cols-2 gap-2 text-sm md:grid-cols-2 xl:grid-cols-5" v-if="isSpotL6PerBotEnabled()">
                     <div class="rounded-lg bg-surface-100 px-3 py-2 dark:bg-surface-800">
                         <div class="text-[10px] uppercase text-muted-color">Modalità</div>
                         <div class="text-sm font-bold" :class="isSpotL6PerBotEnabled() ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-500'">
@@ -1900,7 +1976,25 @@ function selectSecurityFilterBot(row) {
                     Anteprima collaudo locale — dati esempio PC1–PC4 finché Decisore non scrive telemetry in DB.
                 </div>
 
-                <div v-if="spotResetBotRows.length === 0" class="rounded-lg border border-dashed border-cyan-300 px-4 py-6 text-center text-muted-color">
+                <div
+                    v-if="spotL6UsesTableFallback"
+                    class="mb-3 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-xs font-semibold text-cyan-900 dark:border-cyan-800 dark:bg-cyan-950/40 dark:text-cyan-200"
+                >
+                    Fallback attivo — card L6 da lastAdvice
+                </div>
+
+                <div
+                    v-if="!isSpotL6PerBotEnabled()"
+                    class="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-6 text-center dark:border-red-900/60 dark:bg-red-950/30"
+                >
+                    <div class="text-lg font-bold text-red-700 dark:text-red-300">SPOT L6: SPENTO</div>
+                    <p class="mt-2 text-sm text-muted-color">Modulo SPOT disattivato. Martingala normale non influenzata.</p>
+                </div>
+
+                <div
+                    v-else-if="spotResetBotRows.length === 0"
+                    class="rounded-lg border border-dashed border-cyan-300 px-4 py-6 text-center text-muted-color"
+                >
                     Nessun bot in telemetry. Avvia Decisore e attendi feed per vedere Spot mano / L5 / stato per PC.
                 </div>
 
