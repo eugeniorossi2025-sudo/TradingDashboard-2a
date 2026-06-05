@@ -55,6 +55,14 @@ namespace Decisore.Services
                         ? int.Parse(spotResetThresholdL5, CultureInfo.InvariantCulture)
                         : _engine.SPOT_RESET_THRESHOLD_L5;
 
+                    _engine.SPOT_L6_CREDIT_L5_REQUIRED = cfg.TryGetValue("SPOT_L6_CREDIT_L5_REQUIRED", out var spotL6CreditL5Required)
+                        ? Math.Max(1, int.Parse(spotL6CreditL5Required, CultureInfo.InvariantCulture))
+                        : _engine.SPOT_L6_CREDIT_L5_REQUIRED;
+
+                    _engine.SPOT_L6_CREDITS_GENERATED = cfg.TryGetValue("SPOT_L6_CREDITS_GENERATED", out var spotL6CreditsGenerated)
+                        ? Math.Max(1, int.Parse(spotL6CreditsGenerated, CultureInfo.InvariantCulture))
+                        : _engine.SPOT_L6_CREDITS_GENERATED;
+
                     if (cfg.TryGetValue("SPOT_L6_PER_BOT_ENABLED", out var spotL6PerBot))
                         _engine.SPOT_L6_PER_BOT_ENABLED = ParseEnabledFlag(spotL6PerBot);
                     

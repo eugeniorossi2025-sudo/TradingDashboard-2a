@@ -16,12 +16,15 @@ public class Advice
     public int SpotL5PlayedCount { get; set; }
     public int SpotL5LossCount { get; set; }
     public int SpotL6GrantedCount { get; set; }
+    public int SpotL6CreditBalance { get; set; }
     public bool SpotL6Authorized { get; set; }
     public bool NextL5LossWillAuthorizeL6 { get; set; }
     public bool SpotL6PerBotEnabled { get; set; }
     public int SpotCycleId { get; set; }
     public int SpotPbHandsPlayed { get; set; }
     public int SpotL6ThresholdL5 { get; set; }
+    public int SpotL6CreditL5Required { get; set; }
+    public int SpotL6CreditsGenerated { get; set; }
     public int GlobalPBHandsPlayed { get; set; }
     public bool GlobalPauseScalping { get; set; }
     public int GlobalPauseScalpingDuration { get; set; }

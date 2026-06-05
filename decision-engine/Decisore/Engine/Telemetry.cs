@@ -17,6 +17,8 @@ public class Telemetry
     public int SpotAuthL6Counter { get; set; } = 0;
     public int SpotL5Loss { get; set; } = 0;
     public int SpotL6ThresholdL5 { get; set; } = 2;
+    public int SpotL6CreditL5Required { get; set; } = 2;
+    public int SpotL6CreditsGenerated { get; set; } = 1;
     /// <summary>Mani PB globali nel ciclo SPOT prima del reset (configurabile, es. 600).</summary>
     public int SpotCyclePbHandsLimit { get; set; } = 600;
     public bool SpotPerBotOnlyEnabled { get; set; } = true;
@@ -152,6 +154,8 @@ public class SecurityFilterBotTelemetry
     public int SpotL5LossCount { get; set; }
     /// <summary>Volte che il bot è passato a L6 nel ciclo SPOT corrente.</summary>
     public int SpotL6GrantedCount { get; set; }
+    /// <summary>Crediti L6 disponibili nel ciclo SPOT corrente.</summary>
+    public int SpotL6CreditBalance { get; set; }
     /// <summary>Bot autorizzato a passare a L6 nel ciclo SPOT corrente.</summary>
     public bool SpotL6Authorized { get; set; }
     /// <summary>Se la prossima L5 persa raggiunge la soglia L6 per questo bot.</summary>
