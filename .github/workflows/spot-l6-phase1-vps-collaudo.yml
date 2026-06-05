@@ -1,0 +1,38 @@
+name: DASH2A Spot L6 Phase1 VPS Collaudo
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: "Type RUN_SPOT_L6_PHASE1 to execute spot-l6-phase1-vps-collaudo.ps1"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  collaudo:
+    name: Spot L6 Phase 1 on Decisore VPS
+    if: ${{ github.event.inputs.confirm == 'RUN_SPOT_L6_PHASE1' }}
+    runs-on:
+      - self-hosted
+      - Windows
+      - DASH2A
+      - DASH2A-DECISORE
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Phase 1 VPS collaudo
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $env:DECISORE_URL = 'http://127.0.0.1'
+          & "$env:GITHUB_WORKSPACE\tools\spot-l6-phase1-vps-collaudo.ps1"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Spot L6 Phase 1 VPS collaudo FAILED"
+          }
+          Write-Host "SPOT_L6_PHASE1_VPS_COLLAUDO_PASS"
