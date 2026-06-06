@@ -51,8 +51,8 @@ namespace Gamebot.Models
             NEW_DECK
         }
 
-        // Nuovo mazzo da mano 15: a 0 probe; sotto 15 resta WAITING_NEW_DECK.
-        public const int LIMIT_MIN_NEW_DECK = 15;
+        // Nuovo mazzo da mano 14: fino a 13 WAITING_NEW_DECK + StateAttendiNuovoMazzo (come 1.3).
+        public const int LIMIT_MIN_NEW_DECK = 14;
 
         public const int LIMIT_MAX_NEW_DECK = 30;
 

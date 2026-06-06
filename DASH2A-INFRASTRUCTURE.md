@@ -3,7 +3,7 @@
 > **Leggere questo file all'inizio di ogni sessione di lavoro.**
 > **Prima di qualsiasi attività:** leggere [`ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md`](ops/dash2a-readiness/DASH2A-WORKSPACE-GUARD.md) ed eseguire la checklist git obbligatoria.
 > Aggiornare quando cambiano IP, credenziali, o configurazioni.
-> **Ultimo aggiornamento: 2026-06-06** — §14 GameBot **1.4** (1.3 + NEW_DECK da mano 15) su `tools/eugenio-bot`; runtime release attiva **`relisegiacomo ok 1.4`**. **Documento padre GameBot:** solo questo file §14 — non duplicare altrove. Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
+> **Ultimo aggiornamento: 2026-06-06** — §14 GameBot **1.5** (1.4 fix: waiting attivo fino mano 13, NEW_DECK da mano 14, ramo `else` 1.3) su `tools/eugenio-bot`; runtime release attiva **`relisegiacomo ok 1.5`**. **Documento padre GameBot:** solo questo file §14 — non duplicare altrove. Repo `eugeniorossi2025-sudo/TradingDashboard-2a`, clone `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`, branch prod `main`.
 
 ---
 
@@ -811,7 +811,7 @@ gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/T
 > **Regola assoluta:** patch, build e deploy GameBot DASH2A **solo** su `tools/eugenio-bot`.  
 > **NON** usare: `tools/eugenio-gamebot/source`, `Documents\baccarat-bot-main OK`, `baccarat-bot-main-socket-artifact`, cartelle Desktop `Gamebot_FirstPlay_*`, repo Dashboard 1 / IIS.
 
-### 14.1 Sorgente canonico (1.4 — base 1.3 / 1.2 unified)
+### 14.1 Sorgente canonico (1.5 — base 1.4 / 1.3 / 1.2 unified)
 
 | Voce | Percorso |
 |------|----------|
@@ -826,16 +826,17 @@ MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any 
 
 ### 14.2 Matrice feature per release
 
-| Pezzo | 1.0 | 1.1 | 1.2 | 1.3 | **1.4** (runner attivo) |
-|-------|-----|-----|-----|-----|-------------------------|
-| Probe Banker FirstPlay | ❌ | ❌ | ✅ | ✅ | ✅ |
-| Probe nuovo mazzo (mazzo 0) | ❌ | ❌ | ✅ | ✅ | ✅ |
-| AC2 → PAUSE_SCALPING | ✅ | ❌ | ✅ | ✅ | ✅ |
-| BotOwner gate (Step 3) | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Skip SCULPING se già oltre `limitEndDeck` | ❌ | ❌ | ❌ | ✅ | ✅ |
-| **NEW_DECK da mano 15** (`LIMIT_MIN_NEW_DECK`) | ❌ | ❌ | ❌ | ❌ (mano 1) | ✅ mano **15–30** |
+| Pezzo | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | **1.5** (runner attivo) |
+|-------|-----|-----|-----|-----|-----|-------------------------|
+| Probe Banker FirstPlay | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Probe nuovo mazzo (mazzo 0) | ❌ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| AC2 → PAUSE_SCALPING | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| BotOwner gate (Step 3) | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Skip SCULPING se già oltre `limitEndDeck` | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ |
+| NEW_DECK da soglia (`LIMIT_MIN_NEW_DECK`) | ❌ | ❌ | ❌ | mano **1–30** | mano **15–30** (bug 1–14) | ✅ mano **14–30** |
+| WAITING attivo mani 0–13 (`StateAttendiNuovoMazzo`) | ❌ | ❌ | ✅ (0, >30) | ✅ (0, >30) | ❌ (1–14 solo log) | ✅ (0–13, >30) |
 
-**File patch 1.2 unified (9) — ereditati da 1.4:**
+**File patch 1.2 unified (9) — ereditati da 1.5:**
 
 - `Gamebot\Models\SubStates\StateFirstPlay.cs`
 - `Gamebot\Models\SubStates\StateAttendiNuovoMazzo.cs`
@@ -851,11 +852,13 @@ MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any 
 | AC2 Post-AC2 | `baccarat-bot-main-socket-artifact` (2026-06-03) |
 | BotOwner | commit STEP 3 su `tools/eugenio-bot` |
 | Skip SCULPING oltre limite (1.3) | `MainStateBot.cs` — promosso 2026-06-06 |
-| NEW_DECK min mano 15 (1.4) | `Constants.cs` + `MainStateBot.cs` — promosso 2026-06-06 |
+| NEW_DECK min mano 15 (1.4) | `Constants.cs` + `MainStateBot.cs` — promosso 2026-06-06 (sostituito da 1.5) |
 
 **File patch 1.3 (1):** `Gamebot\Models\MainState\MainStateBot.cs` — `IsPastEndDeckLimit()` + guard in `FIRST_PLAY`.
 
-**File patch 1.4 (2):** `Gamebot\Models\Constants.cs` — `LIMIT_MIN_NEW_DECK = 15`; `MainStateBot.cs` — attesa mani 1–14 in `WAITING_NEW_DECK`.
+**File patch 1.4 (2):** `Constants.cs` — `LIMIT_MIN_NEW_DECK = 15`; `MainStateBot.cs` — attesa mani 1–14 in `WAITING_NEW_DECK` (regressione: solo log).
+
+**File patch 1.5 (2):** `Constants.cs` — `LIMIT_MIN_NEW_DECK = 14`; `MainStateBot.cs` — ripristino ramo `else` 1.3 (`StateAttendiNuovoMazzo.Act()` su mani 0–13 e >30).
 
 ### 14.3 Runtime CRIPTOOK — hash e uso
 
@@ -865,24 +868,25 @@ MSBuild tools\eugenio-bot\Gamebot.sln /p:Configuration=Release /p:Platform="Any 
 | **`relisegiacomo ok 1.0`** | **Baseline congelata** | `D1A8AAF0…` | AC2 sì, probe no — **non sovrascrivere** |
 | `relisegiacomo ok 1.1` | Release BotOwner | `7C6399C5…` | BotOwner sì, probe/AC2 no |
 | `relisegiacomo ok 1.2` | Unified precedente | `C86DAD1A…` | Congelato |
-| `relisegiacomo ok 1.3` | Release precedente | `A256CC22…` | Congelato — sostituito da **1.4** |
-| **`relisegiacomo ok 1.4`** | **Release attiva / runner Giacomo** | `BAA75A8D…` | 1.3 + NEW_DECK da mano 15 — promosso 2026-06-06 |
+| `relisegiacomo ok 1.3` | Release precedente | `A256CC22…` | Congelato |
+| `relisegiacomo ok 1.4` | Release precedente | `BAA75A8D…` | Congelato — sostituito da **1.5** |
+| **`relisegiacomo ok 1.5`** | **Release attiva / runner Giacomo** | `59E7A6E0…` | 1.3 + waiting attivo 0–13, NEW_DECK da mano 14 — promosso 2026-06-06 |
 
-**Path assoluto runtime release 1.4 (runner attivo):**
-
-```text
-C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.4\Gamebot.exe
-SHA256: BAA75A8D7FC33B26D2E3FA392E5053A1DFFD677F6F5104F28F09154C1AD020DA
-```
-
-**ZIP release 1.4 (intera cartella runtime — distribuire questo):**
+**Path assoluto runtime release 1.5 (runner attivo):**
 
 ```text
-C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.4.zip
-SHA256: A84FE10E049D7B3FE0CDD8E06D628DEF92F5CC3DBB93C2BFD9DED556BF552255
+C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.5\Gamebot.exe
+SHA256: 59E7A6E0BAE16FD3B287E502C52395E987EF681558A75CB9B08DEA2954C3313E
 ```
 
-> **`relisegiacomo ok 1.3`** — congelato (non runner). **`1.2`** — congelato.
+**ZIP release 1.5 (intera cartella runtime — distribuire questo):**
+
+```text
+C:\Users\eugen\Desktop\CRIPTOOK\CRIPTOOK\relisegiacomo ok 1.5.zip
+SHA256: D6CF13B22B4F9B7978FE49E3A7787835F6277036B91FFCF3F4F185870096A6BB
+```
+
+> **`relisegiacomo ok 1.4`** — congelato (non runner). **`1.3`** / **`1.2`** — congelati.
 
 | `Gamebot_FirstPlay_ProbeUntilPlayer_*_20260320` | Riferimento storico probe | `02DC9D5A…` | Artefatto Desktop — non sorgente |
 
@@ -894,6 +898,7 @@ Hash completi (verifica pre-deploy):
 1.2  C86DAD1A401C65A31E19FFB83A1B1F474C06883AE96448860CFD8C656B706E15
 1.3  A256CC229898F2EF706DC5167506C793E6067B15759F128731D3F51BD9953915
 1.4  BAA75A8D7FC33B26D2E3FA392E5053A1DFFD677F6F5104F28F09154C1AD020DA
+1.5  59E7A6E0BAE16FD3B287E502C52395E987EF681558A75CB9B08DEA2954C3313E
 ```
 
 **Deploy runtime:** copiare solo `Gamebot.exe` + `Gamebot.pdb` nella cartella test/prod scelta. Non sostituire `Gamebot.exe.config` se non cambia intenzionalmente.
@@ -902,7 +907,7 @@ Hash completi (verifica pre-deploy):
 
 1. **Commit + tag** su `TradingDashboard-2a` dopo ogni modifica GameBot:
    ```text
-   git tag gamebot-1.4-new-deck-min-15-2026-06-06
+   git tag gamebot-1.5-waiting-until-hand-14-2026-06-06
    ```
 2. **Mai** patch su exe runtime o cartelle Desktop senza commit su `tools/eugenio-bot`.
 3. **Pre-build check** (stringhe attese in `bin\Release\Gamebot.exe`):
@@ -911,16 +916,18 @@ Hash completi (verifica pre-deploy):
    - `WAITING NEW DECK | PROBE ROSSA MINIMA`
    - `RequestExit`
    - `SALTO SCULPING` (1.3+)
-   - `ATTESA MANO 15+` (solo 1.4+)
+   - `MAZZO 0 | PROBE ROSSA MINIMA` (1.5+)
+   - **Non** deve comparire `ATTESA MANO 15+` (regressione 1.4 rimossa)
 4. **Pre-promozione runtime:** hash build = hash cartella destinazione; `1.0` hash invariato se non promozione esplicita.
 5. **Cursor / sessione:** citare sempre §14 di questo file; non cercare sorgente in chat vecchie o path alternativi.
-6. **Release runtime attiva:** `relisegiacomo ok 1.4` — runner Giacomo; non usare cartelle `-test`; mai sovrascrivere `1.0` senza decisione esplicita.
+6. **Release runtime attiva:** `relisegiacomo ok 1.5` — runner Giacomo; non usare cartelle `-test`; mai sovrascrivere `1.0` senza decisione esplicita.
 
-### 14.5 Log attesi in release 1.4
+### 14.5 Log attesi in release 1.5
 
 - Tutti i log **1.3** (probe, AC2, BotOwner, skip SCULPING oltre limite)
-- `WAITING_NEW_DECK | MANO … | ATTESA MANO 15+` — mani 1–14 in attesa cambio mazzo
-- `WAITING_NEW_DECK | MAZZO NUOVO (15…30)` — transizione a `NEW_DECK` o `PAUSE_SCALPING`
+- `WAITING_NEW_DECK | MAZZO 0 | PROBE ROSSA MINIMA` — mano 0
+- `WAITING NEW DECK | PROBE ROSSA MINIMA | NUMBER_DECK: …` — mani **0–13** e **>30** (sotto-stato attivo)
+- `WAITING_NEW_DECK | MAZZO NUOVO (14…30)` — transizione a `NEW_DECK` o `PAUSE_SCALPING`
 
 ---
 
@@ -934,4 +941,4 @@ Hash completi (verifica pre-deploy):
 - [ ] `git log --oneline -5`
 - [ ] Decider prod = `51.178.16.37` (non `51.210.181.37`)
 - [ ] Decisore live path = `C:\Decisore`, app pool = `Proactive`, backup root = `C:\DecisoreBackups`
-- [ ] GameBot: sorgente = `tools/eugenio-bot` §14; runner attivo = `relisegiacomo ok 1.4`; hash vs tabella §14.3
+- [ ] GameBot: sorgente = `tools/eugenio-bot` §14; runner attivo = `relisegiacomo ok 1.5`; hash vs tabella §14.3

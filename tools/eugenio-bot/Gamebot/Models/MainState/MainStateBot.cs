@@ -279,16 +279,8 @@ namespace Gamebot.Models.MainState
                         if (Runtime.number_deck == 0)
                         {
                             Log.PrintInfo("<!> WAITING_NEW_DECK | MAZZO 0 | PROBE ROSSA MINIMA (attesa passaggio a mazzo 1+) <!>");
-                            StateAttendiNuovoMazzo.Act();
                         }
-                        else if (Runtime.number_deck >= 1 && Runtime.number_deck < Constants.LIMIT_MIN_NEW_DECK)
-                        {
-                            Log.PrintInfo($"<!> WAITING_NEW_DECK | MANO {Runtime.number_deck} | ATTESA MANO {Constants.LIMIT_MIN_NEW_DECK}+ <!>");
-                        }
-                        else
-                        {
-                            StateAttendiNuovoMazzo.Act();
-                        }
+                        StateAttendiNuovoMazzo.Act();
                     }
                     break;
                 case Constants.EnumStateBot.GLOBAL_STOP_WIN:
