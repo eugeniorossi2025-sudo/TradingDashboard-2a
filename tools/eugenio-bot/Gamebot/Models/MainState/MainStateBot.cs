@@ -14,6 +14,11 @@ namespace Gamebot.Models.MainState
 {
     internal class MainStateBot
     {
+        private static bool IsPastEndDeckLimit()
+        {
+            return Runtime.number_deck >= Config.limitEndDeck;
+        }
+
         public static void UpdateForm()
         {
             List<string> values = new List<string>();
@@ -68,6 +73,12 @@ namespace Gamebot.Models.MainState
                     break;
                 case Constants.EnumStateBot.FIRST_PLAY:
                     CheckEnabled();
+                    if (IsPastEndDeckLimit())
+                    {
+                        Log.PrintInfo($"<!> FIRST_PLAY | MANO {Runtime.number_deck} OLTRE LIMITE {Config.limitEndDeck} | SALTO SCULPING → END_DECK <!>");
+                        Runtime.current_state_bot = Constants.EnumStateBot.END_DECK;
+                        break;
+                    }
                     Log.PrintInfo("!!! FIRST_PLAY: ACTION !!!");
                     StateFirstPlay.Act();
                     if (Runtime.last_color != Config.start_color && Runtime.last_result != Constants.EnumColorBaccarat.TIE)
