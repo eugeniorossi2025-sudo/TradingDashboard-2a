@@ -253,8 +253,19 @@ namespace Gamebot.Models.MainState
                 case Constants.EnumStateBot.WAITING_NEW_DECK:
                     CheckEnabled();
                     Log.PrintInfo("!!! WAITING_NEW_DECK: ACTION !!!");
-                    if (Runtime.number_deck >= Constants.LIMIT_MIN_NEW_DECK
-                        && Runtime.number_deck <= Constants.LIMIT_MAX_NEW_DECK)
+                    bool exitWaitingNewDeck = Runtime.number_deck > Constants.LIMIT_MIN_NEW_DECK
+                        && Runtime.number_deck <= Constants.LIMIT_MAX_NEW_DECK;
+                    if (!exitWaitingNewDeck)
+                    {
+                        if (Runtime.number_deck == 0)
+                        {
+                            Log.PrintInfo("<!> WAITING_NEW_DECK | MAZZO 0 | attesa passaggio a mazzo 1+ <!>");
+                        }
+                        StateAttendiNuovoMazzo.Act();
+                        exitWaitingNewDeck = Runtime.number_deck >= Constants.LIMIT_MIN_NEW_DECK
+                            && Runtime.number_deck <= Constants.LIMIT_MAX_NEW_DECK;
+                    }
+                    if (exitWaitingNewDeck)
                     {
                         UIForm.SendAlert(Constants.EnumAlert.WAITING_TO_START_SCALPING);
                         Runtime.chosen_color = Config.start_color;
@@ -269,18 +280,12 @@ namespace Gamebot.Models.MainState
                         else
                         {
                             Log.PrintInfo("<!> WAITING_NEW_DECK | VADO IN PAUSE SCULPING | ATTENDO A GIOCARE <!>");
+                            Runtime.pause_sculping_counter = 1;
+                            Log.PrintInfo("<!> PAUSE_SCULPING | PRESET CONTATORE: 1 | bet canonica 2a mano PAUSE (es. mano 11) <!>");
                             Runtime.current_state_bot = Constants.EnumStateBot.PAUSE_SCALPING;
                         }
                         Runtime.ErasePauseScalpingArray();
                         Runtime.color_pause_scalping_array[0] = Runtime.chosen_color;
-                    }
-                    else
-                    {
-                        if (Runtime.number_deck == 0)
-                        {
-                            Log.PrintInfo("<!> WAITING_NEW_DECK | MAZZO 0 | PROBE ROSSA MINIMA (attesa passaggio a mazzo 1+) <!>");
-                        }
-                        StateAttendiNuovoMazzo.Act();
                     }
                     break;
                 case Constants.EnumStateBot.GLOBAL_STOP_WIN:

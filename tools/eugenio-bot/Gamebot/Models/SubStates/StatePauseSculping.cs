@@ -1,4 +1,4 @@
-﻿using Gamebot.Helpers;
+using Gamebot.Helpers;
 using Gamebot.Models.MouseMove;
 using Gamebot.Models.Objects;
 using System;

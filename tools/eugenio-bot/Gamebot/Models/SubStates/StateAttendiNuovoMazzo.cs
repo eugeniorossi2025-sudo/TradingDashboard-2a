@@ -1,4 +1,4 @@
-﻿using Gamebot.Helpers;
+using Gamebot.Helpers;
 using Gamebot.Models.MouseMove;
 using Gamebot.Models.Objects;
 using System;
@@ -80,14 +80,20 @@ namespace Gamebot.Models.SubStates
                         DashboardApiHelper.SendDeck();
                     });
                     Log.PrintInfo("************* LETTO PUNTARE ************");
-                    StateAttendiNuovoMazzo.FaiLaPuntata().Wait();
-                    StateAttendiNuovoMazzo.state = 1;
-                    Thread.Sleep(750);
-                    _ = Task.Run(async () =>
+                    if (StateAttendiNuovoMazzo.FaiLaPuntata().GetAwaiter().GetResult())
                     {
-                        await Task.Delay(2000);
-                        DashboardApiHelper.SendSimple();
-                    });
+                        StateAttendiNuovoMazzo.state = 1;
+                        Thread.Sleep(750);
+                        _ = Task.Run(async () =>
+                        {
+                            await Task.Delay(2000);
+                            DashboardApiHelper.SendSimple();
+                        });
+                    }
+                    else
+                    {
+                        StateAttendiNuovoMazzo.exit = true;
+                    }
                 }
                 Thread.Sleep(250);
             }
@@ -140,9 +146,29 @@ namespace Gamebot.Models.SubStates
             StateAttendiNuovoMazzo.exit = true;
         }
 
-        private static async Task FaiLaPuntata()
+        private static bool ShouldPlaceWaitingProbe()
+        {
+            int deck = Runtime.number_deck;
+            if (deck == 3 || deck == 6 || deck == 9)
+            {
+                return true;
+            }
+            if (deck > Constants.LIMIT_MAX_NEW_DECK)
+            {
+                return true;
+            }
+            return false;
+        }
+
+        private static async Task<bool> FaiLaPuntata()
         {
             Runtime.puntata = 0;
+
+            if (!ShouldPlaceWaitingProbe())
+            {
+                Log.PrintInfo(string.Format("WAITING NEW DECK | SKIP PROBE | NUMBER_DECK: {0}", Runtime.number_deck));
+                return false;
+            }
 
             try
             {
@@ -161,11 +187,12 @@ namespace Gamebot.Models.SubStates
                 Log.PrintInfo(string.Format("WAITING NEW DECK | PROBE ROSSA MINIMA | NUMBER_DECK: {0}", Runtime.number_deck));
                 Runtime.waiting_deck_counter = 0;
                 StateAttendiNuovoMazzo.randomBet = true;
-                return;
+                return true;
             }
             catch (Exception ex)
             {
                 Log.PrintInfo(ex.Message);
+                return false;
             }
         }
 
