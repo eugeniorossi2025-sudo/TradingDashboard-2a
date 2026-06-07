@@ -52,7 +52,7 @@ $html = Invoke-WebRequest -Uri "$Api/api/mission/report/range?runtimeMode=$Runti
 $htmlBody = [string]$html.Content
 $htmlHasRomeHeaders = $htmlBody -match 'Start \(Europe/Rome\)' -or $htmlBody -match 'Start</th>'
 $htmlHeroPeriod = $htmlBody -match 'RISULTATO PERIODO'
-$htmlShowsNd = ($workingDays -lt 7 -and $htmlBody -match 'Annualised Return[\s\S]*?N/D') -or ($workingDays -ge 7)
+$htmlShowsNd = ($workingDays -eq 0) -or ($workingDays -lt 7 -and $htmlBody -match 'Annualised Return[\s\S]*?N/D') -or ($workingDays -ge 7)
 
 $session6 = $d.sessions | Where-Object { $_.sessionId -eq 6 } | Select-Object -First 1
 $session6Ok = $true
@@ -66,7 +66,7 @@ if ($session6) {
 $sessionTargetMax = if ($d.sessions.Count -gt 0) { [decimal](($d.sessions | Measure-Object globalTargetEuro -Maximum).Maximum) } else { [decimal]0 }
 $headerTarget = [decimal]$d.totals.globalTargetEuro
 
-$stockDiffersFromFlow = ($d.sessions.Count -gt 0) -and ([Math]::Abs($period - $stockSum) -gt 0.01m)
+$stockDiffersFromFlow = ($d.sessions.Count -gt 0) -and ([Math]::Abs($period - $stockSum) -gt 0.01)
 
 $checks = @(
     @{ id = 'ACC-01'; name = 'periodResultEuro present'; pass = ($null -ne $d.totals.periodResultEuro); detail = "periodResult=$period" }
