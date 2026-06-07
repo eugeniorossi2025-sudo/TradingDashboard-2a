@@ -28,153 +28,146 @@
 
 > Sovrascrivere **solo questo blocco** quando il task è concluso o l'utente scrive **`chiudi scope`**.
 
-**Marker sessione:** `agent-giacom:session:2026-06-07-contabilita-presentazione-implementata`
+**Marker sessione:** `agent-giacom:session:2026-06-07-contabilita-chiusura-definitiva`
 
-### Ultimo tema
-- Patch presentazione contabile **implementate** (Fase 1–3): filtro Rome start-day, hero `periodResultEuro`, UI allineata, script gate aggiornato.
-- Verdetto target: **CONTABILITÀ AFFIDABILE** — post-deploy: eseguire `validate-report-coherence.ps1` su DEV/prod.
+### Scope chiuso
+**Audit contabilità DASH2A — chiusura definitiva** (SQL 1434 + audit UI + patch presentazione + deploy produzione + gate post-deploy). Approvato dall'utente 2026-06-07.
 
-### Audit UI contabile — classificazione schermate
+### Verdetto finale
 
-| Schermata | Esito | Motivo sintetico |
-|-----------|-------|------------------|
-| `Dashboard.vue` (+ ProfitsChats, TableBots, Stats) | **WARNING** | Solo margine **live/stock** (Margini, Pc_CurrentStatus, Statistiche); nessun P&L periodo; etichette non fuorvianti ma incomplete |
-| `ClientDesktop.vue` | **FAIL** | KPI «Global Margin» = `totals.totalMarginEuro` (stock chiusure) o somma live; **non** `periodResultEuro`; progress incoerente |
-| `Log.vue` | **WARNING** | `totalMarginEuro` etichettato «Margine missione» (stock OK); `periodNetPnlEuro` in API index **non mostrato**; report HTML = stock hero |
-| `AdminMobileLive.vue` | **WARNING** | Hero live corretto (`currentMargin` / somma tavoli); report periodo usa `periodResultEuro` con fallback pericoloso a `totalMarginEuro` |
-| `AdminMobileReports.vue` | **WARNING** | Hero «Period result» corretto se API popola `periodResultEuro`; fallback stock; `progressPct` = flusso/target |
-| `MissionReportHtmlBuilder.cs` | **FAIL** | Hero = `MissionMarginEuro` / `TotalMarginEuro` (stock); `periodNetPnlEuro` solo in debug nascosto |
-| `FinancialReportService.ts` | **PASS** | Solo trasporto API; mapping tipi espone `periodResultEuro` |
+**CONTABILITÀ AFFIDABILE**
 
-### Tre grandezze contabili in UI (mappa)
+| Fase | Esito |
+|------|-------|
+| Database SQL 1434 | ✅ Assolto |
+| Contabilità SQL (integrità + Q1–Q5) | ✅ Assolto |
+| Presentazione contabile (UI/HTML/API) | ✅ Allineata e deployata |
+| Gate automatico post-deploy | ✅ ALL PASS |
 
-| Grandezza | Dove appare | Tipo | Coerenza `periodResultEuro` |
-|-----------|-------------|------|----------------------------|
-| **Margine live** | Dashboard chart, AdminMobileLive hero, Log `currentMargin`, TableBots | Stock istantaneo PBT (`Margini` / `Pc_CurrentStatus`) | N/A (non è P&L periodo) |
-| **Margine di chiusura** | Log tabella `totalMarginEuro`, HTML report hero, ClientDesktop KPI, range `totalMarginEuro` | Stock a fine missione (`MissionSessions.TotalMargin`) | **Non coerente** se letto come P&L periodo |
-| **P&L periodo** | AdminMobileReports/AdminMobileLive `periodResultEuro`, API `totals.periodResultEuro`, index `periodNetPnlEuro` (API only) | Flusso (delta sample clippati) | Coerente **solo** dove UI legge `periodResultEuro` senza fallback |
+---
 
-### Punti 4, 6, 8, 10, 11 — stato post implementazione
+### Commit deploy contabilità
 
-| # | Punto | Stato | Patch |
-|---|-------|-------|-------|
-| 4 | `periodNetPnlEuro` in `Log.vue` | **Chiuso** | Colonna «P&L periodo» + tipo TS |
-| 6 | `validate-report-coherence.ps1` | **Chiuso** | ACC-02 = Σ periodNetPnl; ACC-08 hero RISULTATO PERIODO |
-| 8 | Documentazione live vs periodo | **Chiuso** | `REPORT-CONTABILITA-CANONICA.md` §9 glossario |
-| 10 | Filtro sessioni Rome | **Chiuso** | `StartTime ∈ [T0,T1)` + `WithSamples` su range |
-| 11 | Coerenza UI/Desktop/HTML | **Chiuso** | ClientDesktop, HTML, mobile, Log |
+| Commit | Contenuto |
+|--------|-----------|
+| [`d7db3c1`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/commit/d7db3c1) | Patch contabilità: filtro Rome start-day, hero `periodResultEuro`, UI Log/Client/mobile, script gate |
+| [`1eedb6e`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/commit/1eedb6e) | Fix sintassi PowerShell `validate-report-coherence.ps1` |
+| [`0c7740e`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/commit/0c7740e) | (storico) 5 query audit read-only SQL su workflow `diag-mission-db-readonly` |
 
-### Classificazione schermate post-patch
+---
+
+### Deploy produzione DASH2A (2026-06-07)
+
+| Componente | Workflow | Run | Esito |
+|------------|----------|-----|-------|
+| **Backend** WebApi IIS | `DASH2A Backend Deploy Safe` | [`27098691127`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27098691127) | **SUCCESS** |
+| **Frontend** Firebase live | `Firebase Hosting Live` | [`27098692145`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27098692145) | **SUCCESS** |
+
+| Check | Esito |
+|-------|-------|
+| `GET https://vps-b0942869.vps.ovh.net/api/Auth/test` | **200** |
+| HTML marker live | `mission-report-html:v2026-06-07-period-result-hero` |
+| Hero HTML (ACC-08) | **RISULTATO PERIODO** |
+
+**Target DASH2A:** backend `https://vps-b0942869.vps.ovh.net` · frontend Firebase `eugenio-dashboard-2a` · SQL `51.83.159.175,1434` / `Eugenio-Demo10`. **Non** Dashboard 1 / **non** `1433`.
+
+---
+
+### Gate contabile post-deploy (`validate-report-coherence.ps1`)
+
+API: `https://vps-b0942869.vps.ovh.net` · RuntimeMode: Production
+
+| Periodo | Esito | Note |
+|---------|-------|------|
+| 2026-05-01 → 2026-05-30 | **ALL PASS (10/10)** | `periodResult=0`; 0 sessioni (filtro Rome; #84 inizia 31/05) |
+| 2026-05-29 → 2026-05-30 | **ALL PASS (12/12)** | **ACC-10** sessione #5 esclusa (start 28/05 Rome) |
+
+---
+
+### Audit SQL 1434 — esito (chiuso)
+
+**Regola obbligatoria:** `51.83.159.175,1434` / SQLEXPRESS01 / `Eugenio-Demo10` · runner `DASH2A-BACKEND` · config `C:\inetpub\wwwroot\shared\appsettings.Production.json` · **`1433` fuori scope**.
+
+| Metrica integrità | Valore |
+|-------------------|--------|
+| `MissionSessions` | 133 |
+| `MissionMarginSamples` | 254.135 |
+| Duplicati / orphan samples / sessioni senza samples | **0 / 0 / 0** |
+| Margini orfani globali (Q4) | **0** |
+| `historical-demo-import` in Production (Q1) | **0** |
+| Completed / open | 132 chiuse · **#134** aperta Production |
+
+| Query | Esito | Evidenza |
+|-------|-------|----------|
+| **Q1** | PASS | 0 righe historical-demo Production |
+| **Q2** | PASS | 0 import totali |
+| **Q3** | PASS | Maggio: #84, PnL canonico **0,00 €**, stock **945,60 €** |
+| **Q4** | PASS | 0 Margini orfani |
+| **Q5** | PASS (funzionale) | `MissionLifecycleEvents` assente (`EXISTS=0`) — vedi #7 |
+
+Run SQL audit: [`27098112661`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27098112661).
+
+---
+
+### Audit UI — classificazione finale (post-deploy)
 
 | Schermata | Esito |
 |-----------|-------|
-| Dashboard.vue | **PASS** (solo live; nessun P&L periodo — by design) |
-| ClientDesktop.vue | **PASS** |
-| Log.vue | **PASS** |
-| AdminMobileLive.vue | **PASS** |
-| AdminMobileReports.vue | **PASS** |
-| MissionReportHtmlBuilder | **PASS** |
-| FinancialReportService | **PASS** |
+| `Dashboard.vue` | **PASS** (solo margine live — by design) |
+| `ClientDesktop.vue` | **PASS** |
+| `Log.vue` | **PASS** |
+| `AdminMobileLive.vue` | **PASS** |
+| `AdminMobileReports.vue` | **PASS** |
+| `MissionReportHtmlBuilder.cs` | **PASS** |
+| `FinancialReportService.ts` | **PASS** |
 
-### Ultimo tema (SQL — storico)
-- Audit contabilità DASH2A: codice read-only + SQL prod read-only su **1434** + 5 query Q1–Q5. **Chiuso.**
+### Tre grandezze contabili (mappa UI live)
 
-### Regola DB audit (obbligatoria)
-- **Runtime prod:** `51.83.159.175,1434` / SQLEXPRESS01 / `Eugenio-Demo10`
-- **Runner:** `DASH2A-BACKEND` (`dash2a-backend-runner-01`)
-- **Config:** `C:\inetpub\wwwroot\shared\appsettings.Production.json`
-- **`51.83.159.175,1433` fuori scope** — non usare per audit contabile.
+| Grandezza | Campo API | Dove in UI |
+|-----------|-----------|------------|
+| **Margine live** | `currentMargin`, `margine` tavolo | Dashboard, AdminMobileLive hero, ClientDesktop «Margine live» |
+| **Margine di chiusura** | `totalMarginEuro`, `missionMarginEuro` | Log colonna stock, HTML tabella dettaglio |
+| **P&L periodo** | `periodResultEuro`, `periodNetPnlEuro` | Hero HTML/report, mobile, Log colonna P&L, ClientDesktop KPI periodo |
 
-### Verdetto finale audit contabilità prod (dati 1434)
+---
 
-**CONTABILITÀ AFFIDABILE** (dati SQL + presentazione allineata 2026-06-07)
+### Checklist 11 punti — stato finale
 
-- **Dati 1434:** invariati — integrità verificata audit SQL.
-- **Presentazione:** hero/UI/HTML usano `periodResultEuro` / `periodNetPnlEuro` per flusso; stock etichettato esplicitamente.
-- **Riserva residua:** (1) `MissionLifecycleEvents` assente su 1434 (#7); (2) commissioni (#9); (3) validazione post-deploy script non ancora eseguita in questa sessione.
+| # | Punto | Stato |
+|---|-------|-------|
+| 1 | Apertura missione | ✅ Chiuso |
+| 2 | Chiusura missione | ✅ Chiuso |
+| 3 | Contabilizzazione missione | ✅ Chiuso |
+| 4 | `periodNetPnlEuro` in Log.vue | ✅ Chiuso (deploy `d7db3c1`) |
+| 5 | Audit SQL produzione 1434 | ✅ Chiuso |
+| 6 | `validate-report-coherence.ps1` | ✅ Chiuso (deploy + gate PASS) |
+| 7 | `MissionLifecycleEvents` | ⚠️ Aperto (schema — non blocca contabilità) |
+| 8 | Documentazione live vs periodo | ✅ Chiuso (`REPORT-CONTABILITA-CANONICA.md` §9) |
+| 9 | Commissioni | ⚠️ Decisione prodotto pendente |
+| 10 | Filtro API Europe/Rome | ✅ Chiuso (`StartTime ∈ [T0,T1)` + `WithSamples`) |
+| 11 | Coerenza UI/Desktop/HTML | ✅ Chiuso (deploy + gate) |
 
-### Stato 11 punti audit contabilità (post SQL 1434)
+---
 
-| # | Punto | Stato | Nota sintetica |
-|---|-------|-------|----------------|
-| 1 | Apertura missione | ✅ Verificato | SQL 1434: #134 aperta; samples presenti; `accounting-health` coerente |
-| 2 | Chiusura missione | ✅ Verificato | 132 chiuse; finalization reason su sessioni recenti; #105 Stop Win verificata |
-| 3 | Contabilizzazione missione | ✅ Verificato | 0 orphan samples, 0 sessioni senza samples, 0 Margini orfani globali |
-| 4 | `periodNetPnlEuro` non mostrato in `Log.vue` | ⚠️ Aperto | API espone il campo; UI no — patch frontend non in scope audit |
-| 5 | Audit SQL produzione | ✅ Completato | Runner 1434, Q1–Q5, run `27098112661` + run precedenti |
-| 6 | `validate-report-coherence.ps1` obsoleto | ⚠️ Aperto | ACC-02/03 confrontano campi errati; script non aggiornato |
-| 7 | `MissionLifecycleEvents` | ⚠️ Aperto | Tabella **assente** su 1434 (`Q5 EXISTS=0`) |
-| 8 | Documentazione live vs periodo | ⚠️ Aperto | `REPORT-CONTABILITA-CANONICA` maggio ≠ dataset DB attuale |
-| 9 | Commissioni nel modello contabile | ⚠️ Decisione | Nessun layer commissioni in WebApi — scelta di prodotto pendente |
-| 10 | Default API Europe/Rome | ⚠️ Aperto | Filtro sessioni overlap UTC vs accounting day Rome (codice) |
-| 11 | Verifica coerenza UI/Desktop/HTML | ⚠️ Aperto | Hero report = stock; non verificato end-to-end post-audit SQL |
+### Smoke manuale consigliato (non bloccante)
 
-**Chiusi (1–3, 5):** dati e integrità su 1434. **Aperti (4, 6–11):** codice, schema, documentazione o decisione — non bloccano affidabilità dati SQL.
+- [ ] **Log** — colonne «P&L periodo» e «Margine missione» su missioni recenti
+- [ ] **Client Desktop** — KPI «Risultato periodo (mese)» vs «Margine live (PBT)»
+- [ ] **Report HTML** missioni **#102–#105** — hero «RISULTATO PERIODO» + tabella stock
 
-### Tabella PASS / FAIL — query Q1–Q5 (run `27098112661`, 2026-06-07)
+### Fuori scope / non verificato
 
-| ID | Controllo | Esito | Evidenza numerica 1434 |
-|----|-----------|-------|------------------------|
-| **Q1** | `historical-demo-import:*` taggati Production | **PASS** | `AUDIT_Q1_HISTORICAL_DEMO_PRODUCTION_COUNT` = **0** (nessuna riga) |
-| **Q2** | Conteggio import per RuntimeMode | **PASS** | **0** sessioni `historical-demo-import:*` su tutto il DB (tabella vuota) |
-| **Q3** | P&L maggio 2026 Production (formula canonica SQL) | **PASS** | 1 sessione inclusa **#84** `pbt-20260531185420`; `CanonicalPeriodResultEuro` = **0,00**; `SumClosingStockEuro` = **945,60**; 1 sample in finestra maggio → PnL canonico 0 per regola single-sample. Ref doc storico: −94,94 / +915,90 / +441,61 € — **non coincide** (dataset maggio attuale ≠ snapshot audit doc) |
-| **Q4** | Margini orfani globali | **PASS** | `AUDIT_Q4_GLOBAL_ORPHAN_MARGINI_COUNT` = **0** |
-| **Q5** | Esistenza `MissionLifecycleEvents` | **PASS** (esito funzionale) | `AUDIT_Q5_MISSION_LIFECYCLE_EVENTS_EXISTS` = **0** → tabella **assente** su 1434. Workflow **fallito** step successivo (COUNT con subquery su tabella inesistente) — esito noto, non blocca audit dati |
+| Item | Nota |
+|------|------|
+| `Users_v2.IsRootOwner`, audit root owner | Thread separato |
+| Rimozione query `audit-ext` da workflow | Estensione temporanea commit `0c7740e` — cleanup opzionale |
+| Dashboard 1 / `1433` / `dev-eugeniotrading.com` | Fuori scope giacom |
 
-**Endpoint verificato run finale:** `SQL_CONFIG_SERVER=51.83.159.175,1434`, `SQL_CONFIG_DB=Eugenio-Demo10`, `SQL_CONFIG_USER=sa3`.
+### Riferimenti doc
 
-### Integrità DB già verificata (run precedenti + finale)
-
-| Metrica | Valore |
-|---------|--------|
-| `MissionSessions` | 133 |
-| `MissionMarginSamples` | 254.135 |
-| `DUPLICATE_MISSION_KEYS` | 0 |
-| `ORPHAN_SAMPLES` | 0 |
-| `SESSIONS_WITHOUT_SAMPLES` | 0 |
-| Completed / open | 132 chiuse, **#134** aperta Production |
-| Finestra orfana 04/06 | `MarginiCountInOrphan`=0 (`orphan-window` run `27097813710`) |
-| `Margini` totali al run | 1.046 righe |
-
-### Anomalie contabili sui dati prod — classificazione
-
-| Anomalia | Gravità | Tipo | Dettaglio |
-|----------|---------|------|-----------|
-| Nessuna sessione `historical-demo-import` in Production | — | OK | Q1=0 |
-| Margini senza sessione coprente | — | OK | Q4=0 globale |
-| Chiavi missione duplicate / sample orfani | — | OK | Integrità 0/0/0 |
-| `MissionLifecycleEvents` assente | **MED** | Schema | Tabella non deployata su 1434; audit eventi lifecycle non persistiti in SQL |
-| Maggio 2026: stock 945,60 € vs PnL canonico 0 € | **INFO** | Semantica | Coerente con 1 sample in finestra; stock ≠ flusso per design |
-| Ref `REPORT-CONTABILITA-CANONICA` maggio ≠ SQL attuale | **INFO** | Documentazione | Doc descrive audit codice su snapshot precedente; DB oggi ha 1 sessione maggio |
-| Report UI overlap UTC / hero stock (codice) | **HIGH** | Presentazione | Non corruzione dati SQL; vedi audit codice sotto |
-
-**Nessuna anomalia di corruzione o incoerenza referenziale rilevata sui dati 1434.**
-
-### Audit codice (read-only, fuori SQL — riserve presentazione)
-
-| Severità | Issue |
-|----------|-------|
-| HIGH | Filtro sessioni report/index = overlap UTC, non accounting day Europe/Rome |
-| HIGH | Hero HTML report = `TotalMarginEuro` (stock), non `periodResultEuro` (flusso) |
-| MED | `Log.vue` mostra solo `totalMarginEuro` |
-| MED | `validate-report-coherence.ps1` ACC-02/03 obsoleti |
-
-Nessuna patch applicata.
-
-### Non verificato (fuori scope autorizzato)
-
-| Item | Motivo |
-|------|--------|
-| `Users_v2.IsRootOwner`, `RootOwnerAuditEvents`, trigger | Non nelle 5 query Q1–Q5 |
-| `SessionsWithSamples7d` | Non nelle 5 query |
-| Admin users surface | Non nelle 5 query |
-| Rimozione query audit-ext da workflow | Non autorizzato — estensione temporanea `audit-ext:v2026-06-07` resta su `main` commit `0c7740e` |
-
-### Deploy / commit
-- **Push autorizzato:** commit `0c7740e` — solo `.github/workflows/diag-mission-db-readonly.yml` (+5 query read-only).
-- **Workflow eseguito:** `diag-mission-db-readonly.yml` run [`27098112661`](https://github.com/eugeniorossi2025-sudo/TradingDashboard-2a/actions/runs/27098112661) — conclusion `failure` per bug SQL Q5 COUNT; **tutte le evidenze Q1–Q5 raccolte**.
-- Nessun deploy applicativo, nessuna modifica DB, nessuna patch contabile.
-- `docs/AGENT-GIACOM.md` aggiornato localmente (questo blocco) — **non pushato**.
+- Formula canonica: `ops/dash2a-readiness/REPORT-CONTABILITA-CANONICA.md`
+- Gate deploy: `ops/dash2a-readiness/validate-report-coherence.ps1`
+- Predeploy HTML: `ops/dash2a-readiness/verify-mission-margin-predeploy.ps1`
 
 ---
 
