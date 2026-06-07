@@ -302,6 +302,9 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_
     CREATE INDEX [IX_MissionMarginSamples_Timestamp] ON [dbo].[MissionMarginSamples]([Timestamp]);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_MissionMarginSamples_RuntimeMode' AND object_id = OBJECT_ID(N'[dbo].[MissionMarginSamples]'))
     CREATE INDEX [IX_MissionMarginSamples_RuntimeMode] ON [dbo].[MissionMarginSamples]([RuntimeMode]);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_MissionSessions_OneOpen' AND object_id = OBJECT_ID(N'[dbo].[MissionSessions]'))
+   AND (SELECT COUNT(*) FROM [dbo].[MissionSessions] WHERE [Completed] = 0) <= 1
+    CREATE UNIQUE INDEX [UX_MissionSessions_OneOpen] ON [dbo].[MissionSessions]([Completed]) WHERE [Completed] = 0;
 """);
     }
 

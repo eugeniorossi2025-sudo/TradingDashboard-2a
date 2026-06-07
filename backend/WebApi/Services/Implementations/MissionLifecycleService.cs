@@ -183,9 +183,18 @@ public class MissionLifecycleService : IMissionLifecycleService
         {
             if (await HasStopWinActionCodeAsync(open, cancellationToken))
             {
-                var result = await FinalizeCurrentAsync("ActionCode1_STOP_WIN", cancellationToken);
                 await SetConfigurationValueAsync(MissionSuppressStartUntilResetKey, "1", "Mission start is suppressed after AC1 close until the next dashboard reset.", cancellationToken);
-                return result;
+                return await FinalizeCurrentAsync("ActionCode1_STOP_WIN", cancellationToken);
+            }
+
+            if (open.GlobalTarget > 0m)
+            {
+                var currentMargin = await GetCurrentMarginAsync(cancellationToken);
+                if (currentMargin >= open.GlobalTarget)
+                {
+                    await SetConfigurationValueAsync(MissionSuppressStartUntilResetKey, "1", "Mission start is suppressed after stop-win margin threshold until the next dashboard reset.", cancellationToken);
+                    return await FinalizeCurrentAsync("StopWinMarginThreshold", cancellationToken);
+                }
             }
 
             return null;
@@ -198,9 +207,22 @@ public class MissionLifecycleService : IMissionLifecycleService
         if (!resetAt.HasValue)
             return null;
 
+        var firstDecideAt = await _context.PcCurrentStatuses
+            .AsNoTracking()
+            .Where(row => row.LastUpdate > resetAt.Value && row.LastAdvice != null)
+            .OrderBy(row => row.LastUpdate)
+            .Select(row => row.LastUpdate)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (firstDecideAt == default)
+            return null;
+
+        if (await GetActiveTablesAsync(cancellationToken) < 1)
+            return null;
+
         var firstPoint = await _context.Margini
             .AsNoTracking()
-            .Where(point => point.Data.HasValue && point.Data.Value > resetAt.Value)
+            .Where(point => point.Data.HasValue && point.Data.Value > resetAt.Value && point.Data.Value >= firstDecideAt)
             .OrderBy(point => point.Data)
             .Select(point => new { Timestamp = point.Data!.Value, Margin = point.MargineValue ?? 0m })
             .FirstOrDefaultAsync(cancellationToken);
@@ -272,7 +294,7 @@ public class MissionLifecycleService : IMissionLifecycleService
         return new MissionLifecycleResult
         {
             Success = false,
-            Message = "La missione parte solo dal primo PBT reale successivo al reset dashboard",
+            Message = "La missione parte solo dopo il primo decide (LastAdvice) con margine reale successivo al reset dashboard",
             Mission = await GetCurrentAsync(cancellationToken)
         };
     }
@@ -445,6 +467,9 @@ public class MissionLifecycleService : IMissionLifecycleService
 
     private async Task<MissionLifecycleResult?> StartMissionFromFirstMarginPointAsync(DateTime startTime, decimal startMargin, CancellationToken cancellationToken)
     {
+        if (await IsMissionStartSuppressedAsync(cancellationToken))
+            return null;
+
         await using var transaction = await _context.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
 
         var openCount = await _context.MissionSessions.CountAsync(session => !session.Completed, cancellationToken);
@@ -494,7 +519,7 @@ public class MissionLifecycleService : IMissionLifecycleService
         return new MissionLifecycleResult
         {
             Success = true,
-            Message = "Missione avviata dal primo PBT reale dopo reset dashboard",
+            Message = "Missione avviata dopo primo decide con margine reale post-reset",
             MissionStarted = true,
             MissionSessionId = session.Id,
             EmailSent = emailSent,
@@ -881,6 +906,10 @@ BEGIN
         CONSTRAINT [FK_MissionMarginSamples_MissionSessions_SessionId] FOREIGN KEY ([SessionId]) REFERENCES [dbo].[MissionSessions]([ID]) ON DELETE CASCADE
     );
 END
+
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_MissionSessions_OneOpen' AND object_id = OBJECT_ID(N'[dbo].[MissionSessions]'))
+   AND (SELECT COUNT(*) FROM [dbo].[MissionSessions] WHERE [Completed] = 0) <= 1
+    CREATE UNIQUE INDEX [UX_MissionSessions_OneOpen] ON [dbo].[MissionSessions]([Completed]) WHERE [Completed] = 0;
 """, cancellationToken);
     }
 }
