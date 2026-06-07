@@ -26,11 +26,7 @@ const periodLabel = computed(() => {
 
 const isRangeValid = computed(() => Boolean(from.value && to.value && from.value <= to.value));
 
-const periodResultEuro = computed(() => {
-    const totals = report.value?.totals;
-    if (!totals) return 0;
-    return Number(totals.periodResultEuro ?? totals.totalMarginEuro ?? 0);
-});
+const periodResultEuro = computed(() => Number(report.value?.totals?.periodResultEuro ?? 0));
 
 const isDemoEmpty = computed(() => runtimeMode.value === 'Demo' && !loading.value && !error.value && (report.value?.totals?.sampleCount ?? 0) === 0);
 

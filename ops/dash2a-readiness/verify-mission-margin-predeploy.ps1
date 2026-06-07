@@ -1,4 +1,4 @@
-# Pre-deploy: MissionMarginEuro (builder+HTML) must equal MissionSessions.TotalMargin (DB).
+# Pre-deploy: HTML hero must equal periodResultEuro; MissionMarginEuro must equal MissionSessions.TotalMargin (DB).
 # Usage:
 #   $env:DASH2A_SQL = 'Server=...;Database=...;...'
 #   .\ops\dash2a-readiness\verify-mission-margin-predeploy.ps1
@@ -14,7 +14,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-$expected = @{
+$expectedClosingMargin = @{
     102 = 39.60
     103 = 99.20
     104 = 125.10
@@ -28,8 +28,8 @@ function Unwrap-Token($login) {
     throw 'Login failed: token missing'
 }
 
-function Parse-HeroMargin([string]$html) {
-    if ($html -match 'MARGINE MISSIONE[^<]*</div>\s*<div class="heroValue[^"]*">([+-]?[\d.,]+)\s*€') {
+function Parse-HeroPeriodResult([string]$html) {
+    if ($html -match 'RISULTATO PERIODO[^<]*</div>\s*<div class="heroValue[^"]*">([+-]?[\d.,]+)') {
         $raw = $Matches[1].Replace(',', '.')
         return [decimal]::Parse($raw, [System.Globalization.CultureInfo]::InvariantCulture)
     }
@@ -69,15 +69,22 @@ $token = Unwrap-Token $login
 $h = @{ Authorization = "Bearer $token" }
 
 $fail = 0
-foreach ($id in ($expected.Keys | Sort-Object)) {
+foreach ($id in ($expectedClosingMargin.Keys | Sort-Object)) {
+    $json = Invoke-RestMethod -Uri "$Api/api/mission/report/$id`?format=json" -Headers $h
+    $report = if ($json.data) { $json.data } else { $json }
+    $expectedPeriod = [decimal]$report.totals.periodResultEuro
+    $session = @($report.sessions | Where-Object { $_.sessionId -eq $id } | Select-Object -First 1)
+    $closing = if ($session) { [decimal]$session.missionMarginEuro } else { [decimal]0 }
+
     $html = (Invoke-WebRequest -Uri "$Api/api/mission/report/$id`?format=html" -Headers $h -UseBasicParsing).Content
-    $hero = Parse-HeroMargin $html
-    $exp = [decimal]$expected[$id]
-    $hasMarker = $html -match 'mission-report-html:v2026-06-04-db-total-margin'
-    $ok = $hero.HasValue -and [Math]::Abs($hero.Value - $exp) -lt 0.01m
+    $hero = Parse-HeroPeriodResult $html
+    $hasMarker = $html -match 'mission-report-html:v2026-06-07-period-result-hero'
+    $heroOk = $hero.HasValue -and [Math]::Abs($hero.Value - $expectedPeriod) -lt 0.01m
+    $closingOk = $expectedClosingMargin.ContainsKey($id) -and [Math]::Abs($closing - [decimal]$expectedClosingMargin[$id]) -lt 0.01m
+    $ok = $heroOk -and $closingOk -and $hasMarker
     if (-not $ok) { $fail++ }
     $status = if ($ok) { 'PASS' } else { 'FAIL' }
-    Write-Host "$status #$id HTML hero=$($hero) expected=$exp marker=$hasMarker"
+    Write-Host "$status #$id hero=$hero periodResult=$expectedPeriod closing=$closing marker=$hasMarker"
 }
 
 if ($fail -gt 0) { exit 3 }

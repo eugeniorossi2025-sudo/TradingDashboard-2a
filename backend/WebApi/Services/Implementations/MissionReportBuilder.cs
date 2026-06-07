@@ -55,7 +55,7 @@ public class MissionReportBuilder : IMissionReportBuilder
     public async Task<MissionRangeReportResponse> BuildRangeReportAsync(DateTime fromDate, DateTime toDateExclusive, string mode, CancellationToken cancellationToken = default)
     {
         var (periodStartUtc, periodEndUtc) = GetPeriodBoundsUtc(fromDate, toDateExclusive);
-        var candidateSessions = await ApplyAccountingPeriodSessionFilter(
+        var candidateSessions = await ApplyAccountingPeriodSessionFilterWithSamples(
                 _context.MissionSessions.AsNoTracking()
                     .Where(s => s.RuntimeMode == mode && s.Completed),
                 periodStartUtc,
@@ -93,8 +93,6 @@ public class MissionReportBuilder : IMissionReportBuilder
                 })
                 .ToListAsync(cancellationToken);
 
-        // Include every completed session overlapping the period (by UTC bounds).
-        // Do not drop missions that lack margin samples clipped inside the window.
         var sessions = candidateSessions;
 
         var investedCapitalBase = await GetInvestedCapitalBaseAsync();
@@ -379,9 +377,10 @@ public class MissionReportBuilder : IMissionReportBuilder
         DateTime periodStartUtc,
         DateTime periodEndUtc)
     {
+        // Rome accounting day: mission included when StartTime falls in [T0, T1_exclusive).
         return query.Where(session =>
-            session.StartTime < periodEndUtc
-            && (session.EndTime ?? session.StartTime) >= periodStartUtc);
+            session.StartTime >= periodStartUtc
+            && session.StartTime < periodEndUtc);
     }
 
     public IQueryable<MissionSession> ApplyAccountingPeriodSessionFilterWithSamples(

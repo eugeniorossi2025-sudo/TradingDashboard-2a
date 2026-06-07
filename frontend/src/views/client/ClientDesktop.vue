@@ -21,12 +21,12 @@ const from = `${romeYear}-${romeMonth}-01`;
 const to = toRomeIsoDate(today);
 
 const activeTables = computed(() => tableRows.value.length);
-const margin = computed(() => Number(productionReport.value?.totals?.totalMarginEuro ?? tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0)));
+const periodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? 0));
+const liveMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
 const target = computed(() => Number(productionReport.value?.totals?.globalTargetEuro || 0));
 const progress = computed(() => {
     const value = Number(productionReport.value?.totals?.progressPct);
-    if (Number.isFinite(value) && value > 0) return value;
-    return target.value > 0 ? (margin.value / target.value) * 100 : 0;
+    return Number.isFinite(value) ? value : 0;
 });
 const strategy = computed(() => {
     const row = tableRows.value.find((item) => item.valutazione || item.Valutazione || item.reason || item.Reason);
@@ -131,8 +131,12 @@ onMounted(loadData);
                 <div class="kpi-label">Tavoli Attivi</div>
             </article>
             <article class="kpi-card">
-                <div class="kpi-value" :class="toneClass(margin)">{{ formatMoney(margin) }}</div>
-                <div class="kpi-label">Global Margin</div>
+                <div class="kpi-value" :class="toneClass(periodResult)">{{ formatMoney(periodResult) }}</div>
+                <div class="kpi-label">Risultato periodo (mese)</div>
+            </article>
+            <article class="kpi-card">
+                <div class="kpi-value" :class="toneClass(liveMargin)">{{ formatMoney(liveMargin) }}</div>
+                <div class="kpi-label">Margine live (PBT)</div>
             </article>
             <article class="kpi-card">
                 <div class="kpi-value small">{{ strategy }}</div>
@@ -159,12 +163,15 @@ onMounted(loadData);
 
             <svg class="chart" viewBox="0 0 700 240">
                 <line class="axis" x1="12" y1="210" x2="688" y2="210"></line>
-                <path class="chart-line" :class="toneClass(margin)" :d="chartPath"></path>
+                <path class="chart-line" :class="toneClass(liveMargin)" :d="chartPath"></path>
             </svg>
 
             <div class="chart-stats">
                 <div>
-                    <span>Current Margin</span><strong :class="toneClass(margin)">{{ formatMoney(margin) }}</strong>
+                    <span>Risultato periodo</span><strong :class="toneClass(periodResult)">{{ formatMoney(periodResult) }}</strong>
+                </div>
+                <div>
+                    <span>Margine live</span><strong :class="toneClass(liveMargin)">{{ formatMoney(liveMargin) }}</strong>
                 </div>
                 <div>
                     <span>Target</span><strong>{{ formatMoney(target) }}</strong>
@@ -254,7 +261,7 @@ onMounted(loadData);
 }
 .kpi-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 14px;
     margin-bottom: 18px;
 }

@@ -42,6 +42,7 @@ export interface MissionReportIndexItem {
     completed: boolean;
     runtimeMode: string;
     totalMarginEuro: number;
+    periodNetPnlEuro?: number;
     finalMarginEuro?: number;
     globalTargetEuro: number;
     kFactor: number;

@@ -7,7 +7,7 @@ namespace WebApi.Services;
 
 public static class MissionReportHtmlBuilder
 {
-    public const string TemplateMarker = "mission-report-html:v2026-06-04-db-total-margin";
+    public const string TemplateMarker = "mission-report-html:v2026-06-07-period-result-hero";
 
     public static string Build(MissionRangeReportResponse report)
     {
@@ -21,12 +21,10 @@ public static class MissionReportHtmlBuilder
         var subtitle = $"Periodo: {period} • Modalità: {Html(report.RuntimeMode)} • Generato alle {generated} (Europe/Rome)";
 
         var singleSession = report.Sessions.Count == 1 ? report.Sessions[0] : null;
-        var heroMargin = singleSession != null
-            ? MissionMargin(singleSession)
-            : report.Totals.TotalMarginEuro;
+        var heroMargin = report.Totals.PeriodResultEuro;
         var heroLabel = singleSession != null
-            ? $"MARGINE MISSIONE • #{singleSession.SessionId}"
-            : "MARGINE PERIODO (somma missioni)";
+            ? $"RISULTATO PERIODO • #{singleSession.SessionId}"
+            : "RISULTATO PERIODO";
         var heroTone = Tone(heroMargin);
 
         var sb = new StringBuilder();
@@ -68,7 +66,7 @@ public static class MissionReportHtmlBuilder
         }
         else if (report.Sessions.Count > 0)
         {
-            sb.AppendLine($"<div class=\"heroSub\">{report.Sessions.Count.ToString(CultureInfo.InvariantCulture)} missioni • margine ufficiale a chiusura (MissionSessions.TotalMargin)</div>");
+            sb.AppendLine($"<div class=\"heroSub\">{report.Sessions.Count.ToString(CultureInfo.InvariantCulture)} missioni • P&amp;L periodo (delta sample clippati) • esclude missione aperta</div>");
         }
         sb.AppendLine("</div>");
 
@@ -77,10 +75,11 @@ public static class MissionReportHtmlBuilder
             var sectionTitle = report.Sessions.Count == 1 ? "Dettaglio missione" : "Missioni nel periodo";
             sb.AppendLine($"<div class=\"section\"><h2>{Html(sectionTitle)}</h2>");
             sb.AppendLine("<div class=\"sectionSub\">Margine missione = risultato reale registrato a chiusura missione, non il delta sample nella finestra contabile del periodo.</div>");
-            sb.AppendLine("<table class=\"table\"><thead><tr><th>Missione</th><th>Start</th><th>End</th><th>Durata</th><th>Tavoli</th><th>Mani</th><th>Margine missione</th></tr></thead><tbody>");
+            sb.AppendLine("<table class=\"table\"><thead><tr><th>Missione</th><th>Start</th><th>End</th><th>Durata</th><th>Tavoli</th><th>Mani</th><th>P&amp;L periodo</th><th>Margine missione</th></tr></thead><tbody>");
             foreach (var session in report.Sessions)
             {
                 var margin = MissionMargin(session);
+                var periodPnl = session.PeriodNetPnlEuro;
                 sb.AppendLine(
                     $"<tr><td>#{session.SessionId}</td>" +
                     $"<td>{FormatRomeDateTime(session.StartTime, culture)}</td>" +
@@ -88,6 +87,7 @@ public static class MissionReportHtmlBuilder
                     $"<td class=\"mono\">{Html(FormatDuration(session.StartTime, session.EndTime))}</td>" +
                     $"<td class=\"mono\">{session.ActiveTables.ToString(CultureInfo.InvariantCulture)}</td>" +
                     $"<td class=\"mono\">{session.RealHandsCount.ToString(CultureInfo.InvariantCulture)}</td>" +
+                    $"<td class=\"ledgerAmount {Tone(periodPnl)}\">{FormatEuro(periodPnl)}</td>" +
                     $"<td class=\"ledgerAmount {Tone(margin)}\">{FormatEuro(margin)}</td></tr>");
             }
             sb.AppendLine("</tbody></table></div>");

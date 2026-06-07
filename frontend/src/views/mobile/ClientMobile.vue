@@ -23,8 +23,8 @@ const lastSync = ref('');
 const { periodChip, from, to, demoFrom, demoTo, applyPeriodChip, formatPeriod, formatDemoPeriod } = useReportPeriod('month');
 const periodChips = REPORT_PERIOD_CHIPS;
 
-const demoPeriodResult = computed(() => Number(demoReport.value?.totals?.periodResultEuro ?? demoReport.value?.totals?.totalMarginEuro ?? 0));
-const productionPeriodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? productionReport.value?.totals?.totalMarginEuro ?? 0));
+const demoPeriodResult = computed(() => Number(demoReport.value?.totals?.periodResultEuro ?? 0));
+const productionPeriodResult = computed(() => Number(productionReport.value?.totals?.periodResultEuro ?? 0));
 
 const liveMargin = computed(() => tableRows.value.reduce((sum, row) => sum + getNumber(row, 'margine', 'Margine'), 0));
 const {

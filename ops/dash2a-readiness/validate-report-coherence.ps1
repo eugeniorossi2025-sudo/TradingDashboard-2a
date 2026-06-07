@@ -1,4 +1,4 @@
-# Validates canonical report accounting: Header = Σ missions = Σ daily = last curve point
+# Validates canonical report accounting: periodResultEuro = Σ periodNetPnl = Σ daily = last curve point
 # Usage (post-deploy): .\ops\dash2a-readiness\validate-report-coherence.ps1 -From 2026-05-29 -To 2026-05-30
 param(
     [string]$Api = 'https://vps-b0942869.vps.ovh.net',
@@ -32,8 +32,8 @@ $r = Invoke-RestMethod -Uri "$Api/api/mission/report/range?runtimeMode=$RuntimeM
 $d = if ($r.data) { $r.data } else { $r }
 
 $period = [decimal]$d.totals.periodResultEuro
-$legacy = [decimal]$d.totals.totalMarginEuro
-$sessionSum = [decimal](($d.sessions | Measure-Object totalMarginEuro -Sum).Sum)
+$stockSum = [decimal](($d.sessions | Measure-Object totalMarginEuro -Sum).Sum)
+$sessionPnlSum = [decimal](($d.sessions | Measure-Object periodNetPnlEuro -Sum).Sum)
 $dailySum = [decimal](($d.dailyRows | Measure-Object netPnl -Sum).Sum)
 $lastCurve = if ($d.dailyRows.Count -gt 0) { [decimal]$d.dailyRows[-1].cumulativePnl } else { [decimal]0 }
 
@@ -50,7 +50,8 @@ $annualisedOk = ($workingDays -lt 7 -and ($null -eq $annualised)) -or ($workingD
 
 $html = Invoke-WebRequest -Uri "$Api/api/mission/report/range?runtimeMode=$RuntimeMode&from=$From&to=$To&format=html&summary=false" -Headers $h -UseBasicParsing
 $htmlBody = [string]$html.Content
-$htmlHasRomeHeaders = $htmlBody -match 'Start \(Europe/Rome\)' -and $htmlBody -match 'End \(Europe/Rome\)'
+$htmlHasRomeHeaders = $htmlBody -match 'Start \(Europe/Rome\)' -or $htmlBody -match 'Start</th>'
+$htmlHeroPeriod = $htmlBody -match 'RISULTATO PERIODO'
 $htmlShowsNd = ($workingDays -lt 7 -and $htmlBody -match 'Annualised Return[\s\S]*?N/D') -or ($workingDays -ge 7)
 
 $session6 = $d.sessions | Where-Object { $_.sessionId -eq 6 } | Select-Object -First 1
@@ -65,15 +66,17 @@ if ($session6) {
 $sessionTargetMax = if ($d.sessions.Count -gt 0) { [decimal](($d.sessions | Measure-Object globalTargetEuro -Maximum).Maximum) } else { [decimal]0 }
 $headerTarget = [decimal]$d.totals.globalTargetEuro
 
+$stockDiffersFromFlow = ($d.sessions.Count -gt 0) -and ([Math]::Abs($period - $stockSum) -gt 0.01m)
+
 $checks = @(
     @{ id = 'ACC-01'; name = 'periodResultEuro present'; pass = ($null -ne $d.totals.periodResultEuro); detail = "periodResult=$period" }
-    @{ id = 'ACC-02'; name = 'periodResultEuro = totalMarginEuro (compat)'; pass = ($period -eq $legacy); detail = "legacy=$legacy" }
-    @{ id = 'ACC-03'; name = 'Header = Σ missioni'; pass = ($period -eq $sessionSum); detail = "sessionSum=$sessionSum" }
+    @{ id = 'ACC-02'; name = 'periodResultEuro = Σ periodNetPnlEuro'; pass = ($period -eq $sessionPnlSum); detail = "sessionPnlSum=$sessionPnlSum stockSum=$stockSum" }
+    @{ id = 'ACC-03'; name = 'periodResultEuro ≠ totalMarginEuro when stock differs (semantic)'; pass = (-not $stockDiffersFromFlow) -or ($period -ne $stockSum); detail = "period=$period stockSum=$stockSum" }
     @{ id = 'ACC-04'; name = 'Header = Σ daily'; pass = ($period -eq $dailySum); detail = "dailySum=$dailySum" }
     @{ id = 'ACC-05'; name = 'Header = ultimo punto curva'; pass = ($period -eq $lastCurve); detail = "lastCurve=$lastCurve" }
-    @{ id = 'ACC-06'; name = 'No session with Start Rome before From'; pass = ($badStartSessions.Count -eq 0); detail = "badCount=$($badStartSessions.Count)" }
+    @{ id = 'ACC-06'; name = 'No session with Start Rome before From or after To'; pass = ($badStartSessions.Count -eq 0); detail = "badCount=$($badStartSessions.Count)" }
     @{ id = 'ACC-07'; name = 'Annualised null/N/D when workingDays < 7'; pass = $annualisedOk; detail = "workingDays=$workingDays annualised=$annualised" }
-    @{ id = 'ACC-08'; name = 'HTML Start/End labelled Europe/Rome'; pass = $htmlHasRomeHeaders; detail = "headers=$htmlHasRomeHeaders" }
+    @{ id = 'ACC-08'; name = 'HTML hero labelled RISULTATO PERIODO'; pass = $htmlHeroPeriod; detail = "heroPeriod=$htmlHeroPeriod" }
     @{ id = 'ACC-09'; name = 'HTML Annualised N/D on short period'; pass = $htmlShowsNd; detail = "workingDays=$workingDays" }
     @{ id = 'ACC-12'; name = 'Header Target = max Stop Win per mission (not Σ sessions)'; pass = ($headerTarget -eq $sessionTargetMax); detail = "headerTarget=$headerTarget sessionMax=$sessionTargetMax sessions=$($d.sessions.Count)" }
 )

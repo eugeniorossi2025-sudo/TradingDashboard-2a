@@ -1,6 +1,6 @@
 # Report finanziario — formula canonica e piano di riallineamento
 
-**Stato:** specifica approvata come gate pre-implementazione  
+**Stato:** implementato 2026-06-07 (`mission-report-html:v2026-06-07-period-result-hero`, filtro Rome start-day)  
 **Repo:** DASH2A (`NuovaDashboard-MarcoTurri`)  
 **Audit di riferimento:** maggio 2026 Production (−94,94 € header attuale vs +915,90 € tabella vs +441,61 € Final Margin)  
 **Regola:** nessun commit di reportistica finché ogni metrica derivata non mappa esplicitamente alla formula sotto.
@@ -197,15 +197,17 @@ Helper consigliato (backend): `MissionReportTime.ToRome(DateTime utc)` + `Missio
 
 ---
 
-## 5. Mapping codice → interventi (checklist pre-PR)
+## 5. Mapping codice → interventi (checklist — completata 2026-06-07)
 
-| File | Intervento |
-|------|------------|
-| `backend/WebApi/Controllers/MissionController.cs` | `BuildReportAsync`, `BuildDailyRows`, `BuildSampleSummaries` — clip Rome, daily per-session-per-day, nuovi totali |
-| `backend/WebApi/Services/MissionReportHtmlBuilder.cs` | Hero "Risultato periodo"; rimuovere Final Margin da griglia; rename tabella |
-| `frontend/src/service/FinancialReportService.ts` | Tipi: `periodResultEuro`, rename label consumer |
-| `frontend/src/views/pages/Log.vue` | Colonna "Margine PBT a chiusura" |
-| Test | Fixture maggio 2026: assert header = Σ missioni = Σ daily |
+| File | Intervento | Stato |
+|------|------------|-------|
+| `MissionReportBuilder.cs` | Filtro `StartTime ∈ [T0,T1)` Rome; range = `WithSamples` | ✅ |
+| `MissionReportHtmlBuilder.cs` | Hero `periodResultEuro`; tabella P&L periodo + margine missione | ✅ |
+| `FinancialReportService.ts` | Tipo `periodNetPnlEuro` index | ✅ |
+| `Log.vue` | Colonne P&L periodo + Margine missione | ✅ |
+| `ClientDesktop.vue` | KPI periodo + margine live separati | ✅ |
+| `AdminMobile*.vue`, `ClientMobile.vue` | Solo `periodResultEuro` (no fallback stock) | ✅ |
+| `validate-report-coherence.ps1` | ACC-02/03 allineati a formula canonica | ✅ |
 
 ---
 
@@ -227,11 +229,11 @@ Helper consigliato (backend): `MissionReportTime.ToRome(DateTime utc)` + `Missio
 
 ## 7. Criteri di merge
 
-- [ ] Spec §2 implementata e coperta da test automatici
-- [ ] Nessun campo hero etichettato "Final Margin" come performance
-- [ ] Documentazione API aggiornata (`periodResultEuro`, deprecazione semantica `totalMarginEuro` o alias)
-- [ ] Validazione manuale report HTML maggio 2026 + un periodo multi-missione cross-day
-- [ ] Nessuna regressione index missioni (`/api/mission/reports/index`) — stessa formula P&L periodo per riga
+- [x] Spec §2 implementata (`EnsureReportCoherence` runtime + `validate-report-coherence.ps1`)
+- [x] Hero HTML = `RISULTATO PERIODO` (`periodResultEuro`)
+- [x] `totalMarginEuro` / `missionMarginEuro` = stock chiusura (non hero)
+- [ ] Validazione post-deploy su prod (maggio 2026 + 29–30/05 ACC-10)
+- [x] Index `/api/mission/reports/index` — stesso filtro Rome + `periodNetPnlEuro`
 
 ---
 
@@ -243,4 +245,12 @@ Helper consigliato (backend): `MissionReportTime.ToRome(DateTime utc)` + `Missio
 
 ---
 
-*Documento gate — implementazione reportistica autorizzata solo dopo review di questa spec.*
+## 9. Glossario UI (tre grandezze)
+
+| Grandezza | Campo API | Tipo | Dove in UI |
+|-----------|-----------|------|------------|
+| Margine live | `currentMargin`, `margine` tavolo | Stock PBT istantaneo | Dashboard, AdminMobileLive hero, ClientDesktop «Margine live» |
+| Margine di chiusura | `totalMarginEuro`, `missionMarginEuro` | Stock fine missione | Log, HTML tabella dettaglio |
+| P&L periodo | `periodResultEuro`, `periodNetPnlEuro` | Flusso (delta sample clippati) | Hero report, mobile, Log colonna P&L, ClientDesktop KPI periodo |
+
+*Implementazione 2026-06-07 — verifica post-deploy con `validate-report-coherence.ps1`.*

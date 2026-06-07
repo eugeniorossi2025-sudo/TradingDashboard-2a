@@ -286,7 +286,7 @@ function formatLocalDate(date) {
                     <div class="flex flex-col md:flex-row md:items-center gap-2 p-3 bg-surface-50 dark:bg-surface-800">
                         <div>
                             <h5 class="m-0 text-base">Lista missioni</h5>
-                            <p class="text-muted-color mt-1 mb-0">Filtri missione, paginazione e apertura report singolo.</p>
+                            <p class="text-muted-color mt-1 mb-0">P&amp;L periodo = delta sample nella finestra filtro; Margine missione = stock a chiusura (TotalMargin).</p>
                         </div>
                         <div class="md:ml-auto text-sm text-muted-color">skip={{ missionReportSkip }} · limit={{ missionReportLimit }}</div>
                     </div>
@@ -309,6 +309,11 @@ function formatLocalDate(date) {
                         </Column>
                         <Column field="kFactor" header="K" />
                         <Column field="activeTables" header="Tavoli" />
+                        <Column field="periodNetPnlEuro" header="P&amp;L periodo">
+                            <template #body="{ data }">
+                                <span :class="Number(data.periodNetPnlEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.periodNetPnlEuro ?? 0) }}</span>
+                            </template>
+                        </Column>
                         <Column field="totalMarginEuro" header="Margine missione">
                             <template #body="{ data }">
                                 <span :class="Number(data.totalMarginEuro) >= 0 ? 'text-green-500' : 'text-red-500'">{{ formatMoney(data.totalMarginEuro || 0) }}</span>
