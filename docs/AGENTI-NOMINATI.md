@@ -22,6 +22,8 @@ giacom fix pagina dashboard Vue
 **Gestisce:** frontend Vue, WebApi, Decisore, deploy DASH2A.  
 **Non tocca:** GameBot exe, EUGENIO13, admin IIS Eugenio.
 
+**Fine scope:** `chiudi scope` → aggiorna **`Stato sessione`** in `AGENT-GIACOM.md`.
+
 ---
 
 ## giacomo1 — GameBot Giacomo (linea 1.7)
@@ -40,6 +42,8 @@ giacomo1 patch waiting probe su tools/eugenio-bot
 
 **Gestisce:** `tools/eugenio-bot`, runtime `relisegiacomo ok 1.6/1.7`, build/promozione bot.  
 **Non tocca:** Vue dashboard, Eugenio13, `baccarat-bot-main-socket-artifact`.
+
+**Fine scope:** `chiudi scope` → aggiorna **`Stato sessione`** in `AGENT-GIACOMO1.md`.
 
 ---
 

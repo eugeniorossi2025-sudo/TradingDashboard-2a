@@ -4,6 +4,7 @@
 > **Scope:** patch/build/deploy GameBot Giacomo — **NON** dashboard Vue/WebApi (`giacom`), **NON** Eugenio EUGENIO13 (`marco1`)
 > **Marker:** `agent-giacomo1:v2026-06-06`
 > **Leggere SOLO questo file** per task bot Giacomo.
+> **Aggiornare a fine scope:** sezione **`Stato sessione`** in **questo file** (non `AGENT-GIACOM.md`, non altri doc).
 
 ---
 
@@ -19,6 +20,30 @@
 **Remote:** `eugeniorossi2025-sudo/TradingDashboard-2a`
 
 **VIETATO:** `baccarat-bot-main-socket-artifact`, `EUGENIO13`, `tools/eugenio-gamebot/source`, cartelle Desktop `Gamebot_FirstPlay_*`, repo Dashboard 1.
+
+**Documento da aggiornare a fine scope:** `docs/AGENT-GIACOMO1.md` → sezione **`Stato sessione`** (sotto).
+
+---
+
+## Stato sessione (agente aggiorna a fine ogni scope)
+
+> Sovrascrivere **solo questo blocco** quando il task è concluso o l'utente scrive **`chiudi scope`**.
+
+**Marker sessione:** `agent-giacomo1:session:2026-06-06`
+
+### Ultimo tema
+- Doc agente `AGENT-GIACOMO1.md` consolidato; release runtime attiva **1.6** documentata in §14.
+
+### Fatto
+- Runtime attivo: `relisegiacomo ok 1.6` (SHA256 `1BA571C2…B8DA5D`).
+- Push doc `ada13cf` su `main`.
+
+### Resta / prossimo passo
+- Linea **1.7** in `tools/eugenio-bot` — cartella runtime `relisegiacomo ok 1.7` **assente**; promozione solo con commit+tag+hash verificato.
+
+### Deploy / commit
+- Sorgente: `tools/eugenio-bot` su branch `main`.
+- Doc: `ada13cf`; tag release bot: `gamebot-1.6-waiting-probe-369-pause-preset-2026-06-06`.
 
 ---
 
@@ -315,3 +340,4 @@ Hash completi (verifica pre-deploy):
 - [ ] **Non** confondere con Eugenio: OCR v5f / waiting mani 1–30 = **marco1**, non Giacomo
 - [ ] Pre-promozione: hash build = hash cartella runtime; tag git dopo ogni release
 - [ ] **Non** letto `AGENT-GIACOM.md` salvo chiarimento infra condivisa
+- [ ] **Fine scope:** sezione **`Stato sessione`** aggiornata in **questo file**

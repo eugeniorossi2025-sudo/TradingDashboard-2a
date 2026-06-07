@@ -4,6 +4,7 @@
 > **Scope:** Vue frontend, WebApi, Decisore, deploy DASH2A — **NON** GameBot (`giacomo1`), **NON** Dashboard 1 / Eugenio (`marco`, `marco1`)
 > **Marker:** `agent-giacom:v2026-06-06`
 > **Leggere SOLO questo file** — non aprire altri doc DASH2A salvo task esplicito dell'utente.
+> **Aggiornare a fine scope:** sezione **`Stato sessione`** in **questo file** (non altri `AGENT-*`, non `AI-STATE.md`).
 
 ---
 
@@ -18,6 +19,30 @@
 **Clone obbligatorio:** `C:\Users\eugen\Desktop\NuovaDashboard-MarcoTurri`
 **Remote:** `eugeniorossi2025-sudo/TradingDashboard-2a`
 **Branch:** `main`
+
+**Documento da aggiornare a fine scope:** `docs/AGENT-GIACOM.md` → sezione **`Stato sessione`** (sotto).
+
+---
+
+## Stato sessione (agente aggiorna a fine ogni scope)
+
+> Sovrascrivere **solo questo blocco** quando il task è concluso o l'utente scrive **`chiudi scope`**.
+
+**Marker sessione:** `agent-giacom:session:2026-06-06`
+
+### Ultimo tema
+- Documentazione agenti DASH2A: `AGENT-GIACOM.md` / `AGENT-GIACOMO1.md` + regola chiusura scope.
+
+### Fatto
+- Push `main` commit `ada13cf` — doc agenti giacom/giacomo1 su GitHub.
+- Stack prod allineato (2026-06-05): WebApi + Firebase + Decisore @ `8e2efe1`.
+
+### Resta / prossimo passo
+- Lavori dashboard/Decisore/WebApi secondo task utente; bot Giacomo → agente **giacomo1**.
+
+### Deploy / commit
+- Doc: `ada13cf` su `main` (TradingDashboard-2a).
+- Smoke: `GET https://vps-b0942869.vps.ovh.net/api/Auth/test` → 200; frontend `https://eugenio-dashboard-2a.web.app/`.
 
 ---
 
@@ -1034,3 +1059,4 @@ gh workflow run "DIAG - Decisore runner readonly" --repo eugeniorossi2025-sudo/T
 - [ ] **Non** letto doc Eugenio / `marco` / `marco1`
 - [ ] Smoke post-deploy WebApi: `GET https://vps-b0942869.vps.ovh.net/api/Auth/test` → 200
 - [ ] Frontend prod: `https://eugenio-dashboard-2a.web.app/` (non `eugenio-dashboard-2.web.app`)
+- [ ] **Fine scope:** sezione **`Stato sessione`** aggiornata in **questo file**
