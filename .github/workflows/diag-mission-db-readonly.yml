@@ -1,5 +1,7 @@
 name: DASH2A Mission DB Readonly Diagnostic
 
+# audit-ext:v2026-06-07 — 5 query contabilità read-only (temporaneo, solo SELECT su 1434)
+
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +22,7 @@ jobs:
       - Windows
       - DASH2A
       - DASH2A-BACKEND
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Guard read-only scope
@@ -189,6 +191,208 @@ jobs:
             COUNT_BIG(*) AS PcCurrentRows,
             MAX(LAST_UPDATE) AS LastBotUpdate
           FROM dbo.Pc_CurrentStatus;
+          "@
+
+          Write-Host ""
+          Write-Host "=== AUDIT-EXT v2026-06-07 (read-only accounting probes) ==="
+
+          # Q1 — historical-demo-import:* tagged Production
+          Invoke-ScalarQuery 'AUDIT_Q1_HISTORICAL_DEMO_PRODUCTION_COUNT' @"
+          SELECT COUNT_BIG(*)
+          FROM dbo.MissionSessions
+          WHERE MissionKey LIKE N'historical-demo-import:%'
+            AND RuntimeMode = N'Production';
+          "@
+
+          Invoke-TableQuery 'AUDIT Q1 detail — historical-demo Production sessions' @"
+          SELECT ID, MissionKey, StartTime, EndTime, TotalMargin, FinalizationReason, RuntimeMode
+          FROM dbo.MissionSessions
+          WHERE MissionKey LIKE N'historical-demo-import:%'
+            AND RuntimeMode = N'Production'
+          ORDER BY ID;
+          "@
+
+          # Q2 — import count by RuntimeMode
+          Invoke-TableQuery 'AUDIT Q2 — historical-demo-import count by RuntimeMode' @"
+          SELECT RuntimeMode, COUNT_BIG(*) AS ImportSessions, SUM(TotalMargin) AS SumTotalMargin
+          FROM dbo.MissionSessions
+          WHERE MissionKey LIKE N'historical-demo-import:%'
+          GROUP BY RuntimeMode
+          ORDER BY RuntimeMode;
+          "@
+
+          # Q3 — May 2026 Production P&L (canonical clip, Europe/Rome wall-clock on stored datetime2)
+          # T0=2026-05-01, T1ex=2026-06-01; mission included if CAST(StartTime AS date) in May and Completed=1
+          Invoke-TableQuery 'AUDIT Q3 — May 2026 Production sessions included (canonical start-day)' @"
+          SELECT
+            m.ID,
+            m.MissionKey,
+            m.StartTime,
+            m.EndTime,
+            m.TotalMargin AS ClosingStockEuro,
+            m.FinalizationReason,
+            (SELECT COUNT_BIG(*) FROM dbo.MissionMarginSamples s
+             WHERE s.SessionId = m.ID
+               AND s.Timestamp >= '2026-05-01'
+               AND s.Timestamp < '2026-06-01') AS SamplesInMayWindow
+          FROM dbo.MissionSessions m
+          WHERE m.RuntimeMode = N'Production'
+            AND m.Completed = 1
+            AND CAST(m.StartTime AS date) >= '2026-05-01'
+            AND CAST(m.StartTime AS date) <= '2026-05-31'
+          ORDER BY m.ID;
+          "@
+
+          Invoke-TableQuery 'AUDIT Q3 — May 2026 per-session canonical period PnL (samples clipped)' @"
+          WITH Clipped AS (
+            SELECT
+              m.ID AS SessionId,
+              m.MissionKey,
+              s.Timestamp,
+              s.TotalMargin,
+              ROW_NUMBER() OVER (PARTITION BY m.ID ORDER BY s.Timestamp ASC) AS RnAsc,
+              ROW_NUMBER() OVER (PARTITION BY m.ID ORDER BY s.Timestamp DESC) AS RnDesc,
+              COUNT_BIG(*) OVER (PARTITION BY m.ID) AS SampleCnt
+            FROM dbo.MissionSessions m
+            INNER JOIN dbo.MissionMarginSamples s ON s.SessionId = m.ID
+            WHERE m.RuntimeMode = N'Production'
+              AND m.Completed = 1
+              AND CAST(m.StartTime AS date) >= '2026-05-01'
+              AND CAST(m.StartTime AS date) <= '2026-05-31'
+              AND s.Timestamp >= '2026-05-01'
+              AND s.Timestamp < '2026-06-01'
+          ),
+          PerSession AS (
+            SELECT
+              SessionId,
+              MissionKey,
+              SampleCnt,
+              MAX(CASE WHEN RnAsc = 1 THEN TotalMargin END) AS FirstMarginInWindow,
+              MAX(CASE WHEN RnDesc = 1 THEN TotalMargin END) AS LastMarginInWindow
+            FROM Clipped
+            GROUP BY SessionId, MissionKey, SampleCnt
+          )
+          SELECT
+            SessionId,
+            MissionKey,
+            SampleCnt,
+            FirstMarginInWindow,
+            LastMarginInWindow,
+            CASE
+              WHEN SampleCnt < 2 THEN CAST(0 AS decimal(18,2))
+              ELSE LastMarginInWindow - FirstMarginInWindow
+            END AS CanonicalPeriodPnlEuro
+          FROM PerSession
+          ORDER BY SessionId;
+          "@
+
+          Invoke-TableQuery 'AUDIT Q3 — May 2026 totals vs REPORT-CONTABILITA-CANONICA reference' @"
+          WITH Clipped AS (
+            SELECT
+              m.ID AS SessionId,
+              s.TotalMargin,
+              ROW_NUMBER() OVER (PARTITION BY m.ID ORDER BY s.Timestamp ASC) AS RnAsc,
+              ROW_NUMBER() OVER (PARTITION BY m.ID ORDER BY s.Timestamp DESC) AS RnDesc,
+              COUNT_BIG(*) OVER (PARTITION BY m.ID) AS SampleCnt
+            FROM dbo.MissionSessions m
+            INNER JOIN dbo.MissionMarginSamples s ON s.SessionId = m.ID
+            WHERE m.RuntimeMode = N'Production'
+              AND m.Completed = 1
+              AND CAST(m.StartTime AS date) >= '2026-05-01'
+              AND CAST(m.StartTime AS date) <= '2026-05-31'
+              AND s.Timestamp >= '2026-05-01'
+              AND s.Timestamp < '2026-06-01'
+          ),
+          PerSession AS (
+            SELECT
+              SessionId,
+              SampleCnt,
+              MAX(CASE WHEN RnAsc = 1 THEN TotalMargin END) AS FirstM,
+              MAX(CASE WHEN RnDesc = 1 THEN TotalMargin END) AS LastM
+            FROM Clipped
+            GROUP BY SessionId, SampleCnt
+          ),
+          Pnl AS (
+            SELECT
+              SessionId,
+              CASE WHEN SampleCnt < 2 THEN 0 ELSE LastM - FirstM END AS Pnl
+            FROM PerSession
+          )
+          SELECT
+            (SELECT COUNT_BIG(*) FROM dbo.MissionSessions m
+             WHERE m.RuntimeMode = N'Production' AND m.Completed = 1
+               AND CAST(m.StartTime AS date) >= '2026-05-01'
+               AND CAST(m.StartTime AS date) <= '2026-05-31') AS IncludedSessionCount,
+            (SELECT COUNT_BIG(*) FROM Pnl) AS SessionsWithClippedSamples,
+            (SELECT CAST(SUM(Pnl) AS decimal(18,2)) FROM Pnl) AS CanonicalPeriodResultEuro,
+            (SELECT CAST(SUM(m.TotalMargin) AS decimal(18,2)) FROM dbo.MissionSessions m
+             WHERE m.RuntimeMode = N'Production' AND m.Completed = 1
+               AND CAST(m.StartTime AS date) >= '2026-05-01'
+               AND CAST(m.StartTime AS date) <= '2026-05-31') AS SumClosingStockEuro,
+            CAST(-94.94 AS decimal(18,2)) AS RefApiNetPnlHeader_May2026,
+            CAST(915.90 AS decimal(18,2)) AS RefApiSessionSum_May2026,
+            CAST(441.61 AS decimal(18,2)) AS RefApiFinalMargin_May2026;
+          "@
+
+          # Q4 — global orphan Margini (no mission session covers timestamp)
+          Invoke-ScalarQuery 'AUDIT_Q4_GLOBAL_ORPHAN_MARGINI_COUNT' @"
+          SELECT COUNT_BIG(*)
+          FROM dbo.Margini m
+          WHERE m.Data IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.MissionSessions s
+              WHERE m.Data >= s.StartTime
+                AND (s.EndTime IS NULL OR m.Data <= s.EndTime)
+            );
+          "@
+
+          Invoke-TableQuery 'AUDIT Q4 — TOP 20 global orphan Margini rows' @"
+          SELECT TOP (20)
+            m.ID,
+            m.Data,
+            m.Margine
+          FROM dbo.Margini m
+          WHERE m.Data IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1
+              FROM dbo.MissionSessions s
+              WHERE m.Data >= s.StartTime
+                AND (s.EndTime IS NULL OR m.Data <= s.EndTime)
+            )
+          ORDER BY m.Data;
+          "@
+
+          # Q5 — MissionLifecycleEvents existence and content
+          Invoke-ScalarQuery 'AUDIT_Q5_MISSION_LIFECYCLE_EVENTS_EXISTS' @"
+          SELECT CASE WHEN OBJECT_ID(N'dbo.MissionLifecycleEvents', N'U') IS NOT NULL THEN 1 ELSE 0 END;
+          "@
+
+          Invoke-ScalarQuery 'AUDIT_Q5_MISSION_LIFECYCLE_EVENTS_COUNT' @"
+          SELECT CASE
+            WHEN OBJECT_ID(N'dbo.MissionLifecycleEvents', N'U') IS NULL THEN NULL
+            ELSE (SELECT COUNT_BIG(*) FROM dbo.MissionLifecycleEvents)
+          END;
+          "@
+
+          Invoke-TableQuery 'AUDIT Q5 — MissionLifecycleEvents schema (if exists)' @"
+          SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE
+          FROM INFORMATION_SCHEMA.COLUMNS
+          WHERE TABLE_SCHEMA = N'dbo' AND TABLE_NAME = N'MissionLifecycleEvents'
+          ORDER BY ORDINAL_POSITION;
+          "@
+
+          Invoke-TableQuery 'AUDIT Q5 — MissionLifecycleEvents TOP 10 (if exists)' @"
+          IF OBJECT_ID(N'dbo.MissionLifecycleEvents', N'U') IS NOT NULL
+          BEGIN
+            SELECT TOP (10) *
+            FROM dbo.MissionLifecycleEvents
+            ORDER BY 1 DESC;
+          END
+          ELSE
+          BEGIN
+            SELECT CAST(N'TABLE_MISSING' AS nvarchar(32)) AS Status;
+          END
           "@
 
           $connection.Close()
