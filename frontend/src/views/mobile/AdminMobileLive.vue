@@ -8,7 +8,9 @@ import { useOpenMissionHero } from '@/composables/useOpenMissionHero';
 import { REPORT_PERIOD_CHIPS, useReportPeriod } from '@/composables/useReportPeriod';
 import { formatRomeTime } from '@/utils/romeTime';
 import { computed, onMounted, ref } from 'vue';
+import { useRouter } from 'vue-router';
 
+const router = useRouter();
 const loading = ref(true);
 const error = ref('');
 const tableRows = ref([]);
@@ -28,6 +30,8 @@ const {
     loadCurrentMission,
     hasOpenMission,
     heroSessionId,
+    missionStartedAtLabel,
+    missionElapsedLabel,
     heroMargin,
     stopWinEuro,
     missionTarget,
@@ -203,6 +207,10 @@ function downloadReport(runtimeMode) {
     return FinancialReportService.openHtmlReport(runtimeMode, rangeFrom, rangeTo);
 }
 
+function openFinancialReports() {
+    router.push('/admin/mobile-reports');
+}
+
 onMounted(loadData);
 </script>
 
@@ -258,6 +266,11 @@ onMounted(loadData);
                         <div class="mini-label">Sessione</div>
                         <div class="stat-v">{{ hasOpenMission ? `#${heroSessionId}` : '—' }}</div>
                         <div class="stat-sub">{{ hasOpenMission ? 'Missione corrente' : 'Idle' }}</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="mini-label">Durata</div>
+                        <div class="stat-v">{{ hasOpenMission ? missionElapsedLabel : '—' }}</div>
+                        <div class="stat-sub">{{ hasOpenMission ? `Start ${missionStartedAtLabel}` : 'Nessuna missione aperta' }}</div>
                     </div>
                     <div class="stat-box">
                         <div class="mini-label">Margine live</div>
@@ -578,7 +591,7 @@ onMounted(loadData);
 .hero-grid {
     margin-top: 18px;
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 .stat-box,

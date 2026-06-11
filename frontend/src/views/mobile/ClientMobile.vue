@@ -31,6 +31,8 @@ const {
     loadCurrentMission,
     hasOpenMission,
     heroSessionId,
+    missionStartedAtLabel,
+    missionElapsedLabel,
     heroMargin,
     stopWinEuro,
     missionTarget,
@@ -199,7 +201,7 @@ onMounted(loadData);
                     </div>
                 </div>
                 <div class="subline numeric-stable" dir="ltr">
-                    <template v-if="hasOpenMission">Missione #{{ heroSessionId }} · {{ heroProgressLabel }}</template>
+                    <template v-if="hasOpenMission">Missione #{{ heroSessionId }} · Durata {{ missionElapsedLabel }} · {{ heroProgressLabel }}</template>
                     <template v-else>{{ heroNote }}</template>
                 </div>
                 <div v-if="hasOpenMission && missionTarget > 0" class="progress-wrap">
@@ -211,6 +213,11 @@ onMounted(loadData);
                 <div class="panel stat">
                     <div class="eyebrow">Sessione</div>
                     <div class="stat-value">{{ hasOpenMission ? `#${heroSessionId}` : '—' }}</div>
+                    <div class="subline">{{ hasOpenMission ? `Start ${missionStartedAtLabel}` : `${activeTables} tavoli live` }}</div>
+                </div>
+                <div class="panel stat">
+                    <div class="eyebrow">Durata</div>
+                    <div class="stat-value">{{ hasOpenMission ? missionElapsedLabel : '—' }}</div>
                     <div class="subline">{{ activeTables }} tavoli live</div>
                 </div>
                 <div class="panel stat">

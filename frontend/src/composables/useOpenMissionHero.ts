@@ -1,5 +1,6 @@
 import { FinancialReportService, type MissionLifecycleState } from '@/service/FinancialReportService';
 import { useStopWinConfig } from '@/composables/useStopWinConfig';
+import { formatRomeDateTime } from '@/utils/romeTime';
 import { computed, ref, type Ref } from 'vue';
 
 /**
@@ -23,6 +24,38 @@ export function useOpenMissionHero(liveMarginSum: Ref<number>) {
     const hasOpenMission = computed(() => Boolean(currentMission.value?.hasOpenMission));
 
     const heroSessionId = computed(() => (hasOpenMission.value ? currentMission.value?.sessionId ?? null : null));
+
+    function parseServerUtcDate(value?: string | null): Date | null {
+        if (!value) return null;
+        const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value) ? value : `${value}Z`;
+        const date = new Date(normalized);
+        return Number.isNaN(date.getTime()) ? null : date;
+    }
+
+    function formatDuration(ms: number): string {
+        const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+
+        if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m`;
+        if (minutes > 0) return `${minutes}m ${String(seconds).padStart(2, '0')}s`;
+        return `${seconds}s`;
+    }
+
+    const missionStartedAt = computed(() => (hasOpenMission.value ? currentMission.value?.startTime ?? null : null));
+
+    const missionStartedAtLabel = computed(() => (missionStartedAt.value ? formatRomeDateTime(missionStartedAt.value) : '—'));
+
+    const missionElapsedMs = computed(() => {
+        if (!hasOpenMission.value) return 0;
+        const start = parseServerUtcDate(currentMission.value?.startTime);
+        if (!start) return 0;
+        const end = parseServerUtcDate(currentMission.value?.endTime) ?? new Date();
+        return end.getTime() - start.getTime();
+    });
+
+    const missionElapsedLabel = computed(() => (hasOpenMission.value && missionElapsedMs.value > 0 ? formatDuration(missionElapsedMs.value) : '—'));
 
     const heroMargin = computed(() => {
         if (hasOpenMission.value) {
@@ -63,6 +96,10 @@ export function useOpenMissionHero(liveMarginSum: Ref<number>) {
         loadCurrentMission,
         hasOpenMission,
         heroSessionId,
+        missionStartedAt,
+        missionStartedAtLabel,
+        missionElapsedMs,
+        missionElapsedLabel,
         heroMargin,
         stopWinEuro,
         missionTarget,
