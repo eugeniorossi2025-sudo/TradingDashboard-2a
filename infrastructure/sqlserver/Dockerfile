@@ -1,7 +1,8 @@
 FROM mcr.microsoft.com/mssql/server:2022-latest
 
-# Railway mounts the persistent data volume as root-owned. SQL Server 2022
-# normally starts as uid 10001, which cannot initialize that mount. Running
-# the container as root is Microsoft-supported for this storage scenario.
+# Railway attaches the persistent volume as root-owned. Repair its ownership
+# before each boot, then run the SQL Server process as its supported mssql user.
 USER root
-WORKDIR /var/opt/mssql
+COPY start-sqlserver.sh /usr/local/bin/start-sqlserver.sh
+RUN chmod 755 /usr/local/bin/start-sqlserver.sh
+ENTRYPOINT ["/usr/local/bin/start-sqlserver.sh"]
