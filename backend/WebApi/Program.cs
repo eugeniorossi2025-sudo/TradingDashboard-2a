@@ -168,6 +168,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
+
 // Map SignalR Hub
 app.MapHub<DashboardHub>("/dashboardHub");
 

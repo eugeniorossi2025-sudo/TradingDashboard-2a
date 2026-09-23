@@ -24,6 +24,7 @@ var app = builder.Build();
 app.UseMiddleware<ApiLoggingMiddleware>();
 
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy" }));
 
 app.Run();
 
