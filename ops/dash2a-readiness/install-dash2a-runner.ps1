@@ -21,7 +21,15 @@ if (-not $isAdmin) {
 }
 
 if (Test-Path (Join-Path $RunnerDir '.runner')) {
-  Write-Host "Runner already configured in $RunnerDir. No changes made." -ForegroundColor Yellow
+  $existingService = Get-CimInstance Win32_Service | Where-Object {
+    $_.Name -like 'actions.runner.*' -and $_.PathName -like "*$RunnerDir*"
+  } | Select-Object -First 1
+  if (-not $existingService) { throw "Runner configured but Windows service missing for $RunnerDir" }
+  if ($existingService.State -ne 'Running') { Start-Service -Name $existingService.Name }
+  if ((Get-Service -Name $existingService.Name).Status -ne 'Running') {
+    throw "Runner service is not running: $($existingService.Name)"
+  }
+  Write-Host "Runner already configured and service running: $($existingService.Name)." -ForegroundColor Green
   exit 0
 }
 
@@ -67,14 +75,22 @@ try {
     throw "config.cmd failed with exit code $LASTEXITCODE"
   }
 
-  Write-Host 'Starting runner service...'
-  & .\svc.cmd start
-
-  if ($LASTEXITCODE -ne 0) {
-    throw "svc.cmd start failed with exit code $LASTEXITCODE"
+  Write-Host 'Checking Windows runner service...'
+  $service = Get-CimInstance Win32_Service | Where-Object {
+    $_.Name -like 'actions.runner.*' -and $_.PathName -like "*$RunnerDir*"
+  } | Select-Object -First 1
+  if (-not $service) {
+    throw "Runner service was not registered for $RunnerDir"
+  }
+  if ($service.State -ne 'Running') {
+    Start-Service -Name $service.Name
+  }
+  $service = Get-Service -Name $service.Name
+  if ($service.Status -ne 'Running') {
+    throw "Runner service is not running: $($service.Name)"
   }
 
-  Write-Host 'Runner setup complete. Verify GitHub shows online/idle with labels: self-hosted, Windows, DASH2A.' -ForegroundColor Green
+  Write-Host "Runner service running: $($service.Name). Verify GitHub shows online/idle with labels: self-hosted, Windows, DASH2A." -ForegroundColor Green
 }
 finally {
   $runnerToken = $null
