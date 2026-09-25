@@ -45,6 +45,11 @@ jobs:
           $path = 'C:\Dash2a\api\config\appsettings.Production.json'
           if (-not (Test-Path -LiteralPath $path)) { throw 'Run bootstrap-current-ovh.ps1 as Administrator first.' }
           if (-not (Test-Path -LiteralPath 'C:\Dash2a\api\current')) { throw 'API directory missing' }
+          if ($env:COMPUTERNAME -ne 'WIN-L28URC6KJHG') { throw 'Unexpected target server' }
+          if (-not (Test-Path -LiteralPath 'C:\Dash2a\api\current\app_offline.htm')) { throw 'Stage fresh connection and offline marker before deploy' }
+          $settings = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+          if ($settings.ConnectionStrings.DefaultConnection -notmatch '(?i)(^|;)Database=Dash2aFresh20260925(?=;|$)') { throw 'Fresh database connection not staged' }
+          if (-not $settings.Database.ApplyMigrationsOnStartup) { throw 'Fresh migration setting missing' }
       - uses: actions/download-artifact@v4
         with:
           name: dash2a-api-publish
@@ -85,7 +90,7 @@ jobs:
       - name: Verify fresh database schema
         shell: powershell
         run: |
-          $result = & sqlcmd -S '.\SQLEXPRESS' -d 'Eugenio-Demo10' -E -C -b -W -h -1 -Q "SELECT CASE WHEN OBJECT_ID('dbo.Users_v2','U') IS NOT NULL AND OBJECT_ID('dbo.MissionSessions','U') IS NOT NULL AND OBJECT_ID('dbo.__EFMigrationsHistory','U') IS NOT NULL THEN 'SCHEMA_PASS' ELSE 'SCHEMA_FAIL' END"
+          $result = & sqlcmd -S '.\SQLEXPRESS' -d 'Dash2aFresh20260925' -E -C -b -W -h -1 -Q "SELECT CASE WHEN OBJECT_ID('dbo.Users_v2','U') IS NOT NULL AND OBJECT_ID('dbo.MissionSessions','U') IS NOT NULL AND EXISTS(SELECT 1 FROM dbo.__EFMigrationsHistory WHERE MigrationId=N'20260925005322_FreshOvhInitial') THEN 'SCHEMA_PASS' ELSE 'SCHEMA_FAIL' END"
           if ($LASTEXITCODE -ne 0 -or (($result -join ' ') -notmatch 'SCHEMA_PASS')) {
             throw 'Database schema failed to initialize; inspect IIS application logs'
           }
