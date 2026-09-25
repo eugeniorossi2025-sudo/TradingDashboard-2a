@@ -88,3 +88,12 @@ credential rotation before cleanup.
 - Decision needed before a fresh database is made operational: accept
   an empty new database with history unavailable, or first identify a
   verified external backup source. Never run the obsolete restore workflow.
+## User clarification — new OVH account
+
+The current OVH console/account is new and does not provide access to
+the prior OVH servers or their backups. Pursue a fresh installation
+based on repository schema and new SQL data; historical records remain
+unavailable absent a separately located full backup. Do not infer
+existing customer balances or accounting from May mission exports.
+The first installation must use a new server-specific IIS layout and
+configuration; the legacy restore workflow is inapplicable.
