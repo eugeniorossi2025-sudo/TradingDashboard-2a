@@ -1,1 +1,1 @@
-First deployment after BOOTSTRAP_PASS on WIN-L28URC6KJHG, 2026-09-25.
+Deploy after FRESH_CONFIG_READY on WIN-L28URC6KJHG; fresh schema baseline 20260925005322.
