@@ -1,4 +1,4 @@
-﻿name: DASH2A Runner Smoke
+name: DASH2A Runner Smoke
 
 on:
   push:
@@ -74,6 +74,12 @@ jobs:
           Write-Host 'SQLCMD_PRESENT=True'
           & sqlcmd -S '.\SQLEXPRESS' -E -C -l 4 -b -W -Q "SELECT SYSTEM_USER AS RunnerSqlLogin, IS_SRVROLEMEMBER('dbcreator') AS CanCreateDatabase, IS_SRVROLEMEMBER('sysadmin') AS IsSqlAdmin;"
           Write-Host "SQL_READ_EXIT=$LASTEXITCODE"
+      - name: Read fresh SQL schema inventory
+        shell: powershell
+        run: |
+          $query = "SELECT name FROM sys.tables WHERE is_ms_shipped=0 ORDER BY name; SELECT CASE WHEN OBJECT_ID('dbo.__EFMigrationsHistory','U') IS NULL THEN 'HISTORY_ABSENT' ELSE 'HISTORY_PRESENT' END AS MigrationHistory;"
+          & sqlcmd -S '.\SQLEXPRESS' -d 'Eugenio-Demo10' -E -C -l 4 -b -W -Q $query
+          if ($LASTEXITCODE -ne 0) { throw 'SQL read-only inventory failed' }
       - name: Check hosting prerequisites
         shell: powershell
         run: |
