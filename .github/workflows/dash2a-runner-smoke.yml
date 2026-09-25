@@ -80,6 +80,16 @@ jobs:
           $query = "SELECT name FROM sys.tables WHERE is_ms_shipped=0 ORDER BY name; SELECT CASE WHEN OBJECT_ID('dbo.__EFMigrationsHistory','U') IS NULL THEN 'HISTORY_ABSENT' ELSE 'HISTORY_PRESENT' END AS MigrationHistory;"
           & sqlcmd -S '.\SQLEXPRESS' -d 'Eugenio-Demo10' -E -C -l 4 -b -W -Q $query
           if ($LASTEXITCODE -ne 0) { throw 'SQL read-only inventory failed' }
+      - name: Verify new API schema and admin seed
+        shell: powershell
+        run: |
+          $query = "SET NOCOUNT ON; SELECT 'TABLE_COUNT', COUNT(*) FROM sys.tables WHERE is_ms_shipped=0; SELECT 'ADMIN_COUNT', COUNT(*) FROM dbo.Users_v2 WHERE NormalizedUserName=N'ADMIN'; SELECT 'MIGRATION_COUNT', COUNT(*) FROM dbo.__EFMigrationsHistory WHERE MigrationId=N'20260925005322_FreshOvhInitial';"
+          $result = & sqlcmd -S '.\SQLEXPRESS' -d 'Dash2aFresh20260925' -E -C -l 4 -b -W -h -1 -Q $query
+          if ($LASTEXITCODE -ne 0) { throw 'Fresh schema read failed' }
+          $lines = @($result | ForEach-Object { ($_ -replace '\s+', ' ').Trim() })
+          $lines | ForEach-Object { Write-Host $_ }
+          if (($lines -join ';') -notmatch 'TABLE_COUNT 21' -or ($lines -join ';') -notmatch 'ADMIN_COUNT 1' -or ($lines -join ';') -notmatch 'MIGRATION_COUNT 1') { throw 'Fresh database verification failed' }
+          Write-Host 'DASH2A_FRESH_DB_PASS'
       - name: Check hosting prerequisites
         shell: powershell
         run: |
