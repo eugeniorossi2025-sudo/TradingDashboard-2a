@@ -56,3 +56,15 @@ runner labels and deployment paths have been explicitly migrated to the new
 infrastructure. Do not bulk-delete historical workflows: some contain
 hardcoded database credentials and require controlled deactivation and
 credential rotation before cleanup.
+## Elevated readback from the current server
+
+- Administrator PowerShell `Get-Website`: only Default Web Site, Started,
+  %SystemDrive%\inetpub\wwwroot, HTTP *:80:. No DASH2A IIS site or
+  HTTPS binding was listed.
+- Administrator `sqlcmd -S .\SQLEXPRESS -E -C` reading sys.databases:
+  only master, tempdb, model, msdb, all ONLINE. No DASH2A user database.
+  The -C flag was needed for the untrusted local SQL certificate.
+- The repository contains EF migrations and historical mission exports,
+  but the inspected PC4 exports date to May and are not a full current
+  production database backup. The historical restore workflow references
+  an obsolete server and must not run on the current host.
