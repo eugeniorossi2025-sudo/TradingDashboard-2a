@@ -19,7 +19,7 @@ $runnerAccount = 'NT AUTHORITY\NETWORK SERVICE'
 $appAccount = "IIS APPPOOL\$pool"
 
 Import-Module WebAdministration
-if (-not (Get-WebAppPoolState -Name $pool -ErrorAction SilentlyContinue)) {
+if (-not (Test-Path -LiteralPath "IIS:\AppPools\$pool")) {
   New-WebAppPool -Name $pool | Out-Null
 }
 Set-ItemProperty "IIS:\AppPools\$pool" -Name managedRuntimeVersion -Value ''
@@ -86,6 +86,7 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
 
 
