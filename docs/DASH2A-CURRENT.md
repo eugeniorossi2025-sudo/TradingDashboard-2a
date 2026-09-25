@@ -117,3 +117,8 @@ or deployed API. The first backend deployment attempt is documented below.
 - Independent read-only runner run 36080563991: 21 user tables total (20 generated model tables and __EFMigrationsHistory), Users_v2 admin count 1, migration history row count 1, PASS.
 - The original partial Eugenio-Demo10 database was not migrated, copied or dropped. Historical customer, accounting and mission data remain unavailable.
 - Public HTTPS API, frontend connection and login from outside the server have not yet been verified; local backend deploy PASS does not certify public dashboard readiness.
+## Public API and Firebase frontend, 2026-09-25
+- Administrator ran setup-api-https-ovh.ps1: win-acme 2.2.9.1701 obtained a Let's Encrypt certificate using HTTP-01, attached HTTPS binding to DASH2A-API, configured renewal task, and opened Windows inbound TCP 443. Contact email was not accepted, but issuance and renewal task completed.
+- Independent PC4 readback: https://api.tradingdash2a.com/api/Auth/test HTTP 200; TCP 443 reachable; CORS origin https://eugenio-dashboard-2a.web.app accepted with credentials.
+- Firebase Hosting Live run 36081558219 deployed commit 534cfb9: success. Public frontend https://eugenio-dashboard-2a.web.app/ returned 200 and live JS asset contains https://api.tradingdash2a.com and does not contain the retired vps-b0942869 hostname.
+- The apex http://tradingdash2a.com/ currently responds with the default IIS Windows Server page; the custom domain is not connected to Firebase. Interactive login and live data operations remain unverified.
