@@ -61,8 +61,8 @@ if ($LASTEXITCODE -ne 0) { throw 'SQL bootstrap failed; IIS setup was completed 
 if (-not (Test-Path -LiteralPath $configFile)) {
   $jwtBytes = New-Object byte[] 48
   $adminBytes = New-Object byte[] 36
-  [Security.Cryptography.RandomNumberGenerator]::Fill($jwtBytes)
-  [Security.Cryptography.RandomNumberGenerator]::Fill($adminBytes)
+  $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
+  try { $rng.GetBytes($jwtBytes); $rng.GetBytes($adminBytes) } finally { $rng.Dispose() }
   $adminPassword = [Convert]::ToBase64String($adminBytes)
   $settings = [ordered]@{
     ConnectionStrings = @{ DefaultConnection = 'Server=.\SQLEXPRESS;Database=Eugenio-Demo10;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;' }
@@ -84,4 +84,5 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
