@@ -64,7 +64,8 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_role_members rm JOIN sys.database_prin
 SELECT DB_NAME() AS CurrentDatabase, DB_ID(N'$db') AS DbId;
 "@
 & sqlcmd.exe -S $sqlInstance -d $db -E -C -b -V 11 -Q $grantSql -W
-if ($LASTEXITCODE -ne 0) { throw 'Local database permissions failed' }\r\n
+if ($LASTEXITCODE -ne 0) { throw 'Local database permissions failed' }
+
 
 if (-not (Test-Path -LiteralPath $configFile)) {
   $jwtBytes = New-Object byte[] 48
@@ -92,6 +93,7 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
 
 
