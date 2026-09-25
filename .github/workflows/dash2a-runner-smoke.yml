@@ -50,3 +50,19 @@ jobs:
           Write-Host "DOTNET_PRESENT=$([bool]$dotnet)"
           if ($dotnet) { dotnet --list-sdks | Select-Object -First 3 | ForEach-Object { Write-Host "DOTNET_SDK=$_" } }
           foreach ($path in @('C:\inetpub\wwwroot\shared\appsettings.Production.json','C:\inetpub\wwwroot\releases','C:\Decisore')) { Write-Host "PATH_PRESENT=$path $(Test-Path -LiteralPath $path)" }
+      - name: Check known local SQL backup directories
+        shell: powershell
+        run: |
+          foreach ($root in @('C:\Program Files\Microsoft SQL Server','C:\Backups','C:\Backup','D:\Backups','D:\Backup')) {
+            if (-not (Test-Path -LiteralPath $root)) { Write-Host "BACKUP_ROOT_ABSENT=$root"; continue }
+            $dirs = if ($root -like '*Microsoft SQL Server') {
+              Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'MSSQL\Backup' }
+            } else { @($root) }
+            foreach ($dir in $dirs) {
+              if (Test-Path -LiteralPath $dir) {
+                Get-ChildItem -LiteralPath $dir -File -ErrorAction SilentlyContinue |
+                  Where-Object { $_.Extension -in @('.bak','.bacpac','.bkp') } |
+                  Select-Object -First 15 | ForEach-Object { Write-Host "BACKUP_FILE=$($_.FullName) SIZE_BYTES=$($_.Length) MODIFIED=$($_.LastWriteTimeUtc.ToString('s'))Z" }
+              }
+            }
+          }
