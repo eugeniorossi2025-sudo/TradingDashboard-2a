@@ -1,4 +1,4 @@
-﻿# DASH2A CURRENT — 2026-09-25
+# DASH2A CURRENT — 2026-09-25
 
 ## Decision and ownership
 
@@ -103,4 +103,11 @@ GitHub-hosted Windows build run 36077078784 built backend/WebApi/WebApi.csproj
 targeting .NET 9 from the isolated branch: success, zero errors,
 38 pre-existing compiler/documentation warnings. Build success does not
 verify database schema migrations, IIS hosting bundle, server settings
-or deployed API. No deploy has been executed.
+or deployed API. The first backend deployment attempt is documented below.
+
+## New OVH installation status, 2026-09-25
+- BOOTSTRAP_PASS: new IIS site and original local SQL database initialized.
+- First API workflow run 36078925395 published and returned local HTTP 200, but its SQL schema gate failed. This is NOT DEPLOY_PASS.
+- Read-only runner inventory 36079410369: original new database has only MissionSessions and MissionMarginSamples, no __EFMigrationsHistory and no users table. Preserve it untouched.
+- Historical server and EF migrations do not match a fresh current-model installation. On this isolated branch, FreshOvhInitial was generated from the current EF Core 9 model; it creates Users_v2 and MissionSessions. Existing old migrations remain in Git history and in main until an intentional promotion.
+- Next gate: Administrator prepares separate Dash2aFresh20260925 database with prepare-fresh-ovh-db.ps1. Verify its output before changing live config or running another deploy. No HTTPS or frontend validation yet.

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
@@ -133,6 +133,7 @@ using (var scope = app.Services.CreateScope())
     {
         var logger = services.GetRequiredService<ILogger<Program>>();
         logger.LogError(ex, "An error occurred while initializing the database");
+        if (app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup")) throw;
     }
 }
 
