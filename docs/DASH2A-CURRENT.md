@@ -68,3 +68,23 @@ credential rotation before cleanup.
   but the inspected PC4 exports date to May and are not a full current
   production database backup. The historical restore workflow references
   an obsolete server and must not run on the current host.
+## Backup search and recovery limit (2026-09-25)
+
+- The user confirms the previous OVH servers are inaccessible. No former
+  server can be treated as an available source of database backups.
+- PC4 inspection of Downloads, the canonical repo exports, selected Codex
+  folders and OneDrive TradingDashboardBackups/Backup-Eugenio did not find
+  a current complete DASH2A .bak or .bacpac. The archive under OneDrive
+  TradingDashboardBackups contains legacy Dashboard 1 SQL scripts.
+  The old disaster recovery note says its OneDrive backup procedure had
+  not yet been executed as of 2026-06-06.
+- Current OVH runner read-only check of SQL default backup directories and
+  C:\Backup(s)/D:\Backup(s) returned no .bak/.bacpac; this scoped check
+  cannot prove there are no backups in other storage or the OVH console.
+- The repository has SQL Server EF migrations for schema construction;
+  InitialEmptyMigration creates identity/config tables, later migrations
+  add mission tables. No repository migration or May mission export
+  restores all historical customer, accounting and session data.
+- Decision needed before a fresh database is made operational: accept
+  an empty new database with history unavailable, or first identify a
+  verified external backup source. Never run the obsolete restore workflow.
