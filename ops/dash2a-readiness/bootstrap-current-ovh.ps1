@@ -1,7 +1,8 @@
 ﻿# One-time elevated bootstrap for the current OVH Windows server.
 # Fresh database only. Idempotent for an already-created local DASH2A deployment.
 $ErrorActionPreference = 'Stop'
-if ($env:COMPUTERNAME -ne 'WIN-L28URC6KJHG') { throw "Wrong server: $env:COMPUTERNAME" }$principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
+if ($env:COMPUTERNAME -ne 'WIN-L28URC6KJHG') { throw "Wrong server: $env:COMPUTERNAME" }
+$principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
   throw 'Run from elevated PowerShell on the current OVH server.'
 }
@@ -85,6 +86,7 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
 
 
