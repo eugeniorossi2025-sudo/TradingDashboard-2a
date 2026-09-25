@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi.Models;
 using Scalar.AspNetCore;
@@ -111,7 +111,7 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<AppDbContext>();
-        if (app.Environment.EnvironmentName == "LocalProdLike"
+        if ((app.Environment.IsProduction() || app.Environment.EnvironmentName == "LocalProdLike")
             && app.Configuration.GetValue<bool>("Database:ApplyMigrationsOnStartup"))
         {
             await context.Database.MigrateAsync();
