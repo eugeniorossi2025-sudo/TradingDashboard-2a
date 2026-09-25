@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using Entities;
 using Microsoft.AspNetCore.Identity;
 using WebApi.Constants;
@@ -50,16 +50,16 @@ public static class DbInitializer
                 
                 if (result.Succeeded)
                 {
-                    logger.LogInformation($"✅ Role '{roleName}' created successfully");
+                    logger.LogInformation($"âœ… Role '{roleName}' created successfully");
                 }
                 else
                 {
-                    logger.LogError($"❌ Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                    logger.LogError($"âŒ Failed to create role '{roleName}': {string.Join(", ", result.Errors.Select(e => e.Description))}");
                 }
             }
             else
             {
-                logger.LogInformation($"ℹ️ Role '{roleName}' already exists");
+                logger.LogInformation($"â„¹ï¸ Role '{roleName}' already exists");
             }
         }
     }
@@ -153,11 +153,11 @@ public static class DbInitializer
                 var result = await roleManager.AddClaimAsync(role, new Claim(AuthConstants.Claims.Permissions, permission));
                 if (result.Succeeded)
                 {
-                    logger.LogInformation($"  ✅ Permission '{permission}' assigned to role '{role.Name}'");
+                    logger.LogInformation($"  âœ… Permission '{permission}' assigned to role '{role.Name}'");
                 }
                 else
                 {
-                    logger.LogError($"  ❌ Failed to assign permission '{permission}' to role '{role.Name}'");
+                    logger.LogError($"  âŒ Failed to assign permission '{permission}' to role '{role.Name}'");
                 }
             }
         }
@@ -189,31 +189,30 @@ public static class DbInitializer
             if (result.Succeeded)
             {
                 await userManager.AddToRoleAsync(adminUser, AuthConstants.Roles.Admin);
-                logger.LogInformation($"✅ Admin user '{adminUsername}' created successfully");
-                logger.LogWarning($"⚠️ Default admin credentials: {adminUsername} / {adminPassword}");
-                logger.LogWarning("⚠️ CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!");
+                logger.LogInformation($"âœ… Admin user '{adminUsername}' created successfully");
+                logger.LogWarning("âš ï¸ CHANGE THIS PASSWORD IMMEDIATELY IN PRODUCTION!");
             }
             else
             {
-                logger.LogError($"❌ Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
+                logger.LogError($"âŒ Failed to create admin user: {string.Join(", ", result.Errors.Select(e => e.Description))}");
             }
         }
         else
         {
-            logger.LogInformation($"ℹ️ Admin user '{adminUsername}' already exists");
+            logger.LogInformation($"â„¹ï¸ Admin user '{adminUsername}' already exists");
 
             // Check and reset password if necessary (useful for migrated users)
             var hasPassword = await userManager.HasPasswordAsync(adminUser);
             if (!hasPassword || string.IsNullOrEmpty(adminUser.PasswordHash))
             {
-                logger.LogWarning($"⚠️ Admin user '{adminUsername}' has no valid password, resetting...");
+                logger.LogWarning($"âš ï¸ Admin user '{adminUsername}' has no valid password, resetting...");
                 
                 var token = await userManager.GeneratePasswordResetTokenAsync(adminUser);
                 var result = await userManager.ResetPasswordAsync(adminUser, token, adminPassword);
                 
                 if (result.Succeeded)
                 {
-                    logger.LogInformation($"✅ Admin password reset to: {adminPassword}");
+                    logger.LogInformation("Admin password was reset.");
                 }
             }
 
@@ -222,7 +221,7 @@ public static class DbInitializer
             if (!isInAdminRole)
             {
                 await userManager.AddToRoleAsync(adminUser, AuthConstants.Roles.Admin);
-                logger.LogInformation($"✅ Added '{adminUsername}' to Admin role");
+                logger.LogInformation($"âœ… Added '{adminUsername}' to Admin role");
             }
 
             // Sync Admin field
@@ -230,7 +229,7 @@ public static class DbInitializer
             {
                 adminUser.Admin = true;
                 await userManager.UpdateAsync(adminUser);
-                logger.LogInformation($"✅ Updated Admin field for '{adminUsername}'");
+                logger.LogInformation($"âœ… Updated Admin field for '{adminUsername}'");
             }
         }
     }
@@ -292,7 +291,7 @@ public static class DbInitializer
             new Configuration
             {
                 Key = "PLAYER_PACE_FILTER_ENABLED",
-                Description = "Legacy alias Player Race 8 — usare PLAYER_RACE_8_ENABLED.",
+                Description = "Legacy alias Player Race 8 â€” usare PLAYER_RACE_8_ENABLED.",
                 Value = "0",
                 Pos = 907
             },
@@ -306,7 +305,7 @@ public static class DbInitializer
             new Configuration
             {
                 Key = "PLAYER_RACE_8_ENABLED",
-                Description = "Legacy alias Player Race 8 — usare PLAYER_RACE_8_FILTER_ENABLED / PLAYER_RACE_8_AC3_ENABLED.",
+                Description = "Legacy alias Player Race 8 â€” usare PLAYER_RACE_8_FILTER_ENABLED / PLAYER_RACE_8_AC3_ENABLED.",
                 Value = "0",
                 Pos = 909
             },
@@ -341,7 +340,7 @@ public static class DbInitializer
             new Configuration
             {
                 Key = "SPOT_RESET_THRESHOLD_L5",
-                Description = "Soglia L6 per bot: dopo N L5 persi nel ciclo SPOT, solo quel bot può passare a L6.",
+                Description = "Soglia L6 per bot: dopo N L5 persi nel ciclo SPOT, solo quel bot puÃ² passare a L6.",
                 Value = "2",
                 Pos = 914
             },
@@ -381,3 +380,4 @@ public static class DbInitializer
         }
     }
 }
+
