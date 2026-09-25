@@ -30,3 +30,23 @@ jobs:
           if (-not $disk) { throw 'C: drive unavailable' }
           Write-Host "DISK_C_FREE_GB=$([math]::Round($disk.FreeSpace / 1GB, 1))"
           Write-Host 'DASH2A_RUNNER_SMOKE=PASS'
+      - name: Read small IIS and runtime inventory
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $iis = Get-Module -ListAvailable WebAdministration | Select-Object -First 1
+          Write-Host "IIS_MODULE_PRESENT=$([bool]$iis)"
+          if ($iis) {
+            Import-Module WebAdministration
+            Get-Website | ForEach-Object {
+              $site = $_
+              Write-Host "IIS_SITE=$($site.Name) STATE=$($site.State) PATH=$($site.PhysicalPath)"
+              $site.Bindings.Collection | ForEach-Object { Write-Host "IIS_BINDING=$($_.protocol) $($_.bindingInformation)" }
+            }
+            Get-ChildItem IIS:\AppPools | ForEach-Object { Write-Host "IIS_POOL=$($_.Name) STATE=$($_.State)" }
+          }
+          Get-Service -Name 'MSSQL*','W3SVC','WAS' -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "SERVICE=$($_.Name) STATUS=$($_.Status)" }
+          $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue
+          Write-Host "DOTNET_PRESENT=$([bool]$dotnet)"
+          if ($dotnet) { dotnet --list-sdks | Select-Object -First 3 | ForEach-Object { Write-Host "DOTNET_SDK=$_" } }
+          foreach ($path in @('C:\inetpub\wwwroot\shared\appsettings.Production.json','C:\inetpub\wwwroot\releases','C:\Decisore')) { Write-Host "PATH_PRESENT=$path $(Test-Path -LiteralPath $path)" }
