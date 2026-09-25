@@ -97,3 +97,10 @@ unavailable absent a separately located full backup. Do not infer
 existing customer balances or accounting from May mission exports.
 The first installation must use a new server-specific IIS layout and
 configuration; the legacy restore workflow is inapplicable.
+## Repository build validation
+
+GitHub-hosted Windows build run 36077078784 built backend/WebApi/WebApi.csproj
+targeting .NET 9 from the isolated branch: success, zero errors,
+38 pre-existing compiler/documentation warnings. Build success does not
+verify database schema migrations, IIS hosting bundle, server settings
+or deployed API. No deploy has been executed.
