@@ -6,6 +6,8 @@ on:
       - codex/dash2a-runner-bootstrap
     paths:
       - .github/workflows/dash2a-rebuild-check.yml
+      - backend/WebApi/Program.cs
+      - backend/WebApi/Data/DbInitializer.cs
   workflow_dispatch:
 
 permissions:
@@ -23,3 +25,4 @@ jobs:
       - name: Build WebApi from repository
         shell: pwsh
         run: dotnet build backend/WebApi/WebApi.csproj --configuration Release --nologo
+
