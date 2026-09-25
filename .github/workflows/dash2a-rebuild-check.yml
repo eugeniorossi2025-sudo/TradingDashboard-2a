@@ -1,0 +1,25 @@
+﻿name: DASH2A Rebuild Check
+
+on:
+  push:
+    branches:
+      - codex/dash2a-runner-bootstrap
+    paths:
+      - .github/workflows/dash2a-rebuild-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Build WebApi from repository
+        shell: pwsh
+        run: dotnet build backend/WebApi/WebApi.csproj --configuration Release --nologo
