@@ -42,23 +42,29 @@ if ($LASTEXITCODE -ne 0) { throw 'Failed to grant release-folder access' }
 & icacls.exe $configDir /inheritance:r /grant:r 'BUILTIN\Administrators:(OI)(CI)F' 'NT AUTHORITY\SYSTEM:(OI)(CI)F' "$($runnerAccount):(OI)(CI)RX" "$($appAccount):(OI)(CI)RX" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Failed to restrict configuration-folder access' }
 
-$query = @"
-IF DB_ID(N'$db') IS NULL CREATE DATABASE [$db];
+# SQL Server requires CREATE DATABASE to run in a separate batch.
+$createDb = "IF DB_ID(N'$db') IS NULL EXEC(N'CREATE DATABASE [$db]')"
+& sqlcmd.exe -S $sqlInstance -d master -E -C -b -V 11 -Q $createDb -W
+if ($LASTEXITCODE -ne 0) { throw 'Database creation failed' }
+$loginSql = @"
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'$appAccount')
-  CREATE LOGIN [$appAccount] FROM WINDOWS;
-USE [$db];
+  EXEC(N'CREATE LOGIN [$appAccount] FROM WINDOWS');
+"@
+& sqlcmd.exe -S $sqlInstance -d master -E -C -b -V 11 -Q $loginSql -W
+if ($LASTEXITCODE -ne 0) { throw 'Application pool SQL login failed' }
+$grantSql = @"
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'$appAccount')
   CREATE USER [$appAccount] FOR LOGIN [$appAccount];
-IF IS_ROLEMEMBER(N'db_owner',N'$appAccount') <> 1
+IF NOT EXISTS (SELECT 1 FROM sys.database_role_members rm JOIN sys.database_principals r ON rm.role_principal_id=r.principal_id JOIN sys.database_principals u ON rm.member_principal_id=u.principal_id WHERE r.name=N'db_owner' AND u.name=N'$appAccount')
   ALTER ROLE db_owner ADD MEMBER [$appAccount];
 IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NT AUTHORITY\NETWORK SERVICE')
   CREATE USER [NT AUTHORITY\NETWORK SERVICE] FOR LOGIN [NT AUTHORITY\NETWORK SERVICE];
-IF IS_ROLEMEMBER(N'db_datareader',N'NT AUTHORITY\NETWORK SERVICE') <> 1
+IF NOT EXISTS (SELECT 1 FROM sys.database_role_members rm JOIN sys.database_principals r ON rm.role_principal_id=r.principal_id JOIN sys.database_principals u ON rm.member_principal_id=u.principal_id WHERE r.name=N'db_datareader' AND u.name=N'NT AUTHORITY\NETWORK SERVICE')
   ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\NETWORK SERVICE];
-SELECT name,state_desc FROM sys.databases WHERE name=N'$db';
+SELECT DB_NAME() AS CurrentDatabase, DB_ID(N'$db') AS DbId;
 "@
-& sqlcmd.exe -S $sqlInstance -E -C -b -Q $query -W
-if ($LASTEXITCODE -ne 0) { throw 'SQL bootstrap failed; IIS setup was completed but no deployment attempted.' }
+& sqlcmd.exe -S $sqlInstance -d $db -E -C -b -V 11 -Q $grantSql -W
+if ($LASTEXITCODE -ne 0) { throw 'Local database permissions failed' }\r\n
 
 if (-not (Test-Path -LiteralPath $configFile)) {
   $jwtBytes = New-Object byte[] 48
@@ -86,6 +92,7 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
 
 
