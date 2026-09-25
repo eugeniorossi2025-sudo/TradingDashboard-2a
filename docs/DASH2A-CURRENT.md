@@ -112,3 +112,8 @@ or deployed API. The first backend deployment attempt is documented below.
 - Historical server and EF migrations do not match a fresh current-model installation. On this isolated branch, FreshOvhInitial was generated from the current EF Core 9 model; it creates Users_v2 and MissionSessions. Existing old migrations remain in Git history and in main until an intentional promotion.
 - Next gate: Administrator prepares separate Dash2aFresh20260925 database with prepare-fresh-ovh-db.ps1. Verify its output before changing live config or running another deploy. No HTTPS or frontend validation yet.- Administrator confirmed FRESH_DB_PASS: Dash2aFresh20260925 exists with 0 user tables. No schema migration or API configuration switch has run against this fresh database yet.
 - Stage step requires stage-fresh-ovh-api.ps1; the deploy workflow then checks the fresh DB name and offline marker before copying anything. The schema gate requires Users_v2, MissionSessions, and the new migration history row. No current OVH deploy pass yet.
+## Verified new server backend deploy
+- Run 36080279205, commit 2e9ddf6: hosted publish PASS; self-hosted deploy PASS; local /api/Auth/test HTTP 200; schema gate PASS on Dash2aFresh20260925.
+- Independent read-only runner run 36080563991: 21 user tables total (20 generated model tables and __EFMigrationsHistory), Users_v2 admin count 1, migration history row count 1, PASS.
+- The original partial Eugenio-Demo10 database was not migrated, copied or dropped. Historical customer, accounting and mission data remain unavailable.
+- Public HTTPS API, frontend connection and login from outside the server have not yet been verified; local backend deploy PASS does not certify public dashboard readiness.
