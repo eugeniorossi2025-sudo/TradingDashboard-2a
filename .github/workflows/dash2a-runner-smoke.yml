@@ -1,0 +1,32 @@
+﻿name: DASH2A Runner Smoke
+
+on:
+  push:
+    branches:
+      - codex/dash2a-runner-bootstrap
+    paths:
+      - .github/workflows/dash2a-runner-smoke.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: [self-hosted, Windows, X64, DASH2A]
+    timeout-minutes: 3
+    steps:
+      - name: Verify runner service and free disk
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Write-Host "RUNNER_NAME=$env:RUNNER_NAME"
+          Write-Host "COMPUTERNAME=$env:COMPUTERNAME"
+          if ($env:RUNNER_NAME -ne 'dash2a-windows-runner-01') { throw 'Unexpected runner' }
+          $service = Get-Service -Name 'actions.runner.*' | Where-Object Status -eq Running | Select-Object -First 1
+          if (-not $service) { throw 'Runner Windows service is not running' }
+          Write-Host "RUNNER_SERVICE=$($service.Name) STATUS=$($service.Status)"
+          $disk = Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='C:'"
+          if (-not $disk) { throw 'C: drive unavailable' }
+          Write-Host "DISK_C_FREE_GB=$([math]::Round($disk.FreeSpace / 1GB, 1))"
+          Write-Host 'DASH2A_RUNNER_SMOKE=PASS'
