@@ -66,3 +66,11 @@ jobs:
               }
             }
           }
+      - name: Check SQL access without writes
+        shell: powershell
+        run: |
+          $sqlcmd = Get-Command sqlcmd -ErrorAction SilentlyContinue
+          if (-not $sqlcmd) { Write-Host 'SQLCMD_PRESENT=False'; exit 0 }
+          Write-Host 'SQLCMD_PRESENT=True'
+          & sqlcmd -S '.\SQLEXPRESS' -E -C -l 4 -b -W -Q "SELECT SYSTEM_USER AS RunnerSqlLogin, IS_SRVROLEMEMBER('dbcreator') AS CanCreateDatabase, IS_SRVROLEMEMBER('sysadmin') AS IsSqlAdmin;"
+          Write-Host "SQL_READ_EXIT=$LASTEXITCODE"
