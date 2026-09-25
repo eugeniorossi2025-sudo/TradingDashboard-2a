@@ -82,3 +82,11 @@ jobs:
             Start-Sleep -Seconds 3
           }
           throw 'DASH2A API local IIS smoke failed'
+      - name: Verify fresh database schema
+        shell: powershell
+        run: |
+          $result = & sqlcmd -S '.\SQLEXPRESS' -d 'Eugenio-Demo10' -E -C -b -W -h -1 -Q "SELECT CASE WHEN OBJECT_ID('dbo.Users','U') IS NOT NULL AND OBJECT_ID('dbo.MissionSessions','U') IS NOT NULL THEN 'SCHEMA_PASS' ELSE 'SCHEMA_FAIL' END"
+          if ($LASTEXITCODE -ne 0 -or (($result -join ' ') -notmatch 'SCHEMA_PASS')) {
+            throw 'Database schema failed to initialize; inspect IIS application logs'
+          }
+          Write-Host 'DASH2A_SCHEMA_PASS'
