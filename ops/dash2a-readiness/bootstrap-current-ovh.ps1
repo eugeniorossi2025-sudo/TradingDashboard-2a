@@ -27,7 +27,7 @@ Set-ItemProperty "IIS:\AppPools\$pool" -Name processModel.identityType -Value Ap
 foreach ($dir in @($root,$current,$configDir)) {
   New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
-if (-not (Get-Website -Name $site -ErrorAction SilentlyContinue)) {
+if (-not (Test-Path -LiteralPath "IIS:\Sites\$site")) {
   New-Website -Name $site -Port 80 -HostHeader 'api.tradingdash2a.com' -PhysicalPath $current -ApplicationPool $pool | Out-Null
 }
 $existingSite = Get-Website -Name $site
@@ -86,6 +86,7 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
 
 
 
