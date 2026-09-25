@@ -1,4 +1,4 @@
-﻿# One-time elevated bootstrap for the current OVH Windows server.
+# One-time elevated bootstrap for the current OVH Windows server.
 # Fresh database only. Idempotent for an already-created local DASH2A deployment.
 $ErrorActionPreference = 'Stop'
 if ($env:COMPUTERNAME -ne 'WIN-L28URC6KJHG') { throw "Wrong server: $env:COMPUTERNAME" }
@@ -49,6 +49,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Database creation failed' }
 $loginSql = @"
 IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'$appAccount')
   EXEC(N'CREATE LOGIN [$appAccount] FROM WINDOWS');
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name=N'NT AUTHORITY\NETWORK SERVICE')
+  EXEC(N'CREATE LOGIN [NT AUTHORITY\NETWORK SERVICE] FROM WINDOWS');
 "@
 & sqlcmd.exe -S $sqlInstance -d master -E -C -b -V 11 -Q $loginSql -W
 if ($LASTEXITCODE -ne 0) { throw 'Application pool SQL login failed' }
