@@ -74,3 +74,10 @@ jobs:
           Write-Host 'SQLCMD_PRESENT=True'
           & sqlcmd -S '.\SQLEXPRESS' -E -C -l 4 -b -W -Q "SELECT SYSTEM_USER AS RunnerSqlLogin, IS_SRVROLEMEMBER('dbcreator') AS CanCreateDatabase, IS_SRVROLEMEMBER('sysadmin') AS IsSqlAdmin;"
           Write-Host "SQL_READ_EXIT=$LASTEXITCODE"
+      - name: Check hosting prerequisites
+        shell: powershell
+        run: |
+          dotnet --list-runtimes | ForEach-Object { Write-Host "RUNTIME=$_" }
+          $module = Join-Path $env:ProgramFiles 'IIS\Asp.Net Core Module\V2\aspnetcorev2.dll'
+          Write-Host "ANCM_V2_PRESENT=$(Test-Path -LiteralPath $module)"
+          Write-Host "SQL_INSTANCE_RUNNING=$((Get-Service -Name 'MSSQL$SQLEXPRESS').Status)"
