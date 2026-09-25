@@ -1,0 +1,84 @@
+﻿name: DASH2A Current OVH API
+
+on:
+  push:
+    branches:
+      - codex/dash2a-runner-bootstrap
+    paths:
+      - ops/dash2a-readiness/start-current-ovh-deploy.txt
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dash2a-current-ovh-api
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Publish WebApi
+        shell: pwsh
+        run: dotnet publish backend/WebApi/WebApi.csproj -c Release -o "$env:RUNNER_TEMP\api-publish" --nologo
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dash2a-api-publish
+          path: ${{ runner.temp }}\api-publish\
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    needs: build
+    runs-on: [self-hosted, Windows, X64, DASH2A]
+    timeout-minutes: 10
+    steps:
+      - name: Check one-time bootstrap
+        shell: powershell
+        run: |
+          $path = 'C:\Dash2a\api\config\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath $path)) { throw 'Run bootstrap-current-ovh.ps1 as Administrator first.' }
+          if (-not (Test-Path -LiteralPath 'C:\Dash2a\api\current')) { throw 'API directory missing' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: dash2a-api-publish
+          path: C:\Dash2a\api\incoming
+      - name: Deploy and verify IIS locally
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $current = 'C:\Dash2a\api\current'
+          $incoming = 'C:\Dash2a\api\incoming'
+          $config = 'C:\Dash2a\api\config\appsettings.Production.json'
+          if (-not (Test-Path -LiteralPath (Join-Path $incoming 'WebApi.dll'))) { throw 'Publish artifact missing WebApi.dll' }
+          if (-not (Test-Path -LiteralPath (Join-Path $incoming 'web.config'))) { throw 'Publish artifact missing IIS web.config' }
+          $offline = Join-Path $current 'app_offline.htm'
+          Set-Content -LiteralPath $offline -Value 'Maintenance' -Encoding ascii
+          try {
+            Start-Sleep -Seconds 3
+            Get-ChildItem -LiteralPath $current -Force | Where-Object Name -ne 'app_offline.htm' | Remove-Item -Recurse -Force
+            Copy-Item -Path (Join-Path $incoming '*') -Destination $current -Recurse -Force
+            Set-Content -LiteralPath (Join-Path $current 'appsettings.json') -Value '{"AllowedHosts":"*"}' -Encoding utf8
+            Copy-Item -LiteralPath $config -Destination (Join-Path $current 'appsettings.Production.json') -Force
+            $shipped = Get-ChildItem -LiteralPath $current -Filter 'appsettings.*.json' | Where-Object Name -ne 'appsettings.Production.json'
+            $shipped | Remove-Item -Force
+          } finally {
+            Remove-Item -LiteralPath $offline -Force -ErrorAction SilentlyContinue
+          }
+          $url = 'http://127.0.0.1/api/Auth/test'
+          for ($i=1; $i -le 8; $i++) {
+            try {
+              $response = Invoke-WebRequest -Uri $url -Headers @{Host='api.tradingdash2a.com'} -UseBasicParsing -TimeoutSec 7
+              if ($response.StatusCode -eq 200) { Write-Host "DASH2A_API_LOCAL_PASS=$($response.StatusCode)"; exit 0 }
+            } catch {
+              Write-Host "API_READY_ATTEMPT=$i STATUS=$($_.Exception.Response.StatusCode.value__)"
+            }
+            Start-Sleep -Seconds 3
+          }
+          throw 'DASH2A API local IIS smoke failed'
