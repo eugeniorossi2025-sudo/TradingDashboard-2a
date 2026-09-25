@@ -50,7 +50,10 @@ IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'$appAccount')
   CREATE USER [$appAccount] FOR LOGIN [$appAccount];
 IF IS_ROLEMEMBER(N'db_owner',N'$appAccount') <> 1
   ALTER ROLE db_owner ADD MEMBER [$appAccount];
-SELECT name,state_desc FROM sys.databases WHERE name=N'$db';
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name=N'NT AUTHORITY\NETWORK SERVICE')
+  CREATE USER [NT AUTHORITY\NETWORK SERVICE] FOR LOGIN [NT AUTHORITY\NETWORK SERVICE];
+IF IS_ROLEMEMBER(N'db_datareader',N'NT AUTHORITY\NETWORK SERVICE') <> 1
+  ALTER ROLE db_datareader ADD MEMBER [NT AUTHORITY\NETWORK SERVICE];SELECT name,state_desc FROM sys.databases WHERE name=N'$db';
 "@
 & sqlcmd.exe -S $sqlInstance -E -C -b -Q $query -W
 if ($LASTEXITCODE -ne 0) { throw 'SQL bootstrap failed; IIS setup was completed but no deployment attempted.' }
@@ -81,3 +84,4 @@ foreach ($file in @($configFile,$secretFile)) {
 Write-Host 'BOOTSTRAP_PASS: empty local SQL DB, dedicated IIS site and protected local configuration ready.'
 Write-Host 'Admin password saved on server for Administrator only; it was not printed.'
 Write-Host 'No backend deploy, HTTPS binding or firewall change performed by bootstrap.'
+
